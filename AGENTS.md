@@ -2,6 +2,10 @@
 
 DeepSeek Harness is an all-plugin Cordis agent harness. Read [docs/architecture.md](docs/architecture.md) before changing `packages/`; follow [docs/AGENTS.md](docs/AGENTS.md) for documentation.
 
+## Fork: every command runs inside the nix dev shell
+
+This fork's systems carry no ambient Node, pnpm, or C toolchain: enter the flake dev shell (`nix develop`, or `nix develop --command bash -c '<command>'`) before any `pnpm`, `node`, build, or test command. The shell supplies the pinned official Node, corepack pnpm, and the `gcc`/`gnumake`/`python3`/`pkg-config` set node-gyp needs. Never wrap a command in `bash -lc`: a login profile replaces `PATH` and silently drops the shell's tools.
+
 ## Pre-stable APIs and released Session data
 
 Public APIs are pre-stable; update every consumer. [Session version/status](docs/session-format-status.md) defines the authorities. [Adjacent migration](.agents/notes/implemented/architecture/2026-08-31-released-session-format-migrations.md) may add a version-named successor but never move, overwrite, or delete committed generations; predecessors imply neither fallback nor downgrade support. SQLite uses monotonic `SCHEMA_VERSION`.
