@@ -206,6 +206,7 @@
       "@deepseek-ai/dsh-client-ui-goal": ["./packages/client/ui-goal/src"],
       "@deepseek-ai/dsh-client-ui-message-feedback": ["./packages/client/ui-message-feedback/src"],
       "@deepseek-ai/dsh-client-ui-agent-preset": ["./packages/client/ui-agent-preset/src"],
+      "@deepseek-ai/dsh-client-ui-app-settings": ["./packages/client/ui-app-settings/src"],
       // A hand-written entry: the plugin's directory drops the redundant
       // `ui-` package prefix the generated mapping expects.
       "@deepseek-ai/dsh-client-ui-voice-context": ["./packages/client/ui-voice-context/src"],
