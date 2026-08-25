@@ -88,6 +88,13 @@ function scriptedApi(overrides: {
       insertBefore: r => ok(r, { workspaceIds: [r.payload.workspaceId] }),
       insertSessionBefore: r => ok(r, { workspace: { workspaceId: 'w1' as never, path: '/t', title: 't', sessionIds: [], createdAt: '0', updatedAt: '0' } }),
       archiveSession: r => ok(r, { archivedSessionIds: [r.payload.sessionId] }),
+      defaultModel: r => ok(r, {
+        selection: null,
+        shared: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+        groups: [],
+        failures: [],
+      }),
+      setDefaultModel: r => ok(r, { selection: r.payload.selection }),
     },
     skills: { list: r => ok(r, { skills: [] }), ...overrides.skills },
     agentPresets: {
@@ -433,6 +440,24 @@ describe('workspace domain round trip', () => {
     if (created.result.ok) expect(created.result.value.created).toBe(true)
     const archivedResponse = await c.workspace.archiveSession({ sessionId: 's-arch' as never })
     expect(archivedResponse.result).toEqual({ ok: true, value: { archivedSessionIds: ['s-arch'] } })
+    const defaultView = await c.workspace.defaultModel({ workspaceId: 'w1' as never })
+    expect(defaultView.result).toEqual({
+      ok: true,
+      value: {
+        selection: null,
+        shared: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+        groups: [],
+        failures: [],
+      },
+    })
+    const defaultSet = await c.workspace.setDefaultModel({
+      workspaceId: 'w1' as never,
+      selection: { provider: 'acme', model: 'acme-large' },
+    })
+    expect(defaultSet.result).toEqual({
+      ok: true,
+      value: { selection: { provider: 'acme', model: 'acme-large' } },
+    })
   })
 
   it('rejects a pathless create payload at the handler schema', async () => {

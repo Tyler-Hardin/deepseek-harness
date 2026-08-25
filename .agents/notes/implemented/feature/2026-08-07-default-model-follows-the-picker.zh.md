@@ -20,7 +20,7 @@ Status: implemented
 
 `ApiProxyDefaults` 携带 `defaultModelSelection()` 与 `saveDefaultModelSelection()` 闭包，因此 `createApiProxy` 不依赖 Settings seam。`ApiProxyService` 将它们分别接到 `ctx.agentDefaultModel.currentSelection()` 与 `ctx.agentDefaultModel.saveSelection()`。
 
-`selectionFor(agent)` 每次读取时都解析各层：先取进程内的会话选择，其次取会话最新记录的 `request/header`，最后取当前 Agent 默认值。已有请求日志的会话持续绑定到日志中持久化的选择。空白会话即使创建于偏好保存之前，也会观察到当前默认值；这与 New Session 界面可能复用空白会话的行为一致。
+`selectionFor(agent)` 每次读取时都解析各层：先取进程内的会话选择，其次取会话最新记录的 `request/header`，最后取当前 Agent 默认值。已有请求日志的会话持续绑定到日志中持久化的选择。空白会话即使创建于偏好保存之前，也会观察到当前默认值；这与 New Session 界面可能复用空白会话的行为一致。[按工作区默认模型](2026-08-25-per-workspace-default-model.zh.md) 在已记录选择与本共享默认之间扩展出一层显式的按工作区覆盖，并在会话所在工作区带有覆盖时，把 `session.selectModel` 的保存指向该工作区覆盖。
 
 已存选择不要求属于目录。某条提供方路由可能服务其仅供参考的目录未列出的模型。因此，`session.models` 会在已公布分组之外单独报告已存选择，并另行报告适配器是否服务其提供方。
 

@@ -8,6 +8,7 @@
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { RpcRequest, RpcResponse } from './rpc.ts'
+import type { ModelCatalogFailure, ModelProviderGroup, ModelSelection } from './sessions.ts'
 
 /**
  * Wire-side workspace id brand. Deliberately re-declared here rather than
@@ -106,4 +107,29 @@ export interface WorkspaceApi {
    */
   archiveSession(request: RpcRequest<{ sessionId: SessionId }>):
   Promise<RpcResponse<{ archivedSessionIds: SessionId[] }>>
+
+  /**
+   * Read one workspace's default-model view: its explicit override (null when
+   * the workspace inherits the shared default), the shared default, and the
+   * advisory provider/model catalog the picker renders from. An unknown id
+   * fails with `workspace-not-found`.
+   */
+  defaultModel(request: RpcRequest<{ workspaceId: WorkspaceId }>): Promise<RpcResponse<{
+    selection: ModelSelection | null
+    shared: ModelSelection
+    groups: ModelProviderGroup[]
+    failures: ModelCatalogFailure[]
+  }>>
+
+  /**
+   * Set or clear one workspace's explicit default-model override. A null
+   * selection removes the override so the workspace inherits the shared
+   * default again; a non-null selection is route-validated before it is
+   * stored (an unresolvable route fails with `model-unavailable`). An
+   * unknown id fails with `workspace-not-found`.
+   */
+  setDefaultModel(request: RpcRequest<{
+    workspaceId: WorkspaceId
+    selection: ModelSelection | null
+  }>): Promise<RpcResponse<{ selection: ModelSelection | null }>>
 }

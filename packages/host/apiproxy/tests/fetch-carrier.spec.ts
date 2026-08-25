@@ -191,6 +191,23 @@ function fakeApi(overrides: Partial<{ muxFrames: MuxFrame[]; hostFrames: HostFra
       async archiveSession(request) {
         return { rpcId: request.rpcId, result: { ok: true, value: { archivedSessionIds: [request.payload.sessionId] } } }
       },
+      async defaultModel(request) {
+        return {
+          rpcId: request.rpcId,
+          result: {
+            ok: true,
+            value: {
+              selection: null,
+              shared: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+              groups: [],
+              failures: [],
+            },
+          },
+        }
+      },
+      async setDefaultModel(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { selection: request.payload.selection } } }
+      },
     },
     agentPresets: {
       list(request: RpcRequest<{}>) {
@@ -365,6 +382,30 @@ describe('unary round trip (handler ⇄ client, no network)', () => {
     })).result.ok).toBe(true)
     expect((await c.sessions.cancel({ sessionId: 's' as never })).result.ok).toBe(true)
     expect((await c.host.describe({})).result.ok).toBe(true)
+  })
+
+  it('round-trips the workspace default-model pair through the carrier', async () => {
+    const c = client()
+    const view = await c.workspace.defaultModel({ workspaceId: 'w1' as never })
+    expect(view.result).toEqual({
+      ok: true,
+      value: {
+        selection: null,
+        shared: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+        groups: [],
+        failures: [],
+      },
+    })
+    const set = await c.workspace.setDefaultModel({
+      workspaceId: 'w1' as never,
+      selection: { provider: 'acme', model: 'acme-large' },
+    })
+    expect(set.result).toEqual({
+      ok: true,
+      value: { selection: { provider: 'acme', model: 'acme-large' } },
+    })
+    const cleared = await c.workspace.setDefaultModel({ workspaceId: 'w1' as never, selection: null })
+    expect(cleared.result).toEqual({ ok: true, value: { selection: null } })
   })
 
   it('round-trips every agent-preset method, authoring included', async () => {

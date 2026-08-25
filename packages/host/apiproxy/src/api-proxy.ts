@@ -590,6 +590,19 @@ export interface ApiProxyDefaults {
    * and undoing it because storage failed would be the worse outcome.
    */
   saveDefaultModelSelection?: (selection: ModelSelection) => Promise<void>
+  /**
+   * One workspace's explicit default-model override, or undefined when the
+   * workspace inherits the shared default. Absent, every workspace follows
+   * the shared default and the workspace tier of model resolution is inert.
+   */
+  workspaceModelSelection?: (workspaceId: WorkspaceId) => ModelSelection | undefined
+  /**
+   * Record or clear one workspace's explicit default-model override (null
+   * clears to the shared default). Same optional/no-op posture as
+   * {@link saveDefaultModelSelection}; a rejection is reported and swallowed
+   * by the callers that treat the default as best-effort.
+   */
+  saveWorkspaceModelSelection?: (workspaceId: WorkspaceId, selection: ModelSelection | null) => Promise<void>
   /** Default project directory for new sessions whose create request carries no cwd. */
   cwd: string
   /** Native open-with-default-application; injectable for carrier tests. */
@@ -1081,15 +1094,59 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
   }
 
   /**
+   * The workspace accounting one session, or undefined for sessions outside
+   * any workspace account (ungrouped). The same membership scan the fork path
+   * uses; the per-workspace default tier consults it only when a deployment
+   * provides workspace defaults.
+   */
+  function workspaceOfSession(sessionId: SessionId): Workspace | undefined {
+    return ctx.workspaceRegistry.list().find(workspace => workspace.sessionIds.includes(sessionId))
+  }
+
+  /**
+   * The effective default for one session: its workspace's explicit override
+   * when one is set, else the shared default. The workspace tier stays inert
+   * for deployments that provide no workspace defaults.
+   */
+  function sessionDefaultFor(agent: Agent): ModelSelection {
+    if (defaults.workspaceModelSelection !== undefined) {
+      const workspace = workspaceOfSession(agent.session.id)
+      if (workspace !== undefined) {
+        const override = defaults.workspaceModelSelection(workspace.id)
+        if (override !== undefined) return override
+      }
+    }
+    return defaults.defaultModelSelection()
+  }
+
+  /**
+   * Persist a switched selection as the default. A session whose workspace
+   * carries an explicit override updates that override — the workspace
+   * default is the model the workspace starts from — while every other
+   * switch updates the shared default as before.
+   */
+  async function saveDefaultFor(agent: Agent, selected: ModelSelection): Promise<void> {
+    if (defaults.workspaceModelSelection !== undefined) {
+      const workspace = workspaceOfSession(agent.session.id)
+      if (workspace !== undefined && defaults.workspaceModelSelection(workspace.id) !== undefined) {
+        await defaults.saveWorkspaceModelSelection?.(workspace.id, selected)
+        return
+      }
+    }
+    await defaults.saveDefaultModelSelection?.(selected)
+  }
+
+  /**
    * Install or return the session-local model selection that prompt assembly snapshots.
    *
    * Precedence, resolved on EVERY read rather than seeded once: a selection
    * made in this process, else the session's own latest logged request/header,
-   * else the live Agent default. Re-reading keeps the two tiers exact in both
-   * directions: a session with a recorded request derives its selection from
-   * its log, while a blank session (New Session reuses one rather than minting
-   * another) reads any default saved after it was created. There is no create-time
-   * per-session override tier on this wire — if one returns (a create-options
+   * else the workspace default when one is set, else the live Agent default.
+   * Re-reading keeps the tiers exact in both directions: a session with a
+   * recorded request derives its selection from its log, while a blank
+   * session (New Session reuses one rather than minting another) reads any
+   * default saved after it was created. There is no create-time per-session
+   * override tier on this wire — if one returns (a create-options
    * contribution), it must fold in between the selection and the log.
    */
   function selectionFor(agent: Agent): WebModelSelectionRef {
@@ -1102,14 +1159,16 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         // Incrementally folded by the session, so a per-step read costs
         // O(new events) rather than a rescan.
         const logged = agent.session.requestHeader()?.config
-        if (logged === undefined) return defaults.defaultModelSelection()
-        return {
-          provider: logged.provider,
-          model: logged.model,
-          ...logged.reasoningEffort === undefined
-            ? {}
-            : { reasoningEffort: logged.reasoningEffort },
+        if (logged !== undefined) {
+          return {
+            provider: logged.provider,
+            model: logged.model,
+            ...logged.reasoningEffort === undefined
+              ? {}
+              : { reasoningEffort: logged.reasoningEffort },
+          }
         }
+        return sessionDefaultFor(agent)
       },
       set current(next: ModelSelection) {
         picked = next
@@ -2213,7 +2272,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             }
             selectionFor(found.agent).current = selected
             try {
-              await defaults.saveDefaultModelSelection?.(selected)
+              await saveDefaultFor(found.agent, selected)
             } catch (error: unknown) {
               ctx.logger.warn(
                 `api-proxy: the model switch applies to this session but was not saved as the default: ${String(error)}`,
@@ -2762,6 +2821,14 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           ctx.workspaceRegistry.delete(brandWorkspaceId(workspaceId)))
         workspaceCreationChain = operation.then(() => undefined, () => undefined)
         if (!await operation) return workspaceNotFound(request, workspaceId)
+        // The record is gone, so its explicit default would be unreachable
+        // garbage; clear it with the record. Best-effort like every default
+        // save: a stale entry is harmless, a failed delete is not.
+        try {
+          await defaults.saveWorkspaceModelSelection?.(brandWorkspaceId(workspaceId), null)
+        } catch (error: unknown) {
+          ctx.logger.warn(`api-proxy: failed to clear the deleted workspace's default model: ${String(error)}`)
+        }
         return ok(request, { deleted: true as const })
       },
 
@@ -2817,6 +2884,76 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           })
         }
         return ok(request, { archivedSessionIds: [...ctx.workspaceRegistry.archivedSessionIds] })
+      },
+
+      async defaultModel(request) {
+        const workspace = ctx.workspaceRegistry.get(brandWorkspaceId(request.payload.workspaceId))
+        if (workspace === undefined) return workspaceNotFound(request, request.payload.workspaceId)
+        const { groups, failures } = await buildModelCatalog(ctx)
+        const selection = defaults.workspaceModelSelection?.(workspace.id)
+        const shared = defaults.defaultModelSelection()
+        return ok(request, {
+          selection: selection === undefined ? null : { ...selection },
+          shared: { ...shared },
+          groups,
+          failures,
+        })
+      },
+
+      async setDefaultModel(request) {
+        const workspace = ctx.workspaceRegistry.get(brandWorkspaceId(request.payload.workspaceId))
+        if (workspace === undefined) return workspaceNotFound(request, request.payload.workspaceId)
+        const { selection } = request.payload
+        if (selection === null) {
+          try {
+            await defaults.saveWorkspaceModelSelection?.(workspace.id, null)
+          } catch (error: unknown) {
+            return err(request, {
+              code: 'internal',
+              message: `failed to clear the workspace default model: ${String(error)}`,
+              details: { workspaceId: workspace.id },
+            })
+          }
+          return ok(request, { selection: null })
+        }
+        let saved: ModelSelection
+        try {
+          const resolved = await ctx.llm.resolveCallConfig({
+            provider: selection.provider,
+            model: selection.model,
+            ...selection.reasoningEffort === undefined
+              ? {}
+              : { reasoningEffort: ReasoningEffortId(selection.reasoningEffort) },
+          })
+          saved = {
+            provider: resolved.provider,
+            model: resolved.model,
+            ...resolved.reasoningEffort === undefined
+              ? {}
+              : { reasoningEffort: resolved.reasoningEffort },
+          }
+        } catch (error: unknown) {
+          // The one caller-facing refusal is a route no adapter serves — the
+          // same code selectModel raises; validation never reaches storage.
+          return err(request, {
+            code: 'model-unavailable',
+            message: error instanceof Error ? error.message : String(error),
+            details: {
+              provider: selection.provider,
+              model: selection.model,
+            },
+          })
+        }
+        try {
+          await defaults.saveWorkspaceModelSelection?.(workspace.id, saved)
+        } catch (error: unknown) {
+          return err(request, {
+            code: 'internal',
+            message: `failed to save the workspace default model: ${String(error)}`,
+            details: { workspaceId: workspace.id },
+          })
+        }
+        return ok(request, { selection: { ...saved } })
       },
     },
 

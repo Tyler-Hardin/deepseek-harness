@@ -2,9 +2,10 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {
-  DirectoryListing, IApiClient, RpcError,
+  DirectoryListing, IApiClient, ModelSelection, RpcError,
   SessionId, WorkspaceId, WorkspaceView,
 } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ResponseValue } from '@deepseek-ai/dsh-host-apiproxy/api'
 import type { SnapshotStore } from '../contract/store.ts'
 import { createSnapshotStore } from '../contract/store.ts'
 import type { SessionsPort, SessionsPortList } from '../contract/sessions-port.ts'
@@ -290,6 +291,28 @@ export class WorkspaceRuntime implements IWorkspaces {
   async archiveSession(sessionId: SessionId): Promise<void> {
     const result = await this.manager.archiveSession(sessionId)
     if (!result.ok) throw new Error(`session archive failed: ${result.error.code}: ${result.error.message}`)
+  }
+
+  /**
+   * Read one Workspace's default-model view (explicit override, shared
+   * default, advisory catalog).
+   * @param workspaceId - target workspace.
+   * @returns the Host's default-model view.
+   */
+  async defaultModel(workspaceId: WorkspaceId): Promise<ResponseValue<'workspace.defaultModel'>> {
+    const result = await this.manager.defaultModel(workspaceId)
+    if (!result.ok) throw new Error(`workspace default model failed: ${result.error.code}: ${result.error.message}`)
+    return result.value
+  }
+
+  /**
+   * Set or clear one Workspace's explicit default-model override.
+   * @param workspaceId - target workspace.
+   * @param selection - the override, or null to clear it.
+   */
+  async setDefaultModel(workspaceId: WorkspaceId, selection: ModelSelection | null): Promise<void> {
+    const result = await this.manager.setDefaultModel(workspaceId, selection)
+    if (!result.ok) throw new Error(`workspace default model failed: ${result.error.code}: ${result.error.message}`)
   }
 
   /**

@@ -4,10 +4,21 @@ import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry, { Inbox } from '@deepseek-ai/dsh-agent'
-import type { Agent, AgentFactory } from '@deepseek-ai/dsh-agent'
+import type { Agent, AgentFactory, ModelSelection as AgentModelSelection } from '@deepseek-ai/dsh-agent'
+import AgentLoop from '@deepseek-ai/dsh-agent-loop'
+import LlmRuntime, { LlmAdapter, createUserMessage } from '@deepseek-ai/dsh-llm'
+import type {
+  GenerateOptions, LlmModelInfo, LlmProviderInfo,
+  LlmResolvedModelInfo, StreamChunk,
+} from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import type { Session } from '@deepseek-ai/dsh-session'
+import SessionTitleService from '@deepseek-ai/dsh-session-title'
+import * as FirstMessageTitleProvider from '@deepseek-ai/dsh-session-title-first-prompt-llm'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import Storage from '@deepseek-ai/dsh-storage'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
+import { textResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
 import UserQuestionService from '@deepseek-ai/dsh-user-questions'
 import { DirectoryPickerError } from '@deepseek-ai/dsh-host-directory-picker'
@@ -17,6 +28,7 @@ import type { HostFrame, WorkspaceId } from '@deepseek-ai/dsh-host-apiproxy/api'
 import type { RpcRequest, RpcResponse } from '@deepseek-ai/dsh-host-apiproxy/api/rpc'
 import { RpcId } from '@deepseek-ai/dsh-host-apiproxy/api/rpc'
 import { createApiProxy } from '@deepseek-ai/dsh-host-apiproxy'
+import type { ApiProxyDefaults } from '@deepseek-ai/dsh-host-apiproxy'
 import { MemoryStorageBackend } from '../../../storage/storage-domain/tests/helpers/memory-backend.ts'
 
 let nextRpc = 1
@@ -65,10 +77,15 @@ async function harness(
     openPath?: (path: string, signal: AbortSignal) => Promise<void>
     canOpenPath?: () => boolean
   } = {},
+  modelDefaults: Partial<Pick<
+    ApiProxyDefaults,
+    'defaultModelSelection' | 'saveDefaultModelSelection' | 'workspaceModelSelection' | 'saveWorkspaceModelSelection'
+  >> = {},
 ) {
   const ctx = new Context()
   await ctx.plugin(SessionStore)
   await ctx.plugin(AgentRegistry)
+  await ctx.plugin(LlmRuntime)
   await ctx.plugin(UserQuestionService)
   await ctx.plugin(Storage)
   ctx.storage.backend.register('memory', new MemoryStorageBackend())
@@ -107,8 +124,49 @@ async function harness(
     cwd: root,
     ...extras.openPath === undefined ? {} : { openPath: extras.openPath },
     ...extras.canOpenPath === undefined ? {} : { canOpenPath: extras.canOpenPath },
+    ...modelDefaults,
   })
   return { api, ctx, storageDomain, root }
+}
+
+/** Minimal adapter covering one provider so route validation has a target. */
+class TestAdapter extends LlmAdapter {
+  constructor(private readonly provider: string, private readonly models: readonly string[]) {
+    super()
+  }
+
+  override providerInfo(provider: string): LlmProviderInfo {
+    return { id: provider, name: provider }
+  }
+
+  override listModels(): Promise<readonly LlmModelInfo[]> {
+    return Promise.resolve(this.models.map(id => ({ provider: this.provider, id, name: id })))
+  }
+
+  override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+    return Promise.resolve({ provider, id: model, name: model })
+  }
+
+  override async *stream(_options: GenerateOptions): AsyncIterable<StreamChunk> {
+    // Route-validation tests never enter provider streaming.
+  }
+}
+
+/** In-memory per-workspace default store behind the two workspace hooks. */
+function workspaceDefaultStore() {
+  const store = new Map<string, AgentModelSelection>()
+  return {
+    store,
+    workspaceModelSelection: (workspaceId: WorkspaceId): AgentModelSelection | undefined =>
+      store.get(String(workspaceId)),
+    saveWorkspaceModelSelection: async (
+      workspaceId: WorkspaceId,
+      selection: AgentModelSelection | null,
+    ): Promise<void> => {
+      if (selection === null) store.delete(String(workspaceId))
+      else store.set(String(workspaceId), selection)
+    },
+  }
 }
 
 /** Stage one directory under the harness root for path adoption. */
@@ -567,5 +625,327 @@ describe('Host Workspace increments', () => {
       error: { code: 'session-not-found', details: { sessionId: 'session-ghost' } },
     })
     abort.abort()
+  })
+})
+
+describe('workspace.defaultModel / workspace.setDefaultModel', () => {
+  it('serves the shared default, an empty override, and the advisory catalog', async () => {
+    const { api, ctx, root } = await harness()
+    ctx.llm.registerAdapter(['acme'], new TestAdapter('acme', ['acme-large', 'acme-plain']))
+    const workspace = expectOk(await api.workspace.create(request({ path: stageDir(root, 'models') }))).workspace
+
+    const view = expectOk(await api.workspace.defaultModel(request({ workspaceId: workspace.workspaceId })))
+    expect(view.selection).toBeNull()
+    expect(view.shared).toEqual({ provider: 'test', model: 'test-model' })
+    expect(view.groups).toEqual([{
+      id: 'acme',
+      name: 'acme',
+      models: [
+        { id: 'acme-large', name: 'acme-large' },
+        { id: 'acme-plain', name: 'acme-plain' },
+      ],
+    }])
+    expect(view.failures).toEqual([])
+
+    const missing = await api.workspace.defaultModel(request({ workspaceId: 'missing' as WorkspaceId }))
+    expect(missing.result).toMatchObject({
+      ok: false, error: { code: 'workspace-not-found', details: { workspaceId: 'missing' } },
+    })
+  })
+
+  it('sets a validated override, reads it back, and clears it back to the shared default', async () => {
+    const { api, ctx, root } = await harness(undefined, undefined, {}, workspaceDefaultStore())
+    ctx.llm.registerAdapter(['acme'], new TestAdapter('acme', ['acme-large']))
+    const workspace = expectOk(await api.workspace.create(request({ path: stageDir(root, 'override') }))).workspace
+
+    const set = await api.workspace.setDefaultModel(request({
+      workspaceId: workspace.workspaceId,
+      selection: { provider: 'acme', model: 'acme-large' },
+    }))
+    expect(set.result).toEqual({ ok: true, value: { selection: { provider: 'acme', model: 'acme-large' } } })
+    expect(expectOk(await api.workspace.defaultModel(request({ workspaceId: workspace.workspaceId }))).selection)
+      .toEqual({ provider: 'acme', model: 'acme-large' })
+
+    const cleared = await api.workspace.setDefaultModel(request({
+      workspaceId: workspace.workspaceId,
+      selection: null,
+    }))
+    expect(cleared.result).toEqual({ ok: true, value: { selection: null } })
+    expect(expectOk(await api.workspace.defaultModel(request({ workspaceId: workspace.workspaceId }))).selection)
+      .toBeNull()
+  })
+
+  it('refuses an unresolvable route and an unknown workspace', async () => {
+    const { api, root } = await harness(undefined, undefined, {}, workspaceDefaultStore())
+    const workspace = expectOk(await api.workspace.create(request({ path: stageDir(root, 'refuse') }))).workspace
+
+    const route = await api.workspace.setDefaultModel(request({
+      workspaceId: workspace.workspaceId,
+      selection: { provider: 'no-such-provider', model: 'no-such-model' },
+    }))
+    expect(route.result).toMatchObject({
+      ok: false, error: { code: 'model-unavailable', details: { provider: 'no-such-provider', model: 'no-such-model' } },
+    })
+    expect(expectOk(await api.workspace.defaultModel(request({ workspaceId: workspace.workspaceId }))).selection)
+      .toBeNull()
+
+    const missing = await api.workspace.setDefaultModel(request({
+      workspaceId: 'missing' as WorkspaceId,
+      selection: { provider: 'acme', model: 'acme-large' },
+    }))
+    expect(missing.result).toMatchObject({
+      ok: false, error: { code: 'workspace-not-found', details: { workspaceId: 'missing' } },
+    })
+  })
+
+  it('clears the override when its workspace is deleted', async () => {
+    const defaults = workspaceDefaultStore()
+    const { api, root } = await harness(undefined, undefined, {}, defaults)
+    const workspace = expectOk(await api.workspace.create(request({ path: stageDir(root, 'delete-default') }))).workspace
+    defaults.store.set(String(workspace.workspaceId), { provider: 'acme', model: 'acme-large' })
+
+    expectOk(await api.workspace.delete(request({ workspaceId: workspace.workspaceId })))
+    expect(defaults.store.has(String(workspace.workspaceId))).toBe(false)
+  })
+
+  it('reports a storage failure to set or clear the override, and keeps a delete successful', async () => {
+    const failing = {
+      workspaceModelSelection: () => undefined,
+      saveWorkspaceModelSelection: async () => { throw new Error('settings disk detached') },
+    }
+    const { api, ctx, root } = await harness(undefined, undefined, {}, failing)
+    ctx.llm.registerAdapter(['acme'], new TestAdapter('acme', ['acme-large']))
+    const workspace = expectOk(await api.workspace.create(request({ path: stageDir(root, 'storage-fail') }))).workspace
+
+    const set = await api.workspace.setDefaultModel(request({
+      workspaceId: workspace.workspaceId,
+      selection: { provider: 'acme', model: 'acme-large' },
+    }))
+    expect(set.result).toMatchObject({ ok: false, error: { code: 'internal' } })
+    const cleared = await api.workspace.setDefaultModel(request({
+      workspaceId: workspace.workspaceId,
+      selection: null,
+    }))
+    expect(cleared.result).toMatchObject({ ok: false, error: { code: 'internal' } })
+
+    // The delete already committed; a failed cleanup is logged, not a failure.
+    const deleted = await api.workspace.delete(request({ workspaceId: workspace.workspaceId }))
+    expect(deleted.result).toEqual({ ok: true, value: { deleted: true } })
+  })
+})
+
+describe('per-workspace default model resolution', () => {
+  it('derives a blank session in an overridden workspace from the workspace default', async () => {
+    const defaults = workspaceDefaultStore()
+    const { api, ctx, root } = await harness(undefined, undefined, {}, defaults)
+    ctx.llm.registerAdapter(['acme'], new TestAdapter('acme', ['acme-large']))
+    const workspace = expectOk(await api.workspace.create(request({ path: stageDir(root, 'ws-default') }))).workspace
+    defaults.store.set(String(workspace.workspaceId), { provider: 'acme', model: 'acme-large' })
+    const sessionId = SessionId('session-workspace-default')
+
+    expectOk(await api.sessions.create(request({ workspaceId: workspace.workspaceId, sessionId })))
+    const view = expectOk(await api.sessions.models(request({ sessionId })))
+    expect(view.current).toEqual({ provider: 'acme', model: 'acme-large' })
+  })
+
+  it('falls back to the shared default for an ungrouped session and one in a workspace without an override', async () => {
+    const defaults = workspaceDefaultStore()
+    const { api, root } = await harness(undefined, undefined, {}, defaults)
+    const workspace = expectOk(await api.workspace.create(request({ path: stageDir(root, 'ws-shared') }))).workspace
+
+    const grouped = SessionId('session-grouped-no-override')
+    expectOk(await api.sessions.create(request({ workspaceId: workspace.workspaceId, sessionId: grouped })))
+    expect(expectOk(await api.sessions.models(request({ sessionId: grouped }))).current)
+      .toEqual({ provider: 'test', model: 'test-model' })
+
+    const ungrouped = SessionId('session-ungrouped')
+    expectOk(await api.sessions.create(request({ cwd: root, sessionId: ungrouped })))
+    expect(expectOk(await api.sessions.models(request({ sessionId: ungrouped }))).current)
+      .toEqual({ provider: 'test', model: 'test-model' })
+  })
+
+  it('keeps a session with a logged route on its own selection despite the workspace default', async () => {
+    const defaults = workspaceDefaultStore()
+    const { api, ctx, root } = await harness(undefined, undefined, {}, defaults)
+    const workspace = expectOk(await api.workspace.create(request({ path: stageDir(root, 'ws-logged') }))).workspace
+    defaults.store.set(String(workspace.workspaceId), { provider: 'acme', model: 'acme-large' })
+    const sessionId = SessionId('session-logged-route')
+    expectOk(await api.sessions.create(request({ workspaceId: workspace.workspaceId, sessionId })))
+
+    const session = ctx.sessions.get(sessionId)
+    if (session === undefined) throw new Error('session missing from store')
+    session.append('request/header', {
+      header: { config: { provider: 'test', model: 'test-model' } },
+      reason: 'initial',
+    })
+    expect(expectOk(await api.sessions.models(request({ sessionId }))).current)
+      .toEqual({ provider: 'test', model: 'test-model' })
+  })
+
+  it('routes a composer switch to the workspace default when one is set, else to the shared default', async () => {
+    const defaults = workspaceDefaultStore()
+    const saveShared = vi.fn(async (_selection: AgentModelSelection) => {})
+    const { api, ctx, root } = await harness(undefined, undefined, {}, {
+      ...defaults,
+      saveDefaultModelSelection: saveShared,
+    })
+    ctx.llm.registerAdapter(['acme'], new TestAdapter('acme', ['acme-large', 'acme-plain']))
+    const overridden = expectOk(await api.workspace.create(request({ path: stageDir(root, 'ws-switch') }))).workspace
+    defaults.store.set(String(overridden.workspaceId), { provider: 'acme', model: 'acme-large' })
+    const plain = expectOk(await api.workspace.create(request({ path: stageDir(root, 'ws-plain') }))).workspace
+
+    const inOverridden = SessionId('session-switch-overridden')
+    expectOk(await api.sessions.create(request({ workspaceId: overridden.workspaceId, sessionId: inOverridden })))
+    const switched = await api.sessions.selectModel(request({
+      sessionId: inOverridden,
+      provider: 'acme',
+      model: 'acme-plain',
+    }))
+    expect(switched.result).toEqual({
+      ok: true,
+      value: { selected: { provider: 'acme', model: 'acme-plain' } },
+    })
+    expect(defaults.store.get(String(overridden.workspaceId))).toEqual({ provider: 'acme', model: 'acme-plain' })
+    expect(saveShared).not.toHaveBeenCalled()
+
+    const inPlain = SessionId('session-switch-plain')
+    expectOk(await api.sessions.create(request({ workspaceId: plain.workspaceId, sessionId: inPlain })))
+    await api.sessions.selectModel(request({ sessionId: inPlain, provider: 'acme', model: 'acme-large' }))
+    expect(saveShared).toHaveBeenCalledWith({ provider: 'acme', model: 'acme-large' })
+    expect(defaults.store.has(String(plain.workspaceId))).toBe(false)
+  })
+})
+
+/** Recording adapter that streams one scripted text response per call. */
+class StreamingAdapter extends LlmAdapter {
+  requests: GenerateOptions[] = []
+
+  constructor(private readonly provider: string, private readonly response: string) {
+    super()
+  }
+
+  override providerInfo(provider: string): LlmProviderInfo {
+    return { id: provider, name: provider }
+  }
+
+  override listModels(): Promise<readonly LlmModelInfo[]> {
+    return Promise.resolve([{ provider: this.provider, id: 'any', name: 'any' }])
+  }
+
+  override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+    return Promise.resolve({ provider, id: model, name: model })
+  }
+
+  override async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+    this.requests.push(options)
+    for (const chunk of textResponse(this.response)) yield chunk
+  }
+}
+
+/** Real-loop composition: workspace registry, agent loop, title service, and test adapters. */
+async function realHarness(): Promise<{
+  ctx: Context
+  api: ReturnType<typeof createApiProxy>
+  store: Map<string, AgentModelSelection>
+  shared: StreamingAdapter
+  workspace: StreamingAdapter
+  root: string
+}> {
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dsh-apiproxy-workspace-real-')))
+  const ctx = new Context()
+  await ctx.plugin(SessionStore)
+  await ctx.plugin(SystemPrompt, { persona: '' })
+  await ctx.plugin(LlmRuntime)
+  await ctx.plugin(ToolRuntime)
+  await ctx.plugin(AgentRegistry)
+  await ctx.plugin(AgentLoop, { agents: [] })
+  await ctx.plugin(UserQuestionService)
+  await ctx.plugin(Storage)
+  ctx.storage.backend.register('memory', new MemoryStorageBackend())
+  const storageDomain = new DomainFacility(ctx, { backend: 'memory', routes: {} })
+  ctx.storage.mount('domain', storageDomain)
+  ctx.provide('storageDomain', storageDomain)
+  ctx.provide('sessionPersistence', { list: () => Promise.resolve([]) } as never)
+  await ctx.plugin(WorkspaceRegistry)
+  ctx.provide('directoryPicker', { capability: () => ({ kind: 'native', pick: async () => null }) } as never)
+  await ctx.plugin(SessionTitleService, {
+    fallbackMaxWords: 5,
+    fallbackMaxBytes: 40,
+    maxTitleBytes: 80,
+  })
+  await ctx.plugin(FirstMessageTitleProvider, {
+    targetWords: 5,
+    targetCjkCharacters: 10,
+    maxInputBytes: 4_096,
+    maxOutputTokens: 64,
+    timeoutMs: 60_000,
+  })
+  const shared = new StreamingAdapter('test', 'shared default reply')
+  const workspace = new StreamingAdapter('acme', 'workspace default reply')
+  ctx.llm.registerAdapter(['test'], shared)
+  ctx.llm.registerAdapter(['acme'], workspace)
+  const store = new Map<string, AgentModelSelection>()
+  const api = createApiProxy(ctx, {
+    defaultModelSelection: () => ({ provider: 'test', model: 'test-model' }),
+    saveDefaultModelSelection: async () => {},
+    workspaceModelSelection: workspaceId => store.get(String(workspaceId)),
+    saveWorkspaceModelSelection: async (workspaceId, selection) => {
+      if (selection === null) store.delete(String(workspaceId))
+      else store.set(String(workspaceId), selection)
+    },
+    cwd: root,
+  })
+  return { ctx, api, store, shared, workspace, root }
+}
+
+describe('per-workspace default model drives the running request and title route', () => {
+  it('runs the first turn and the title dispatch on the workspace default', async () => {
+    const { ctx, api, store, shared, workspace, root } = await realHarness()
+    try {
+      const created = expectOk(await api.workspace.create(request({ path: stageDir(root, 'title-workspace') }))).workspace
+      store.set(String(created.workspaceId), { provider: 'acme', model: 'acme-local' })
+      const sessionId = SessionId('workspace-default-title')
+
+      expectOk(await api.sessions.create(request({ workspaceId: created.workspaceId, sessionId })))
+
+      const agent = ctx.agents.get(sessionId)
+      if (agent === undefined) throw new Error('workspace-default session has no live agent')
+
+      agent.followup(createUserMessage({
+        content: [{ type: 'text', text: 'Summarize the local provider routing.' }],
+        source: { kind: 'user' },
+      }))
+      await agent.whenIdle()
+
+      // The main request logged and streamed the workspace default, not the shared default.
+      const headerEvent = agent.session.events.find(event => event.type === 'request/header')
+      expect(headerEvent?.type).toBe('request/header')
+      if (headerEvent?.type !== 'request/header') throw new Error('unreachable')
+      expect(headerEvent.data.header.config).toMatchObject({ provider: 'acme', model: 'acme-local' })
+      expect(workspace.requests.some(options => options.purpose !== 'session-title')).toBe(true)
+      expect(shared.requests).toEqual([])
+
+      // The deferred title dispatch reused the same logged route.
+      await vi.waitFor(() => {
+        const record = agent.session.events.findLast(event => event.type === 'session/title-llm-request')
+        expect(record?.type === 'session/title-llm-request' && record.data.route)
+          .toEqual({ provider: 'acme', model: 'acme-local' })
+      }, { timeout: 5_000 })
+      await vi.waitFor(() => {
+        expect(workspace.requests.some(options => options.purpose === 'session-title')).toBe(true)
+      }, { timeout: 5_000 })
+      expect(agent.session.events.findLast(event => event.type === 'session/title')).toMatchObject({
+        type: 'session/title',
+        data: {
+          source: {
+            kind: 'provider',
+            provider: 'session-title-first-prompt-llm',
+            model: { provider: 'acme', model: 'acme-local' },
+          },
+        },
+      })
+    } finally {
+      await ctx.fiber.dispose()
+    }
   })
 })

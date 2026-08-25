@@ -6,11 +6,13 @@
 
 ## 共享 Agent 默认值（`agent-default-model` Settings 分节）
 
-`ApiProxyService` 消费 `ctx.agentDefaultModel`；它不持有提供方／模型配置或 Settings 分节。共享服务在 `agent-default-model` 下注册 `{provider, model, reasoningEffort?}`：base 组合包的组合条目是底层，`settings.yaml` 把用户选择叠加其上。
+`ApiProxyService` 消费 `ctx.agentDefaultModel`；它不持有提供方／模型配置或 Settings 分节。共享服务在 `agent-default-model` 下注册 `{provider, model, reasoningEffort?}`：base 组合包的组合条目是底层，`settings.yaml` 把用户选择叠加其上。按工作区覆盖存放在第二个分节 `workspace-default-model` 中，以工作区 id 为键：显式条目会为该工作区的每个会话遮蔽共享默认，清除后恢复共享默认。
 
-会话每次访问时都按三级解析模型选择：本进程内作出的选择，其次是该会话日志中最新的 `request/header`，最后是这个默认值。已经跑过一轮的会话从自己的日志推导选择，空白会话则能观察到创建之后保存的默认值。
+会话每次访问时都按四级解析模型选择：本进程内作出的选择，其次是该会话日志中最新的 `request/header`，再次是工作区的显式覆盖（若已设置），最后是这个默认值。已经跑过一轮的会话从自己的日志推导选择，空白会话则能观察到创建之后保存的默认值。
 
-`session.selectModel` 会把接受的切换保存为部署默认值；没有单独的选择动作。它存储已解析的 `ModelSelection`，包括适配器实体化的默认推理（reasoning）强度。完整分节写入会在所选模型没有推理强度时清除已存值。存储失败只记日志，不会撤销会话选择。没有设置提供方的部署保留组合条目，切换只对当前会话生效。
+`session.selectModel` 会把接受的切换保存为部署默认值——或者，在带显式覆盖的工作区内，保存为该工作区的默认值；没有单独的选择动作。它存储已解析的 `ModelSelection`，包括适配器实体化的默认推理（reasoning）强度。完整分节写入会在所选模型没有推理强度时清除已存值。存储失败只记日志，不会撤销会话选择。没有设置提供方的部署保留组合条目，切换只对当前会话生效。
+
+`workspace.defaultModel` 提供某个工作区的覆盖（未设置时为 `null`，表示沿用共享默认）、共享默认以及选择器渲染所用的建议目录。`workspace.setDefaultModel` 会对非空选择做路由校验（没有适配器服务该路由时返回 `model-unavailable`），然后保存或清除（传 `null` 即清除）。删除工作区时，其覆盖随记录一并清除。
 
 Settings 分节中的 `reasoningEffort` 在 agent-default-model 插件配置中刻意没有对应字段：seam 按字段把用户层合并到组合条目之上，因此缺席的键无法覆盖已有键，组合层中的推理强度会在以后选择没有推理强度的模型时继续存在。推理强度的部署默认值属于按模型解析的适配器 profile。
 

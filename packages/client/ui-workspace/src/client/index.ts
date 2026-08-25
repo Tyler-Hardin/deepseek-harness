@@ -94,6 +94,8 @@ export function apply(ctx: ClientContext): void {
     },
     renameWorkspace: async (workspaceId, title) => { await ctx.workspaces.rename(workspaceId, title) },
     deleteWorkspace: async (workspaceId) => { await ctx.workspaces.delete(workspaceId) },
+    defaultModel: workspaceId => ctx.workspaces.defaultModel(workspaceId),
+    setDefaultModel: (workspaceId, selection) => ctx.workspaces.setDefaultModel(workspaceId, selection),
     insertWorkspaceBefore: async (workspaceId, beforeWorkspaceId) => {
       await ctx.workspaces.insertBefore(workspaceId, beforeWorkspaceId)
     },

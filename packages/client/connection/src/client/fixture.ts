@@ -1534,6 +1534,8 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
     session.sessionId,
     { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
   ]))
+  /** Per-workspace default-model overrides; an absent key inherits the shared default. */
+  const workspaceDefaultModels = new Map<WorkspaceId, ModelSelection>()
   const attachments = new Map<string, { attachment: ImageAttachmentRef; data: string }>([[
     String(FIXTURE_IMAGE_REF.attachmentId),
     { attachment: FIXTURE_IMAGE_REF, data: FIXTURE_IMAGE_DATA },
@@ -1681,6 +1683,16 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
       code: 'session-not-found',
       message: `no session ${request.payload.sessionId}`,
       details: { sessionId: request.payload.sessionId },
+    })
+  }
+  /** Shared workspace guard for workspaceId-addressed catalog routes: the error
+   *  response when the workspace is unknown, undefined when it exists. */
+  const requireWorkspace = (request: RpcRequest<{ workspaceId: WorkspaceId }>): Promise<RpcResponse<never>> | undefined => {
+    if (workspaces.some(w => w.workspaceId === request.payload.workspaceId)) return undefined
+    return err<{ workspaceId: WorkspaceId }, never>(request, {
+      code: 'workspace-not-found',
+      message: `no workspace ${request.payload.workspaceId}`,
+      details: { workspaceId: request.payload.workspaceId },
     })
   }
   const setRunning = (id: SessionId, running: boolean): void => {
@@ -2788,6 +2800,25 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         }
         return ok(request, { archivedSessionIds: [...archivedSessionIds] })
       },
+      defaultModel: (request) => {
+        const missing = requireWorkspace(request)
+        if (missing !== undefined) return missing
+        const override = workspaceDefaultModels.get(request.payload.workspaceId)
+        return ok(request, {
+          selection: override === undefined ? null : { ...override },
+          shared: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+          groups: fixtureModelGroups(),
+          failures: [],
+        })
+      },
+      setDefaultModel: (request) => {
+        const missing = requireWorkspace(request)
+        if (missing !== undefined) return missing
+        const { selection } = request.payload
+        if (selection === null) workspaceDefaultModels.delete(request.payload.workspaceId)
+        else workspaceDefaultModels.set(request.payload.workspaceId, selection)
+        return ok(request, { selection })
+      },
     },
     agentPresets: {
       // Both trusts appear, because a surface must present a locally authored
@@ -3203,6 +3234,8 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'workspace.insertBefore': return this.api.workspace.insertBefore(request)
       case 'workspace.insertSessionBefore': return this.api.workspace.insertSessionBefore(request)
       case 'workspace.archiveSession': return this.api.workspace.archiveSession(request)
+      case 'workspace.defaultModel': return this.api.workspace.defaultModel(request)
+      case 'workspace.setDefaultModel': return this.api.workspace.setDefaultModel(request)
       case 'skill.list': return this.api.skills.list(request)
       case 'agentPreset.list': return this.api.agentPresets.list(request)
       case 'agentPreset.select': return this.api.agentPresets.select(request)

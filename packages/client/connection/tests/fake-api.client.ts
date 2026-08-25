@@ -168,6 +168,14 @@ export class FakeApiClient implements IApiClient {
     archiveSession: (payload: unknown) => this.record('workspace.archiveSession', payload, Promise.resolve(ok({
       archivedSessionIds: [(payload as { sessionId: SessionId }).sessionId],
     }))),
+    defaultModel: (payload: unknown) => this.record('workspace.defaultModel', payload, Promise.resolve(ok({
+      selection: null,
+      shared: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+      groups: [],
+      failures: [],
+    }))),
+    setDefaultModel: (payload: { selection: unknown }) =>
+      this.record('workspace.setDefaultModel', payload, Promise.resolve(ok({ selection: payload.selection as never }))),
   }
 
   // Payloads stay `unknown` (lint-lane note above); response rows are the real

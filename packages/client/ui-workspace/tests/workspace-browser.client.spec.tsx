@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import type {
-  SessionId, SessionListState, SessionSummary, WorkspaceId, WorkspaceListState, WorkspaceView,
+  ModelSelection, SessionId, SessionListState, SessionSummary, WorkspaceId, WorkspaceListState, WorkspaceView,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
@@ -75,6 +75,13 @@ function mount(overrides: Partial<WorkspaceBrowserProps> = {}) {
     forkSession: vi.fn(),
     renameWorkspace: vi.fn(async () => {}),
     deleteWorkspace: vi.fn(async () => {}),
+    defaultModel: vi.fn(async () => ({
+      selection: null,
+      shared: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+      groups: [],
+      failures: [],
+    })),
+    setDefaultModel: vi.fn(async () => {}),
     archiveSession: vi.fn(async () => {}),
     insertWorkspaceBefore: vi.fn(async () => {}),
     insertSessionBefore: vi.fn(async () => {}),
@@ -1240,5 +1247,135 @@ describe('WorkspaceBrowser', () => {
     fireEvent.change(screen.getByPlaceholderText('搜索会话…'), { target: { value: 'needle' } })
     const row = screen.getByText('Needle A').closest('[role="treeitem"]') as HTMLElement
     expect(row.hasAttribute('draggable')).toBe(false)
+  })
+
+  describe('workspace default-model dialog', () => {
+    type DefaultModelView = Awaited<ReturnType<WorkspaceBrowserProps['defaultModel']>>
+    /** One advisory catalog with the global default outside any group. */
+    const modelsView = (selection: ModelSelection | null = null): DefaultModelView => ({
+      selection,
+      shared: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+      groups: [{
+        id: 'acme',
+        name: 'Acme',
+        models: [
+          { id: 'acme-large', name: 'Acme Large' },
+          { id: 'acme-plain', name: 'Acme Plain', description: 'Fast plain model' },
+        ],
+      }],
+      failures: [],
+    })
+    const openDialog = (): HTMLElement => {
+      fireEvent.click(screen.getByRole('button', { name: '工作区“Alpha”的操作' }))
+      fireEvent.click(screen.getByRole('menuitem', { name: '默认模型' }))
+      return screen.getByRole('dialog', { name: '“Alpha”的默认模型' })
+    }
+
+    it('preselects the global default, saves a picked model, and closes on acceptance', async () => {
+      const setDefaultModel = vi.fn(async () => {})
+      mount({
+        useWorkspaces: hook(workspaceState([workspace('alpha', [], 'Alpha')])),
+        defaultModel: vi.fn(async () => modelsView()),
+        setDefaultModel,
+      })
+      const dialog = openDialog()
+      await waitFor(() => {
+        expect(within(dialog).getByRole('radio', { name: /使用全局默认/ }).getAttribute('aria-checked')).toBe('true')
+      })
+      expect(within(dialog).getByRole('radio', { name: /Acme Plain/ }).getAttribute('aria-checked')).toBe('false')
+
+      fireEvent.click(within(dialog).getByRole('radio', { name: /Acme Plain/ }))
+      fireEvent.click(screen.getByRole('button', { name: '保存' }))
+      await waitFor(() => {
+        expect(setDefaultModel).toHaveBeenCalledWith(wid('alpha'), { provider: 'acme', model: 'acme-plain' })
+      })
+      await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
+    })
+
+    it('clears a stored override back to the global default', async () => {
+      const setDefaultModel = vi.fn(async () => {})
+      mount({
+        useWorkspaces: hook(workspaceState([workspace('alpha', [], 'Alpha')])),
+        defaultModel: vi.fn(async () => modelsView({ provider: 'acme', model: 'acme-large' })),
+        setDefaultModel,
+      })
+      const dialog = openDialog()
+      let global: HTMLElement
+      await waitFor(() => {
+        global = within(dialog).getByRole('radio', { name: /使用全局默认/ })
+        expect(global.getAttribute('aria-checked')).toBe('false')
+      })
+      expect(within(dialog).getByRole('radio', { name: /Acme Large/ }).getAttribute('aria-checked')).toBe('true')
+
+      fireEvent.click(global!)
+      fireEvent.click(screen.getByRole('button', { name: '保存' }))
+      await waitFor(() => { expect(setDefaultModel).toHaveBeenCalledWith(wid('alpha'), null) })
+      await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
+    })
+
+    it('Cancel dismisses without calling setDefaultModel', async () => {
+      const setDefaultModel = vi.fn(async () => {})
+      mount({
+        useWorkspaces: hook(workspaceState([workspace('alpha', [], 'Alpha')])),
+        defaultModel: vi.fn(async () => modelsView()),
+        setDefaultModel,
+      })
+      openDialog()
+      await waitFor(() => { expect(screen.getByRole('radio', { name: /使用全局默认/ })).toBeTruthy() })
+      fireEvent.click(screen.getByRole('button', { name: '取消' }))
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(setDefaultModel).not.toHaveBeenCalled()
+    })
+
+    it('surfaces the load failure and retries against a fresh read', async () => {
+      const defaultModel = vi.fn()
+        .mockRejectedValueOnce(new Error('catalog offline'))
+        .mockResolvedValueOnce(modelsView())
+      mount({
+        useWorkspaces: hook(workspaceState([workspace('alpha', [], 'Alpha')])),
+        defaultModel,
+      })
+      openDialog()
+      await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('catalog offline') })
+      fireEvent.click(screen.getByRole('button', { name: '重试' }))
+      await waitFor(() => { expect(screen.getByRole('radio', { name: /使用全局默认/ })).toBeTruthy() })
+    })
+
+    it('keeps the dialog open and shows the error when the save fails', async () => {
+      const setDefaultModel = vi.fn(async () => { throw new Error('storage unavailable') })
+      mount({
+        useWorkspaces: hook(workspaceState([workspace('alpha', [], 'Alpha')])),
+        defaultModel: vi.fn(async () => modelsView()),
+        setDefaultModel,
+      })
+      const dialog = openDialog()
+      await waitFor(() => { expect(within(dialog).getByRole('radio', { name: /Acme Plain/ })).toBeTruthy() })
+      fireEvent.click(within(dialog).getByRole('radio', { name: /Acme Plain/ }))
+      fireEvent.click(screen.getByRole('button', { name: '保存' }))
+      await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('storage unavailable') })
+      expect(screen.getByRole('dialog', { name: '“Alpha”的默认模型' })).toBeTruthy()
+    })
+
+    it('blocks close and resubmission while a save is in flight, then closes on acceptance', async () => {
+      let resolveSave!: () => void
+      const setDefaultModel = vi.fn(() => new Promise<void>((resolve) => { resolveSave = resolve }))
+      mount({
+        useWorkspaces: hook(workspaceState([workspace('alpha', [], 'Alpha')])),
+        defaultModel: vi.fn(async () => modelsView()),
+        setDefaultModel,
+      })
+      openDialog()
+      await waitFor(() => { expect(screen.getByRole('radio', { name: /使用全局默认/ })).toBeTruthy() })
+      fireEvent.click(screen.getByRole('radio', { name: /Acme Large/ }))
+      fireEvent.click(screen.getByRole('button', { name: '保存' }))
+      // Resubmission and every close path are ignored while the save is pending.
+      fireEvent.click(screen.getByRole('button', { name: '保存' }))
+      fireEvent.keyDown(document, { key: 'Escape' })
+      fireEvent.click(screen.getByRole('button', { name: '关闭' }))
+      expect(screen.getByRole('dialog', { name: '“Alpha”的默认模型' })).toBeTruthy()
+      expect(setDefaultModel).toHaveBeenCalledOnce()
+      await act(async () => { resolveSave() })
+      await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
+    })
   })
 })

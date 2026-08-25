@@ -6,8 +6,12 @@ The deployment default used when an entry point creates an Agent that has no ses
 
 The plugin config requires `{ provider, model }`. That composition entry is the base of the `agent-default-model` Settings section; a mounted settings provider layers the user's choice over it and changes are visible on the next `currentSelection()` read. `reasoningEffort` belongs to the Settings section but deliberately not to plugin config: a complete saved selection can clear an effort when the next selected model has none, while a composition value would be inherited again.
 
+A second Settings section, `workspace-default-model`, layers explicit per-workspace overrides on top, keyed by workspace id. An entry shadows the shared default for every session in that workspace until it is cleared (or its workspace is deleted), so a workspace can pin the model its new sessions start from without touching the deployment-wide choice.
+
 - `ctx.agentDefaultModel.currentSelection()` returns a detached `{ provider, model, reasoningEffort? }` selection for a newly created Agent.
 - `ctx.agentDefaultModel.saveSelection(selection)` saves the complete user selection. Without a settings provider it is a no-op and the composition entry remains current.
+- `ctx.agentDefaultModel.workspaceSelection(workspaceId)` returns one workspace's explicit override, or `undefined` when it inherits the shared default.
+- `ctx.agentDefaultModel.saveWorkspaceSelection(workspaceId, selection)` saves or clears (on `null`) one workspace's override. Without a settings provider it is a no-op.
 
 The service does not validate catalog membership. A provider route may serve an unadvertised model, and the consumer that actually opens a model request owns availability diagnostics.
 
@@ -21,5 +25,5 @@ Changing the default affects only Agents that subsequently resolve from it. An e
 
 ## Known Limitations and Deferred Work
 
-- The service owns one process-wide default; per-session selection remains the entry point's responsibility.
+- The service owns one process-wide default plus per-workspace overrides; per-session selection remains the entry point's responsibility.
 - Without a settings provider, `saveSelection()` cannot retain a selection for a later Agent.

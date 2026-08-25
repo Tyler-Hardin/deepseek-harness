@@ -491,6 +491,99 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+/* Default-model dialog picker: hint, then a scrollable radio list mirroring
+   the composer model menu's option treatment. */
+.modelStatus {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.modelHint {
+  margin-bottom: 8px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.modelPicker {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  padding: 6px;
+}
+
+.modelOption {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 10px;
+  outline: none;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.modelOption:hover,
+.modelOption:focus-visible {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.modelOptionCopy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.modelName {
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modelDescription {
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modelCheck {
+  display: grid;
+  place-items: center;
+  flex: 0 0 18px;
+}
+
+.modelGroupTitle {
+  padding: 5px 8px 3px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+}
+
+.modelEmpty {
+  padding: 12px 8px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .wide {
     animation: none;

@@ -212,4 +212,35 @@ export class TestWorkspaces implements IWorkspaces {
       draft.archivedSessionIds = [...draft.archivedSessionIds, sessionId]
     })
   }
+
+  /**
+   * Read a Workspace's default-model view (recorded). The default serves a
+   * catalog-less empty view inheriting the shared default.
+   * @param workspaceId - target workspace.
+   * @returns the Host-shaped default-model view.
+   */
+  async defaultModel(workspaceId: WorkspaceId): Promise<Awaited<ReturnType<IWorkspaces['defaultModel']>>> {
+    this.calls.push({ method: 'defaultModel', args: [workspaceId] })
+    const stub = this.stubs.get('defaultModel')
+    if (stub !== undefined) {
+      return await (stub(workspaceId) as Awaited<ReturnType<IWorkspaces['defaultModel']>>)
+    }
+    return {
+      selection: null,
+      shared: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+      groups: [],
+      failures: [],
+    }
+  }
+
+  /**
+   * Set or clear a Workspace's explicit default-model override (recorded;
+   * default no-op).
+   * @param workspaceId - target workspace.
+   * @param selection - the override, or null to clear it.
+   */
+  async setDefaultModel(workspaceId: WorkspaceId, selection: Parameters<IWorkspaces['setDefaultModel']>[1]): Promise<void> {
+    this.calls.push({ method: 'setDefaultModel', args: [workspaceId, selection] })
+    await (this.stubs.get('setDefaultModel')?.(workspaceId, selection) as Promise<void> | undefined)
+  }
 }

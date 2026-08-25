@@ -3,7 +3,7 @@
 import type {
   HostFrame, IApiClient, RpcError, RpcRequest, RpcResult, SessionId, WorkspaceId, WorkspaceView,
 } from '@deepseek-ai/dsh-api-remotes/client'
-import { transportError } from '@deepseek-ai/dsh-host-apiproxy/api'
+import { transportError, type ResponseValue } from '@deepseek-ai/dsh-host-apiproxy/api'
 import { Notifier } from '../sessions/notifier.ts'
 import { Workspace, type WorkspaceCreateInput } from './workspace.ts'
 
@@ -228,6 +228,32 @@ export class WorkspaceManager {
   async archiveSession(sessionId: SessionId): Promise<RpcResult<{ archivedSessionIds: SessionId[] }>> {
     const { result } = await this.api.workspace.archiveSession({ sessionId })
     if (result.ok) this.installArchived(result.value.archivedSessionIds)
+    return result
+  }
+
+  /**
+   * Read one Workspace's default-model view (explicit override, shared
+   * default, advisory catalog). No local projection participates: the
+   * dialog renders entirely from the Host response.
+   * @param workspaceId - target workspace.
+   * @returns the wire result.
+   */
+  async defaultModel(workspaceId: WorkspaceId): Promise<RpcResult<ResponseValue<'workspace.defaultModel'>>> {
+    const { result } = await this.api.workspace.defaultModel({ workspaceId })
+    return result
+  }
+
+  /**
+   * Set or clear one Workspace's explicit default-model override.
+   * @param workspaceId - target workspace.
+   * @param selection - the override, or null to clear it.
+   * @returns the wire result.
+   */
+  async setDefaultModel(
+    workspaceId: WorkspaceId,
+    selection: ResponseValue<'workspace.setDefaultModel'>['selection'],
+  ): Promise<RpcResult<ResponseValue<'workspace.setDefaultModel'>>> {
+    const { result } = await this.api.workspace.setDefaultModel({ workspaceId, selection })
     return result
   }
 

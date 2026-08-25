@@ -8,7 +8,7 @@ import { z } from 'zod'
 import type { RequestPayload, ResponseValue } from './rpc-map.ts'
 import type { Wire } from './rpc.schema.ts'
 import type { WorkspaceView } from './workspace.ts'
-import { sessionIdSchema, workspaceIdSchema } from './sessions.schema.ts'
+import { sessionIdSchema, workspaceIdSchema, modelSelectionSchema, modelProviderGroupSchema, modelCatalogFailureSchema } from './sessions.schema.ts'
 
 export { workspaceIdSchema } from './sessions.schema.ts'
 
@@ -98,3 +98,27 @@ export const workspaceArchiveSessionRequestSchema = z.object({
 export const workspaceArchiveSessionValueSchema = z.object({
   archivedSessionIds: z.array(sessionIdSchema),
 }) satisfies z.ZodType<Wire<ResponseValue<'workspace.archiveSession'>>>
+
+/** workspace.defaultModel request payload. */
+export const workspaceDefaultModelRequestSchema = z.object({
+  workspaceId: workspaceIdSchema,
+}) satisfies z.ZodType<Wire<RequestPayload<'workspace.defaultModel'>>>
+
+/** workspace.defaultModel response value: explicit override, shared default, and the advisory catalog. */
+export const workspaceDefaultModelValueSchema = z.object({
+  selection: modelSelectionSchema.nullable(),
+  shared: modelSelectionSchema,
+  groups: z.array(modelProviderGroupSchema),
+  failures: z.array(modelCatalogFailureSchema),
+}) satisfies z.ZodType<Wire<ResponseValue<'workspace.defaultModel'>>>
+
+/** workspace.setDefaultModel request payload: null clears the override. */
+export const workspaceSetDefaultModelRequestSchema = z.object({
+  workspaceId: workspaceIdSchema,
+  selection: modelSelectionSchema.nullable(),
+}) satisfies z.ZodType<Wire<RequestPayload<'workspace.setDefaultModel'>>>
+
+/** workspace.setDefaultModel response value: the stored override (null = inherits shared). */
+export const workspaceSetDefaultModelValueSchema = z.object({
+  selection: modelSelectionSchema.nullable(),
+}) satisfies z.ZodType<Wire<ResponseValue<'workspace.setDefaultModel'>>>

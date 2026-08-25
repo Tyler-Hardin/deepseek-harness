@@ -6,7 +6,10 @@
  * the concrete class. Widening this interface is the explicit act of
  * widening what features may do to the workspaces domain.
  */
-import type { DirectoryListing, SessionId, WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import type {
+  DirectoryListing, ModelCatalogFailure, ModelProviderGroup, ModelSelection,
+  SessionId, WorkspaceId, WorkspaceView,
+} from '@deepseek-ai/dsh-api-remotes/client'
 import type { WorkspaceListState } from '../workspaces/service.ts'
 import type { ObservableSnapshot } from './store.ts'
 
@@ -91,4 +94,24 @@ export interface IWorkspaces {
    * @param sessionId - session to archive.
    */
   archiveSession(sessionId: SessionId): Promise<void>
+  /**
+   * Read one Workspace's default-model view: its explicit override (null when
+   * the Workspace inherits the shared default), the shared default, and the
+   * advisory provider/model catalog a picker renders from.
+   * @param workspaceId - target workspace.
+   */
+  defaultModel(workspaceId: WorkspaceId): Promise<{
+    selection: ModelSelection | null
+    shared: ModelSelection
+    groups: ModelProviderGroup[]
+    failures: ModelCatalogFailure[]
+  }>
+  /**
+   * Set or clear one Workspace's explicit default-model override. A null
+   * selection clears the override so the Workspace inherits the shared
+   * default again; the Host route-validates non-null selections.
+   * @param workspaceId - target workspace.
+   * @param selection - the override, or null to clear it.
+   */
+  setDefaultModel(workspaceId: WorkspaceId, selection: ModelSelection | null): Promise<void>
 }

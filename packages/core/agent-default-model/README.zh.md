@@ -6,8 +6,12 @@
 
 插件配置必须提供 `{ provider, model }`。该组合配置项构成 Settings 中 `agent-default-model` 分节的基础层；挂载的设置提供方在其上叠加用户选择，更改会在下一次调用 `currentSelection()` 时可见。`reasoningEffort` 属于该 Settings 分节，但特意不属于插件配置：完整保存的选择必须能在下一个选定模型没有推理（reasoning）强度时清除旧值，而组合配置值会再次被继承。
 
+第二个 Settings 分节 `workspace-default-model` 以工作区 id 为键，在共享默认之上叠加显式的按工作区覆盖。覆盖项会为该工作区的每个会话遮蔽共享默认，直到被清除（或其工作区被删除），因此一个工作区可以固定其新会话默认使用的模型，而不改动部署级选择。
+
 - `ctx.agentDefaultModel.currentSelection()` 返回一份独立的 `{ provider, model, reasoningEffort? }` 选择，供新创建的 Agent 使用。
 - `ctx.agentDefaultModel.saveSelection(selection)` 保存完整的用户选择。未挂载设置提供方时，此调用不执行任何操作，组合配置项仍为当前值。
+- `ctx.agentDefaultModel.workspaceSelection(workspaceId)` 返回某个工作区的显式覆盖；未设置时返回 `undefined`，表示沿用共享默认。
+- `ctx.agentDefaultModel.saveWorkspaceSelection(workspaceId, selection)` 保存某个工作区的覆盖，传入 `null` 则清除。未挂载设置提供方时，此调用不执行任何操作。
 
 该服务不校验目录成员关系。提供方路由可以服务未在目录中公布的模型；实际发起模型请求的消费方负责可用性诊断。
 

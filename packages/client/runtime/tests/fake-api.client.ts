@@ -2,7 +2,7 @@
 // data source on a real clock; behavior tests need per-case responses and
 // deferred-controlled timing). Streams are hand pumps: pushMux/pushHost.
 import type {
-  ClientResponse, HostFrame, IApiClient, ModelSelection, MuxFrame,
+  ClientResponse, HostFrame, IApiClient, ModelProviderGroup, ModelSelection, MuxFrame,
   RpcError, RpcReceipt, RpcRequest, RpcResponse, SessionId, SessionModels, SessionSearchItem, SkillEntry,
   WorkspaceId, WorkspaceView,
 } from '@deepseek-ai/dsh-api-remotes/client'
@@ -205,6 +205,21 @@ export class FakeApiClient implements IApiClient {
   onWorkspaceArchiveSession: (payload: unknown) => Promise<RpcResponse<{ archivedSessionIds: SessionId[] }>> =
     payload => Promise.resolve(ok({ archivedSessionIds: [(payload as { sessionId: SessionId }).sessionId] }))
 
+  onWorkspaceDefaultModel: (payload: unknown) => Promise<RpcResponse<{
+    selection: ModelSelection | null
+    shared: ModelSelection
+    groups: ModelProviderGroup[]
+    failures: never[]
+  }>> = () => Promise.resolve(ok({
+    selection: null,
+    shared: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+    groups: [],
+    failures: [],
+  }))
+
+  onWorkspaceSetDefaultModel: (payload: unknown) => Promise<RpcResponse<{ selection: ModelSelection | null }>> =
+    () => Promise.resolve(ok({ selection: null }))
+
   readonly workspace: IApiClient['workspace'] = {
     list: (payload: unknown) => this.record('workspace.list', payload, this.onWorkspaceList(payload).then(response => (
       response.result.ok
@@ -220,6 +235,10 @@ export class FakeApiClient implements IApiClient {
       this.record('workspace.insertSessionBefore', payload, this.onWorkspaceInsertSessionBefore(payload)),
     archiveSession: (payload: unknown) =>
       this.record('workspace.archiveSession', payload, this.onWorkspaceArchiveSession(payload)),
+    defaultModel: (payload: unknown) =>
+      this.record('workspace.defaultModel', payload, this.onWorkspaceDefaultModel(payload)),
+    setDefaultModel: (payload: unknown) =>
+      this.record('workspace.setDefaultModel', payload, this.onWorkspaceSetDefaultModel(payload)),
   }
 
   // Payloads stay `unknown` (lint-lane note above); response rows are the real
