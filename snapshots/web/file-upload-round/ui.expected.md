@@ -45,6 +45,7 @@
 - button "Add attachment":
   - img
 - 'button "Access mode, current: Workspace Write"': Workspace Write
+- button "Voice input"
 - button "Select model, current DeepSeek-V4-Flash-Vision-Exp, reasoning effort high":
   - text: DeepSeek-V4-Flash-Vision-Exp high
   - img

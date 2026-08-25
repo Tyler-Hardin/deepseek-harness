@@ -6,4 +6,5 @@
   - option "goal 设置或查看长期任务目标"
   - option "permission 切换权限预设（沙箱模式与审批策略）"
   - option "plan 进入或退出计划模式"
+  - option "voice-local manage the local offline speech-to-text backend"
   - option "model 选择本会话使用的模型"

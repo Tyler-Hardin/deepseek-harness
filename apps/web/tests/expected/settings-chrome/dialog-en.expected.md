@@ -13,6 +13,9 @@
     - button "Agent presets":
       - img
       - text: Agent presets
+    - button "Voice input":
+      - img
+      - text: Voice input
   - button "Open configuration file"
   - button "Close":
     - img

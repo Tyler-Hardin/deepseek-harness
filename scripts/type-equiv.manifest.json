@@ -2105,6 +2105,36 @@
       "doc": "packages/client/ui-conversation/README.md",
       "symbol": "ComposerChainProps",
       "source": "packages/client/ui-conversation/src/client/contract/slots.ts"
+    },
+    {
+      "doc": "docs/subsystems/voice.md",
+      "symbol": "TranscriptionBackend",
+      "source": "packages/voice/voice-context/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/voice.md",
+      "symbol": "CloudTranscriptionModel",
+      "source": "packages/voice/voice-context/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/voice.md",
+      "symbol": "LocalTranscriptionModel",
+      "source": "packages/voice/voice-context/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/voice.md",
+      "symbol": "TranscriptionModel",
+      "source": "packages/voice/voice-context/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/voice.md",
+      "symbol": "TranscribeRequest",
+      "source": "packages/voice/voice-context/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/voice.md",
+      "symbol": "TranscribeResult",
+      "source": "packages/voice/voice-context/src/types.ts"
     }
   ]
 }

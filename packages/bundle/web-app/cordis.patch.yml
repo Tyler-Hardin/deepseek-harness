@@ -119,6 +119,16 @@
     - id: workspace-controller
       name: '@deepseek-ai/dsh-api-workspace-controller'
 
+    # Voice-Context STT: a Remote-exposed speech-to-text service. The API key
+    # resolves through the credentials seam (typed in the Web settings page);
+    # the /voice-local command manages an optional local offline backend.
+    - id: voice-context
+      name: '@deepseek-ai/dsh-voice-context'
+      config:
+        baseUrl: https://api.siliconflow.cn
+        model: FunAudioLLM/SenseVoiceSmall
+        language: zh
+
     - id: cordis-host-runner
       name: '@deepseek-ai/dsh-cordis-host-runner'
 
@@ -261,6 +271,11 @@
 
     - id: ui-attachment
       name: '@deepseek-ai/dsh-client-ui-attachment'
+
+    # Voice input: mic button in the composer tool row plus the Voice-Context
+    # settings page (backend/model routing and the STT API key).
+    - id: ui-voice-context
+      name: '@deepseek-ai/dsh-client-ui-voice-context'
 
     # Tool call tree, generic fallback, and keyed business Tool views.
     - id: ui-tool

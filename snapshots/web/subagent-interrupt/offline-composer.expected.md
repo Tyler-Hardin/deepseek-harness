@@ -40,5 +40,6 @@
 - button "Add attachment" [disabled]:
   - img
 - 'button "Access mode, current: Custom" [disabled]': Custom
+- button "Voice input"
 - button "Stop generating"
 - button "Send message" [disabled]

@@ -70,6 +70,7 @@
 - button "Add attachment" [disabled]:
   - img
 - 'button "Access mode, current: Custom"': Custom
+- button "Voice input"
 - button "6% of context used"
 - button "Send message" [disabled]
 - button "2 turns 2 steps · {{throughput}} tok/s":
