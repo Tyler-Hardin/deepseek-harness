@@ -78,6 +78,10 @@
       "path": "../workspace-controller/tsconfig.client.json"
     },
     {
+      "path": "../../voice/voice-context"
+
+    },
+    {
       "path": "../../typert/protocol"
     },
     {

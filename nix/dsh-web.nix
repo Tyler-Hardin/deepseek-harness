@@ -154,6 +154,21 @@ in
         inheritSystemPath instead of inheriting the whole system profile.
       '';
     };
+
+    voiceContext = lib.mkOption {
+      type = lib.types.nullOr lib.types.package;
+      default = null;
+      description = ''
+        Python environment providing the local speech-to-text backend for
+        Voice-Context (the `/voice-local` server). When set, its bin is
+        added to the service PATH so `python -m uvicorn` resolves without a
+        pip install. Build it with `nix build .#dsh-stt` (faster-whisper
+        path) or point it at any python env providing fastapi, uvicorn, and
+        faster-whisper. `null` leaves the backend to the pip-based
+        `/voice-local install` flow; the funasr/SenseVoiceSmall engine is
+        not packaged in nixpkgs and keeps that flow regardless.
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -163,7 +178,10 @@ in
       after = [ "network.target" ];
       environment =
         (lib.optionalAttrs (cfg.dshHome != null) { DSH_HOME = toString cfg.dshHome; }) // cfg.environment;
-      path = (if cfg.inheritSystemPath then [ config.system.path ] else [ ]) ++ cfg.extraPackages;
+      path =
+        (if cfg.inheritSystemPath then [ config.system.path ] else [ ])
+        ++ cfg.extraPackages
+        ++ lib.optional (cfg.voiceContext != null) cfg.voiceContext;
       serviceConfig = {
         Type = "simple";
         User = cfg.user;

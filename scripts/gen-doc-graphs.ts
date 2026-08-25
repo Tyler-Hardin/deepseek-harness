@@ -560,6 +560,15 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'tool-fs executes read/write/edit through ctx.fs; fs-sandbox fences mutations by the shared sandbox mode; fs-observation-policy contributes observed-state checks through the fs/* event gate.',
   },
   {
+    key: 'voiceContext',
+    pkg: 'voice-context',
+    title: 'Speech-to-text Remote service',
+    mode: 'seam',
+    implementations: ['voice-context'],
+    consumers: ['client-web'],
+    note: 'The transcribe Remote crosses the browser-trust fence per call; the optional /voice-local command manages the local offline backend.',
+  },
+  {
     key: 'compaction',
     pkg: 'compaction',
     title: 'Compaction seam',
