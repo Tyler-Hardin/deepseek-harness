@@ -167,13 +167,14 @@ describe('connection node half', () => {
     await dispose()
   })
 
-  it('pins privileged methods to loopback even for a declared trusted authority', async () => {
+  it('lets a declared trusted authority reach privileged methods and refuses undeclared ones', async () => {
     const { routes, dispose } = await mounted({ trustedHosts: ['harness.example'] })
     // The privileged set: native dialogs plus the whole settings/credential
     // configuration plane, reads included, plus the one method that makes the
-    // host fetch a caller-chosen URL. The same declared authority reaches
-    // ordinary reads (carrier-level 404 from the empty proxy proves the fence
-    // passed), but each privileged method stays loopback-only and 403s.
+    // host fetch a caller-chosen URL. Fork behavior: a declared trustedHosts
+    // authority (the deployment's TLS reverse proxy) passes — the carrier-level
+    // 404 from the empty proxy proves the fence let it through — while an
+    // authority that is neither loopback nor declared stays refused.
     for (const method of [
       'host.pickDirectory', 'host.openPath',
       'settings.describe', 'settings.openDocument', 'settings.update', 'settings.replace', 'settings.mutate',
@@ -184,9 +185,15 @@ describe('connection node half', () => {
       // drive the host desktop.
       'agentPreset.read', 'agentPreset.copy', 'agentPreset.openDocument', 'agentPreset.remove',
     ]) {
-      const denied = fakeResponse()
+      const passed = fakeResponse()
       await routes[0]!.handler(
         fakeRequest({ host: 'harness.example' }, `${API_PATH}/${method}`),
+        passed.response,
+      )
+      expect([method, passed.state.status]).toEqual([method, 404])
+      const denied = fakeResponse()
+      await routes[0]!.handler(
+        fakeRequest({ host: 'evil.example' }, `${API_PATH}/${method}`),
         denied.response,
       )
       expect(denied.state.status).toBe(403)
@@ -459,26 +466,31 @@ describe('connection node half over a real HTTP server', () => {
     })
   }
 
-  it('answers a declared LAN authority with 403 on every configuration method, over real HTTP', async () => {
+  it('answers a declared LAN authority with 404 on every configuration method and refuses an undeclared one, over real HTTP', async () => {
     // The fence's input is a real IncomingMessage parsed by Node from the
     // wire, not a hand-assembled object: the Host header a LAN browser sends
-    // is exactly what decides loopback-only here, so the boundary is asserted
+    // is exactly what decides the fence here, so the boundary is asserted
     // against the parse the server actually performs.
     const { routes, dispose } = await mounted({ trustedHosts: ['harness.example'] })
     const { port, close } = await serve(routes)
     try {
-      // Reads are as privileged as writes: describe returns the exposed
-      // configuration, and credentials.describe probes arbitrary env-var names.
+      // Fork behavior: reads are as privileged as writes (describe returns the
+      // exposed configuration, and credentials.describe probes arbitrary
+      // env-var names), and a declared trustedHosts authority — the
+      // deployment's TLS reverse proxy — now reaches them; the 404 is the
+      // empty proxy's carrier answer proving the fence passed. An authority
+      // that is neither loopback nor declared is still refused.
       for (const method of [
         'settings.describe', 'settings.openDocument', 'settings.update', 'settings.replace', 'settings.mutate',
         'credentials.describe', 'credentials.set', 'credentials.unset',
         'host.pickDirectory', 'host.openPath',
         // Carries a draft credential and turns the host into a fetcher for a
-        // URL the caller picked: an anonymous LAN caller must not reach it.
+        // URL the caller picked: only a declared authority may reach it.
         'llm.discoverModels',
         'agentPreset.read', 'agentPreset.copy', 'agentPreset.openDocument', 'agentPreset.remove',
       ]) {
-        expect([method, await call(port, method, 'harness.example')]).toEqual([method, 403])
+        expect([method, await call(port, method, 'harness.example')]).toEqual([method, 404])
+        expect([method, await call(port, method, 'evil.example')]).toEqual([method, 403])
       }
       // The model catalog stays reachable for the same authority: a LAN
       // client's model picker needs it, and it carries no key or endpoint

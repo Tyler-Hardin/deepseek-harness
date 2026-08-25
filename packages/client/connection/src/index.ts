@@ -67,20 +67,23 @@ export const Config: z<ConnectionConfig> = z.object({
 })
 
 /**
- * Methods gated to loopback even on a trusted-host deployment. Native dialogs
- * act on the host machine; the settings and credential domains mutate the
- * user's configuration and secret store, and READING them is equally
- * privileged — `settings.describe` returns every exposed namespace's
- * configuration and `credentials.describe` reports whether an arbitrary
- * environment-variable name is configured and where from, which is
- * reconnaissance no anonymous caller should have. `trustedHosts` is a
- * DNS-rebinding fence, explicitly not authentication, so the whole
- * configuration plane stays loopback-same-origin until a real authentication
- * layer exists. `llm.discoverModels` belongs to that plane on both counts: it
- * carries a draft credential, and it makes the HOST issue a GET to a URL the
- * caller chose and reports back the status or the parsed body — an anonymous
- * LAN caller would have a probe for whatever the host can reach and the
- * browser cannot.
+ * Methods that mutate or expose the host's configuration, secrets, or
+ * desktop. Native dialogs act on the host machine; the settings and
+ * credential domains mutate the user's configuration and secret store, and
+ * READING them is equally privileged — `settings.describe` returns every
+ * exposed namespace's configuration and `credentials.describe` reports
+ * whether an arbitrary environment-variable name is configured and where
+ * from, which is reconnaissance no anonymous caller should have. A request
+ * must therefore present a loopback authority or a declared `trustedHosts`
+ * authority. `llm.discoverModels` belongs to the same plane on both counts:
+ * it carries a draft credential, and it makes the HOST issue a GET to a URL
+ * the caller chose and reports back the status or the parsed body — an
+ * anonymous LAN caller would have a probe for whatever the host can reach
+ * and the browser cannot. Local-fork extension: `trustedHosts` is
+ * deployment-declared (the CLI's `--trusted-host`), so a reverse proxy
+ * terminating TLS with client-certificate authentication may declare its
+ * authority and serve the configuration plane; authorities not declared
+ * here are still refused.
  *
  * The model catalog (`llm.providers`, `llm.models`) is deliberately NOT here:
  * it carries provider ids, display names, and model lists — no endpoints,
@@ -122,8 +125,9 @@ const PRIVILEGED_METHODS = new Set([
  * Mounts the API gateway under the browser transport prefix. Every request on
  * the prefix passes the browser-trust fence first (DNS-rebinding and
  * cross-site defense — [api-request-trust](./api-request-trust.ts));
- * privileged methods additionally pass it with an empty trust list, which
- * pins them to loopback.
+ * privileged methods additionally pass it with the same declared
+ * `trustedHosts` (local-fork extension: a TLS reverse proxy may serve the
+ * configuration plane; undeclared authorities are still refused).
  * @param ctx - Host plugin context.
  * @param config - resolved plugin config (schema defaults applied).
  */
@@ -144,7 +148,7 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
         : undefined
       if (method !== undefined
         && PRIVILEGED_METHODS.has(method)
-        && !isTrustedApiRequest(request, [])) {
+        && !isTrustedApiRequest(request, trustedHosts)) {
         return new Response('forbidden', { status: 403 })
       }
       if (request.method === 'GET' && (pathname === MUX_EVENTS_PATH || pathname === HOST_EVENTS_PATH)) {
