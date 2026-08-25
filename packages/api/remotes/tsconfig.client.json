@@ -55,6 +55,9 @@
       "path": "../../settings/settings"
     },
     {
+      "path": "../../voice/voice-context"
+    },
+    {
       "path": "../../typert/protocol"
     }
   ]

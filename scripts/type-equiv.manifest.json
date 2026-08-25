@@ -1974,6 +1974,36 @@
       "doc": "docs/subsystems/feedback.md",
       "symbol": "MessageFeedbackDeleteResult",
       "source": "packages/feedback/message-feedback/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/voice.md",
+      "symbol": "TranscriptionBackend",
+      "source": "packages/voice/voice-context/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/voice.md",
+      "symbol": "CloudTranscriptionModel",
+      "source": "packages/voice/voice-context/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/voice.md",
+      "symbol": "LocalTranscriptionModel",
+      "source": "packages/voice/voice-context/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/voice.md",
+      "symbol": "TranscriptionModel",
+      "source": "packages/voice/voice-context/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/voice.md",
+      "symbol": "TranscribeRequest",
+      "source": "packages/voice/voice-context/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/voice.md",
+      "symbol": "TranscribeResult",
+      "source": "packages/voice/voice-context/src/types.ts"
     }
   ]
 }
