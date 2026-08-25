@@ -15,6 +15,8 @@ import { SessionQueryError, type SessionObservation } from '@deepseek-ai/dsh-ses
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from '@deepseek-ai/dsh-typert-registry'
 import type { ModelSelection } from './types.ts'
+import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
+import type {} from '@deepseek-ai/dsh-workspace'
 
 /** Cold Session identity absent from persistence. */
 export class ApiSessionNotFound extends Error {}
@@ -137,6 +139,28 @@ export async function inspectApiSession(
 }
 
 /** Owns every operation that may create, resume, or configure a Web Agent. */
+/**
+ * The one Workspace accounting one Session, or undefined for Sessions outside
+ * any Workspace account (ungrouped). The same membership scan the fork path
+ * uses; the per-workspace default tier consults it only when a deployment
+ * provides workspace defaults.
+ * @param ctx - Host context carrying the Workspace registry.
+ * @param sessionId - Session whose owning Workspace is required.
+ * @returns the owning Workspace identity, or undefined when ungrouped.
+ */
+export function sessionWorkspaceId(ctx: Context, sessionId: SessionId): WorkspaceId | undefined {
+  // Typed structurally through `ctx.get`: deployments that mount no workspace
+  // domain read the shared default unchanged.
+  const registry = ctx.get('workspaceRegistry')
+  if (registry === undefined) return undefined
+  return registry.list().find(workspace =>
+    workspace.sessionIds.includes(sessionId))?.id
+}
+
+/**
+ * Host owner of Session creation, adoption, resume, and Session-local model
+ * selection. One instance serves the Session Remote namespace.
+ */
 export class ApiSessionAgentController {
   private readonly resumes = new Map<SessionId, Promise<Agent>>()
   private readonly creations = new Map<SessionId, Promise<Agent>>()
@@ -284,11 +308,21 @@ export class ApiSessionAgentController {
       ? undefined
       : agentModelSelection(projectionState.pending)
     const defaultModel = this.ctx.agentDefaultModel
+    const ctx = this.ctx
     const selection: InstalledSelection = {
       get current(): AgentModelSelection {
         if (picked !== undefined) return picked
         const loggedHeader = agent.session.requestHeader()
-        if (loggedHeader === undefined) return defaultModel.currentSelection()
+        if (loggedHeader === undefined) {
+          // Per-workspace override tier, then the shared default. The tier
+          // stays inert for Sessions outside any Workspace account or for
+          // deployments that provide no workspace defaults.
+          const workspaceId = sessionWorkspaceId(ctx, agent.session.id)
+          const override = workspaceId === undefined
+            ? undefined
+            : defaultModel.workspaceSelection(workspaceId)
+          return override ?? defaultModel.currentSelection()
+        }
         const logged = loggedHeader.config
         return {
           provider: logged.provider,

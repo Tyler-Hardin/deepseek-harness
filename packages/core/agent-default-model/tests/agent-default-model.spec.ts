@@ -2,10 +2,15 @@
 
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import AgentDefaultModelConfig, { AGENT_DEFAULT_MODEL_SETTINGS_NAMESPACE } from '../src/index.ts'
+import AgentDefaultModelConfig, {
+  AGENT_DEFAULT_MODEL_SETTINGS_NAMESPACE, WorkspaceId,
+} from '../src/index.ts'
 import { SettingsProvider } from '@deepseek-ai/dsh-settings'
 import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+
+/** Brand a raw string as the service's workspace identity (type-only at runtime). */
+const wid = (id: string) => id as WorkspaceId
 
 /** The smallest real provider: one in-memory document, always writable. */
 class MemorySettings extends SettingsProvider {
@@ -93,6 +98,61 @@ describe('AgentDefaultModelConfig', () => {
     await ctx.plugin(AgentDefaultModelConfig, { provider: 'p', model: 'm' })
     await ctx.agentDefaultModel.saveSelection({ provider: 'other', model: 'other' })
     expect(ctx.agentDefaultModel.currentSelection()).toEqual({ provider: 'p', model: 'm' })
+    await ctx.fiber.dispose()
+  })
+
+  it('reads, saves, and clears a per-workspace override without touching the shared default', async () => {
+    const bench = await boot()
+    const workspace = wid('ws-1')
+    expect(bench.defaultModel.workspaceSelection(workspace)).toBeUndefined()
+
+    await bench.defaultModel.saveWorkspaceSelection(workspace, {
+      provider: 'acme-gateway', model: 'acme-large', reasoningEffort: ReasoningEffortId('high'),
+    })
+    expect(bench.defaultModel.workspaceSelection(workspace)).toEqual({
+      provider: 'acme-gateway', model: 'acme-large', reasoningEffort: 'high',
+    })
+    // The override is workspace-local; the shared default stays the entry.
+    expect(bench.defaultModel.currentSelection()).toEqual({
+      provider: 'deepseek-official', model: 'deepseek-v4-flash',
+    })
+
+    await bench.defaultModel.saveWorkspaceSelection(workspace, null)
+    expect(bench.defaultModel.workspaceSelection(workspace)).toBeUndefined()
+    await bench.ctx.fiber.dispose()
+  })
+
+  it('keeps per-workspace overrides independent and clears only the named one', async () => {
+    const bench = await boot()
+    const first = wid('ws-first')
+    const second = wid('ws-second')
+    await bench.defaultModel.saveWorkspaceSelection(first, { provider: 'acme', model: 'acme-large' })
+    await bench.defaultModel.saveWorkspaceSelection(second, { provider: 'acme', model: 'acme-plain' })
+    expect(bench.defaultModel.workspaceSelection(first)).toEqual({ provider: 'acme', model: 'acme-large' })
+    expect(bench.defaultModel.workspaceSelection(second)).toEqual({ provider: 'acme', model: 'acme-plain' })
+
+    await bench.defaultModel.saveWorkspaceSelection(first, null)
+    expect(bench.defaultModel.workspaceSelection(first)).toBeUndefined()
+    expect(bench.defaultModel.workspaceSelection(second)).toEqual({ provider: 'acme', model: 'acme-plain' })
+    await bench.ctx.fiber.dispose()
+  })
+
+  it('replaces the stored effort with an absent one on a workspace save', async () => {
+    const bench = await boot()
+    const workspace = wid('ws-effort')
+    await bench.defaultModel.saveWorkspaceSelection(workspace, {
+      provider: 'acme', model: 'acme-large', reasoningEffort: ReasoningEffortId('high'),
+    })
+    await bench.defaultModel.saveWorkspaceSelection(workspace, { provider: 'acme', model: 'acme-plain' })
+    expect(bench.defaultModel.workspaceSelection(workspace)).toEqual({ provider: 'acme', model: 'acme-plain' })
+    await bench.ctx.fiber.dispose()
+  })
+
+  it('no-ops workspace saves without a settings provider', async () => {
+    const ctx = new Context()
+    await ctx.plugin(AgentDefaultModelConfig, { provider: 'p', model: 'm' })
+    await ctx.agentDefaultModel.saveWorkspaceSelection(wid('ws-1'), { provider: 'other', model: 'other' })
+    expect(ctx.agentDefaultModel.workspaceSelection(wid('ws-1'))).toBeUndefined()
     await ctx.fiber.dispose()
   })
 })

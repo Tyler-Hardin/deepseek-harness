@@ -31,6 +31,7 @@ import {
   apiSessionSubagentOwnershipError,
   hasApiSessionSubagentOwner,
   inspectApiSession,
+  sessionWorkspaceId,
 } from './agent.ts'
 import type {
   SessionAttachmentRequest,
@@ -150,7 +151,16 @@ export class SessionCommandController {
         }
         this.agents.selectForNextRequest(agent, selected)
         try {
-          await this.ctx.agentDefaultModel.saveSelection(selected)
+          // A Session whose Workspace carries an explicit override updates that
+          // override — the workspace default is the model the workspace starts
+          // from — while every other switch updates the shared default.
+          const workspaceId = sessionWorkspaceId(this.ctx, agent.session.id)
+          if (workspaceId !== undefined
+            && this.ctx.agentDefaultModel.workspaceSelection(workspaceId) !== undefined) {
+            await this.ctx.agentDefaultModel.saveWorkspaceSelection(workspaceId, selected)
+          } else {
+            await this.ctx.agentDefaultModel.saveSelection(selected)
+          }
         } catch (error) {
           this.ctx.logger.warn(
             `session-controller: model selection changed for the Session but the default was not saved: ${String(error)}`,

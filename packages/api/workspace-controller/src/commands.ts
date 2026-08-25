@@ -1,6 +1,9 @@
 /** Workspace command implementation and stable Remote failure mapping. */
 
 import type { Context } from '@deepseek-ai/cordis'
+import type { ModelSelection as AgentModelSelection } from '@deepseek-ai/dsh-agent'
+import type { AgentDefaultModelConfig } from '@deepseek-ai/dsh-agent-default-model'
+import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { Workspace } from '@deepseek-ai/dsh-workspace'
 import {
   WorkspaceId,
@@ -15,14 +18,19 @@ import type {
   WorkspaceArchiveValue,
   WorkspaceCreateRequest,
   WorkspaceCreateValue,
+  WorkspaceDefaultModelRequest,
+  WorkspaceDefaultModelValue,
   WorkspaceDeleteRequest,
   WorkspaceDeleteValue,
   WorkspaceInsertBeforeRequest,
   WorkspaceInsertSessionBeforeRequest,
   WorkspaceOrderValue,
   WorkspaceRenameRequest,
+  WorkspaceSetDefaultModelRequest,
+  WorkspaceSetDefaultModelValue,
   WorkspaceValue,
 } from './types.ts'
+import type { ModelSelection as WireModelSelection } from './types.ts'
 
 /** Implements Workspace mutations against the authoritative registry. */
 export class WorkspaceCommands {
@@ -94,6 +102,17 @@ export class WorkspaceCommands {
       if (!await this.ctx.workspaceRegistry.delete(WorkspaceId(request.workspaceId))) {
         throw workspaceNotFound(request.workspaceId)
       }
+      // A deleted Workspace must not leave a durable override behind: the id is
+      // never reused, so a stale entry would be unreachable clutter.
+      const defaults = this.defaultModelService()
+      if (defaults !== undefined) {
+        await defaults.saveWorkspaceSelection(WorkspaceId(request.workspaceId), null)
+          .catch((error: unknown) => {
+            this.ctx.logger.warn(
+              `workspace-controller: deleted Workspace "${request.workspaceId}" left a default-model override: ${String(error)}`,
+            )
+          })
+      }
       return { deleted: true }
     })
   }
@@ -160,6 +179,86 @@ export class WorkspaceCommands {
     return { archivedSessionIds: [...this.ctx.workspaceRegistry.archivedSessionIds] }
   }
 
+  /**
+   * Read one Workspace's explicit default-model override and the shared default.
+   * @param request - Workspace identity to read.
+   * @returns the override and the shared default it falls back to.
+   */
+  defaultModel(request: WorkspaceDefaultModelRequest): Promise<WorkspaceDefaultModelValue> {
+    return this.enqueue(() => {
+      const workspace = this.requireWorkspace(request.workspaceId)
+      const defaults = this.defaultModelService()
+      if (defaults === undefined) throw defaultModelUnavailable()
+      const shared = toWireSelection(defaults.currentSelection())
+      const override = defaults.workspaceSelection(workspace.id)
+      return Promise.resolve({ override: override === undefined ? null : toWireSelection(override), shared })
+    })
+  }
+
+  /**
+   * Validate and save or clear one Workspace's explicit default-model override.
+   * @param request - Workspace identity and the selection to store (null clears).
+   * @returns receipt after the override is saved or cleared.
+   */
+  setDefaultModel(request: WorkspaceSetDefaultModelRequest): Promise<WorkspaceSetDefaultModelValue> {
+    return this.enqueue(async () => {
+      const workspace = this.requireWorkspace(request.workspaceId)
+      const defaults = this.defaultModelService()
+      if (defaults === undefined) throw defaultModelUnavailable()
+      const next = request.selection
+      if (next !== null) await this.validateSelection(next)
+      await defaults.saveWorkspaceSelection(
+        workspace.id,
+        next === null ? null : toAgentSelection(next),
+      )
+      return { saved: true }
+    })
+  }
+
+  /**
+   * Reject a selection no mounted adapter can serve, before anything is stored.
+   * @param selection - requested provider/model route, with optional reasoning effort.
+   */
+  private async validateSelection(selection: WireModelSelection): Promise<void> {
+    const llm = this.ctx.get('llm')
+    if (llm === undefined) {
+      throw new RemoteError(
+        'workspace/model-unavailable',
+        'no model service is mounted; a workspace default model cannot be validated or saved',
+        { provider: selection.provider, model: selection.model },
+      )
+    }
+    try {
+      await llm.resolveCallConfig({
+        provider: selection.provider,
+        model: selection.model,
+        ...selection.reasoningEffort === undefined
+          ? {}
+          : { reasoningEffort: ReasoningEffortId(selection.reasoningEffort) },
+      })
+    } catch (error) {
+      if (remoteErrorOf(error) !== undefined) throw error
+      throw new RemoteError(
+        'workspace/model-unavailable',
+        error instanceof Error ? error.message : String(error),
+        { provider: selection.provider, model: selection.model },
+      )
+    }
+  }
+
+  /**
+   * Resolve one Workspace or reject with the wire not-found refusal.
+   * @param workspaceId - Workspace identity to resolve.
+   * @returns the authoritative registry entity.
+   */
+  /**
+   * The optional default-model service, absent when the deployment mounts none.
+   * @returns the mounted service, or undefined.
+   */
+  private defaultModelService(): AgentDefaultModelConfig | undefined {
+    return this.ctx.get('agentDefaultModel')
+  }
+
   private requireWorkspace(workspaceId: WorkspaceId): Workspace {
     const workspace = this.ctx.workspaceRegistry.get(WorkspaceId(workspaceId))
     if (workspace === undefined) throw workspaceNotFound(workspaceId)
@@ -183,4 +282,43 @@ function workspaceNotFound(workspaceId: WorkspaceId): RemoteError<'workspace/not
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+/** The deployment mounts no default-model service to serve workspace defaults. */
+function defaultModelUnavailable(): RemoteError<'workspace/default-model-unavailable'> {
+  return new RemoteError(
+    'workspace/default-model-unavailable',
+    'no agent-default-model service is mounted; workspace default models are unavailable',
+    {},
+  )
+}
+
+/**
+ * Project one Agent-facing selection onto the wire vocabulary.
+ * @param selection - Agent-side selection with a branded reasoning effort.
+ * @returns the plain-string wire selection.
+ */
+function toWireSelection(selection: AgentModelSelection): WireModelSelection {
+  return {
+    provider: selection.provider,
+    model: selection.model,
+    ...selection.reasoningEffort === undefined
+      ? {}
+      : { reasoningEffort: String(selection.reasoningEffort) },
+  }
+}
+
+/**
+ * Project one wire selection onto the Agent-facing vocabulary.
+ * @param selection - plain-string wire selection.
+ * @returns the Agent-side selection with a branded reasoning effort.
+ */
+function toAgentSelection(selection: WireModelSelection): AgentModelSelection {
+  return {
+    provider: selection.provider,
+    model: selection.model,
+    ...selection.reasoningEffort === undefined
+      ? {}
+      : { reasoningEffort: ReasoningEffortId(selection.reasoningEffort) },
+  }
 }

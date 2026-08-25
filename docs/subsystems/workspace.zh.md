@@ -226,6 +226,20 @@ Host service backing the generated `ctx.remote.workspace` namespace.
 @Remote('insertSessionBefore') insertSessionBefore(request: WorkspaceInsertSessionBeforeRequest): Promise<WorkspaceValue>
 
 /**
+ * Read one Workspace's explicit default-model override and the shared default.
+ * @param request - Workspace identity to read.
+ * @returns the override and the shared default it falls back to.
+ */
+@Remote('defaultModel') defaultModel(request: WorkspaceDefaultModelRequest): Promise<WorkspaceDefaultModelValue>
+
+/**
+ * Validate and save or clear one Workspace's explicit default-model override.
+ * @param request - Workspace identity and the selection to store (null clears).
+ * @returns receipt after the override is saved or cleared.
+ */
+@Remote('setDefaultModel') setDefaultModel(request: WorkspaceSetDefaultModelRequest): Promise<WorkspaceSetDefaultModelValue>
+
+/**
  * Hide one known Session from Workspace grouping surfaces.
  * @param request - Session identity to archive.
  * @returns the complete resulting archive set.

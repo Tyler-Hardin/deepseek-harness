@@ -28,7 +28,9 @@ import type { HostObservable, PropsHooks, PropsLocale, PropsRenderSlots, PropsRu
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { SessionSearchResultItem } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { RemoteHostFacts } from '@deepseek-ai/dsh-api-remotes/client'
+import type {
+  ModelCatalogFailure, ModelProviderGroup, ModelSelection, RemoteHostFacts,
+} from '@deepseek-ai/dsh-api-remotes/client'
 import type { WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { createWorkspaceViewStore } from '../stores.ts'
@@ -142,6 +144,23 @@ export type WorkspaceBrowserInjected = {
   insertSessionBefore: (workspaceId: WorkspaceId, sessionId: SessionId, beforeSessionId?: SessionId) => Promise<void>
   /** Adopt a picked host directory as a real Workspace before targeting a Session. */
   createWorkspace: (input: { path: string }) => Promise<WorkspaceView>
+  /**
+   * Read one Workspace's default-model view: its explicit override (null when
+   * the Workspace inherits the shared default), the shared default, and the
+   * advisory provider/model catalog the picker renders from.
+   */
+  defaultModel: (workspaceId: WorkspaceId) => Promise<{
+    selection: ModelSelection | null
+    shared: ModelSelection
+    groups: readonly ModelProviderGroup[]
+    failures: readonly ModelCatalogFailure[]
+  }>
+  /**
+   * Set or clear one Workspace's explicit default-model override. A null
+   * selection clears the override so the Workspace inherits the shared
+   * default again; the Host route-validates non-null selections.
+   */
+  setDefaultModel: (workspaceId: WorkspaceId, selection: ModelSelection | null) => Promise<void>
 }
 
 /** Full browser props: shell owner share + viewing store + injected actions + the locale seat. */

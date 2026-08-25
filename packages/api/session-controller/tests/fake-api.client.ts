@@ -21,7 +21,10 @@ import type {
   SessionSelectModelValue,
 } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { WorkspaceRemote } from '@deepseek-ai/dsh-api-workspace-controller/client'
-import type { WorkspaceFollowFrame } from '@deepseek-ai/dsh-api-workspace-controller/types'
+import type {
+  WorkspaceDefaultModelValue,
+  WorkspaceFollowFrame,
+} from '@deepseek-ai/dsh-api-workspace-controller/types'
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import {
   RemoteStream,
@@ -192,6 +195,14 @@ export class FakeApiClient {
   onWorkspaceInsertSessionBefore: (payload: unknown) => Promise<RemoteResult<{ workspace: WorkspaceView }>> =
     () => Promise.resolve(ok({ workspace: fakeWorkspace('fk-ws') }))
 
+  onWorkspaceDefaultModel: (
+    payload: unknown,
+  ) => Promise<RemoteResult<WorkspaceDefaultModelValue>> = () => Promise.resolve(ok({
+    override: null,
+    shared: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+  }))
+  onWorkspaceSetDefaultModel: (payload: unknown) => Promise<RemoteResult<{ readonly saved: true }>> =
+    () => Promise.resolve(ok({ saved: true }))
   onWorkspaceArchiveSession: (payload: unknown) => Promise<RemoteResult<{ archivedSessionIds: SessionId[] }>> =
     payload => Promise.resolve(ok({ archivedSessionIds: [(payload as { sessionId: SessionId }).sessionId] }))
 
@@ -272,6 +283,16 @@ export class FakeApiClient {
           'workspace.archiveSession',
           payload,
           this.onWorkspaceArchiveSession(payload),
+        ),
+        defaultModel: payload => this.record(
+          'workspace.defaultModel',
+          payload,
+          this.onWorkspaceDefaultModel(payload),
+        ),
+        setDefaultModel: payload => this.record(
+          'workspace.setDefaultModel',
+          payload,
+          this.onWorkspaceSetDefaultModel(payload),
         ),
         follow: signal => this.openWorkspace(signal),
       },

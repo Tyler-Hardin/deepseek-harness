@@ -122,6 +122,22 @@ export function apply(ctx: Context): void {
     },
     renameWorkspace: async (workspaceId, title) => { await workspaces.rename(workspaceId, title) },
     deleteWorkspace: async (workspaceId) => { await workspaces.delete(workspaceId) },
+    defaultModel: async (workspaceId) => {
+      // One Host-generation catalog plus the Workspace's override: the dialog
+      // renders the same advisory catalog the composer's model picker reads.
+      const [override, catalog] = await Promise.all([
+        workspaces.defaultModel(workspaceId),
+        ctx.remote.session.modelCatalog(),
+      ])
+      if (!catalog.ok) throw new Error(`${catalog.error.code}: ${catalog.error.message}`)
+      return {
+        selection: override.override,
+        shared: catalog.value.default,
+        groups: catalog.value.groups,
+        failures: catalog.value.failures,
+      }
+    },
+    setDefaultModel: (workspaceId, selection) => workspaces.setDefaultModel(workspaceId, selection),
     insertWorkspaceBefore: async (workspaceId, beforeWorkspaceId) => {
       await workspaces.insertBefore(workspaceId, beforeWorkspaceId)
     },

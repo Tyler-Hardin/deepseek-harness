@@ -10,6 +10,8 @@ import type {
   WorkspaceArchiveValue,
   WorkspaceCreateRequest,
   WorkspaceCreateValue,
+  WorkspaceDefaultModelRequest,
+  WorkspaceDefaultModelValue,
   WorkspaceDeleteRequest,
   WorkspaceDeleteValue,
   WorkspaceFollowFrame,
@@ -17,6 +19,8 @@ import type {
   WorkspaceInsertSessionBeforeRequest,
   WorkspaceOrderValue,
   WorkspaceRenameRequest,
+  WorkspaceSetDefaultModelRequest,
+  WorkspaceSetDefaultModelValue,
   WorkspaceValue,
 } from './types.ts'
 
@@ -97,6 +101,31 @@ export class WorkspaceController extends TypertRemoteService {
   @Remote('insertSessionBefore')
   insertSessionBefore(request: WorkspaceInsertSessionBeforeRequest): Promise<WorkspaceValue> {
     return this.commands.insertSessionBefore(request)
+  }
+
+  /**
+   * Hide one known Session from Workspace grouping surfaces.
+   * @param request - Session identity to archive.
+   * @returns the complete resulting archive set.
+   */
+  /**
+   * Read one Workspace's explicit default-model override and the shared default.
+   * @param request - Workspace identity to read.
+   * @returns the override and the shared default it falls back to.
+   */
+  @Remote('defaultModel')
+  defaultModel(request: WorkspaceDefaultModelRequest): Promise<WorkspaceDefaultModelValue> {
+    return this.commands.defaultModel(request)
+  }
+
+  /**
+   * Validate and save or clear one Workspace's explicit default-model override.
+   * @param request - Workspace identity and the selection to store (null clears).
+   * @returns receipt after the override is saved or cleared.
+   */
+  @Remote('setDefaultModel')
+  setDefaultModel(request: WorkspaceSetDefaultModelRequest): Promise<WorkspaceSetDefaultModelValue> {
+    return this.commands.setDefaultModel(request)
   }
 
   /**
