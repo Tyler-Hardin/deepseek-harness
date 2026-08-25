@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark surfaces, matching the web UI's boot theme tokens. -->
+    <color name="bg_dark">#FF151517</color>
+    <color name="surface_dark">#FF1F2226</color>
+    <color name="text_primary">#FFF9FAFB</color>
+    <color name="text_secondary">#FFCFD3D6</color>
+    <color name="text_tertiary">#FFADB2B8</color>
+    <color name="text_hint">#FF5B6066</color>
+
+    <!-- Accent for selection and focus states. -->
+    <color name="accent">#FF4D6BFE</color>
+</resources>

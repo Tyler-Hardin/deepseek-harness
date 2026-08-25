@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">dsh</string>
+
+    <!-- Splash -->
+    <string name="splash_connecting">Connecting to %1$s…</string>
+    <string name="splash_hint">If this takes too long, check the hostname and the client certificate in settings.</string>
+
+    <!-- Native fallback settings (first run / server unreachable) -->
+    <string name="settings_title">Server settings</string>
+    <string name="native_settings_hint">Full settings — hostname, certificate, and diagnostics — live in the web UI\'s App page (the gear in the app\'s sidebar). This screen is only shown when the server cannot be reached.</string>
+    <string name="url_label">Web UI hostname</string>
+    <string name="url_hint">hostname or https://host[:port] — https assumed if no scheme</string>
+    <string name="url_invalid">Invalid server URL — use hostname or https://host[:port]</string>
+    <string name="save">Save</string>
+
+    <!-- Client certificate -->
+    <string name="cert_section">Client certificate (mTLS)</string>
+    <string name="cert_status_none">No certificate selected — the system will ask you to choose one when the server requests it.</string>
+    <string name="cert_status_used">Using certificate: %1$s</string>
+    <string name="cert_forget">Forget certificate</string>
+    <string name="cert_load_failed">Could not load certificate \'%1$s\' — choose another one.</string>
+
+    <!-- Crash dialog -->
+    <string name="crash_alert_title">The app crashed on the previous run</string>
+    <string name="crash_alert_body">Details were recorded in the web UI\'s App settings page. Here is the beginning of the log:\n\n%1$s</string>
+    <string name="ok">OK</string>
+</resources>
