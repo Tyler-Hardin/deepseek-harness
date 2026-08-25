@@ -12,7 +12,10 @@ import type {
   WorkspaceCreateValue,
   WorkspaceDeleteValue,
   WorkspaceInsertSessionBeforeRequest,
+  WorkspaceDefaultModelValue,
   WorkspaceOrderValue,
+  WorkspaceSetDefaultModelRequest,
+  WorkspaceSetDefaultModelValue,
   WorkspaceValue,
   WorkspaceId,
   WorkspaceView,
@@ -168,6 +171,28 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
     const result = await this.remote.archiveSession({ sessionId })
     if (result.ok) this.installArchived(result.value.archivedSessionIds)
     return result
+  }
+
+  /**
+   * Read one Workspace's explicit default-model override and the shared default.
+   * @param workspaceId - owning Workspace.
+   * @returns generated Remote result.
+   */
+  async defaultModel(workspaceId: WorkspaceId): Promise<RemoteResult<WorkspaceDefaultModelValue>> {
+    return await this.remote.defaultModel({ workspaceId })
+  }
+
+  /**
+   * Save or clear one Workspace's explicit default-model override.
+   * @param workspaceId - owning Workspace.
+   * @param selection - override to save, or null to clear.
+   * @returns generated Remote result.
+   */
+  async setDefaultModel(
+    workspaceId: WorkspaceId,
+    selection: WorkspaceSetDefaultModelRequest['selection'],
+  ): Promise<RemoteResult<WorkspaceSetDefaultModelValue>> {
+    return await this.remote.setDefaultModel({ workspaceId, selection })
   }
 
   /**

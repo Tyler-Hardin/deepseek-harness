@@ -421,7 +421,7 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 
 ### `ctx.agentDefaultModel` — `AgentDefaultModelConfig`
 
-Owns the default model selection independently of any Host or transport. The composition entry remains usable without a settings provider; when one is mounted, its user layer is read live.
+Owns the default model selection independently of any Host or transport. The composition entry remains usable without a settings provider; when one is mounted, its user layer is read live. A workspace id keyed second layer carries explicit per-workspace overrides.
 
 ```ts cordis-catalog
 /**
@@ -431,13 +431,33 @@ Owns the default model selection independently of any Host or transport. The com
 currentSelection(): ModelSelection
 
 /**
+ * Read one workspace's explicit default model override.
+ * @param workspaceId - the owning workspace.
+ * @returns the override, or undefined when the workspace inherits the shared default.
+ */
+workspaceSelection(workspaceId: WorkspaceId): ModelSelection | undefined
+
+/**
  * Save the complete default model selection. A deployment without a settings
  * provider keeps its composition entry.
  * @param next - resolved selection accepted by an entry point.
  * @returns fulfillment after the optional settings write settles.
  */
 async saveSelection(next: ModelSelection): Promise<void>
+
+/**
+ * Save or clear one workspace's explicit default model override. A null
+ * selection removes the override so the workspace inherits the shared
+ * default again. A deployment without a settings provider keeps the stored
+ * document unchanged.
+ * @param workspaceId - the owning workspace.
+ * @param next - the override, or null to clear it.
+ * @returns fulfillment after the optional settings write settles.
+ */
+async saveWorkspaceSelection(workspaceId: WorkspaceId, next: ModelSelection | null): Promise<void>
 ```
+
+Types: [WorkspaceId](workspace.md)
 
 Source: [`packages/core/agent-default-model/src/index.ts`](../../packages/core/agent-default-model/src/index.ts)
 

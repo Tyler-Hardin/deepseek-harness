@@ -28,14 +28,16 @@ function controllerAgents(overrides: object = {}): ApiSessionAgentController {
   } as unknown as ApiSessionAgentController
 }
 
-async function baseContext(): Promise<Context> {
+async function baseContext(defaultModel: object = {}): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(SessionStore)
   await ctx.plugin(AgentRegistry)
   installSessionReadTestServices(ctx)
   ctx.provide('agentDefaultModel', {
     currentSelection: () => ({ provider: 'fixture', model: 'fixture-model' }),
+    workspaceSelection: () => undefined,
     saveSelection: () => Promise.resolve(),
+    ...defaultModel,
   } as never)
   return ctx
 }
@@ -135,6 +137,60 @@ describe('Session creation failures', () => {
     await expectFailure(controller.create({
       sessionId: SessionId('failed-create'), cwd: '/requested',
     }), code)
+    await ctx.fiber.dispose()
+  })
+
+  it('starts a Session created in a Workspace from that Workspace default', async () => {
+    const override = { provider: 'acme-gateway', model: 'acme-large' }
+    const ctx = await baseContext({ workspaceSelection: () => override })
+    const workspace = {
+      id: 'workspace-1' as WorkspaceId,
+      path: '/workspace',
+      attachSession: () => Promise.resolve(),
+    } as unknown as Workspace
+    ctx.provide('workspaceRegistry', { get: () => workspace, list: () => [workspace] } as never)
+    const selectForNextRequest = vi.fn()
+    const session = ctx.sessions.create(SessionId('workspace-default'), { meta: { cwd: '/workspace' } })
+    const controller = new SessionCommandController(
+      ctx,
+      controllerAgents({
+        ensureSession: () => Promise.resolve({ id: session.id, session } as Agent),
+        selectForNextRequest,
+      }),
+      '/default',
+    )
+
+    await controller.create({ sessionId: session.id, workspaceId: workspace.id })
+
+    expect(selectForNextRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ id: session.id }),
+      override,
+    )
+    await ctx.fiber.dispose()
+  })
+
+  it('leaves a Session on the shared default when its Workspace has no override', async () => {
+    const ctx = await baseContext()
+    const workspace = {
+      id: 'workspace-1' as WorkspaceId,
+      path: '/workspace',
+      attachSession: () => Promise.resolve(),
+    } as unknown as Workspace
+    ctx.provide('workspaceRegistry', { get: () => workspace, list: () => [workspace] } as never)
+    const selectForNextRequest = vi.fn()
+    const session = ctx.sessions.create(SessionId('workspace-shared'), { meta: { cwd: '/workspace' } })
+    const controller = new SessionCommandController(
+      ctx,
+      controllerAgents({
+        ensureSession: () => Promise.resolve({ id: session.id, session } as Agent),
+        selectForNextRequest,
+      }),
+      '/default',
+    )
+
+    await controller.create({ sessionId: session.id, workspaceId: workspace.id })
+
+    expect(selectForNextRequest).not.toHaveBeenCalled()
     await ctx.fiber.dispose()
   })
 

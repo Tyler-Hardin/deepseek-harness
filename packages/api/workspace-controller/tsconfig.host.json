@@ -14,11 +14,15 @@
   ],
   "references": [
     { "path": "../../../vendor/cordis" },
+    { "path": "../../core/agent" },
+    { "path": "../../core/agent-default-model" },
     { "path": "../../core/session" },
     { "path": "../../host/directory-picker" },
+    { "path": "../../llm/llm" },
     { "path": "../../storage/storage-domain" },
     { "path": "../../typert/protocol" },
     { "path": "../../util/deque" },
-    { "path": "../../workspace/workspace" }
+    { "path": "../../workspace/workspace" },
+    { "path": "../session-controller/tsconfig.host.json" }
   ]
 }

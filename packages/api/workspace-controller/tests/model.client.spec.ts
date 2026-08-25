@@ -7,6 +7,8 @@ import type {
   WorkspaceArchiveValue,
   WorkspaceCreateRequest,
   WorkspaceCreateValue,
+  WorkspaceDefaultModelRequest,
+  WorkspaceDefaultModelValue,
   WorkspaceDeleteRequest,
   WorkspaceDeleteValue,
   WorkspaceFollowFrame,
@@ -14,6 +16,8 @@ import type {
   WorkspaceInsertSessionBeforeRequest,
   WorkspaceOrderValue,
   WorkspaceRenameRequest,
+  WorkspaceSetDefaultModelRequest,
+  WorkspaceSetDefaultModelValue,
   WorkspaceValue,
   WorkspaceId,
   WorkspaceView,
@@ -84,6 +88,16 @@ class FakeWorkspaceRemote implements WorkspaceRemote {
     request: WorkspaceArchiveSessionRequest,
   ) => Promise<RemoteResult<WorkspaceArchiveValue>> = request =>
     Promise.resolve(remoteOk({ archivedSessionIds: [request.sessionId] }))
+  onDefaultModel: (
+    request: WorkspaceDefaultModelRequest,
+  ) => Promise<RemoteResult<WorkspaceDefaultModelValue>> = () => Promise.resolve(remoteOk({
+    override: null,
+    shared: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+  }))
+  onSetDefaultModel: (
+    request: WorkspaceSetDefaultModelRequest,
+  ) => Promise<RemoteResult<WorkspaceSetDefaultModelValue>> = () =>
+    Promise.resolve(remoteOk({ saved: true }))
 
   create(request: WorkspaceCreateRequest): Promise<RemoteResult<WorkspaceCreateValue>> {
     this.record('create', request)
@@ -108,6 +122,18 @@ class FakeWorkspaceRemote implements WorkspaceRemote {
   insertSessionBefore(request: WorkspaceInsertSessionBeforeRequest): Promise<RemoteResult<WorkspaceValue>> {
     this.record('insertSessionBefore', request)
     return this.onInsertSessionBefore(request)
+  }
+
+  defaultModel(request: WorkspaceDefaultModelRequest): Promise<RemoteResult<WorkspaceDefaultModelValue>> {
+    this.record('defaultModel', request)
+    return this.onDefaultModel(request)
+  }
+
+  setDefaultModel(
+    request: WorkspaceSetDefaultModelRequest,
+  ): Promise<RemoteResult<WorkspaceSetDefaultModelValue>> {
+    this.record('setDefaultModel', request)
+    return this.onSetDefaultModel(request)
   }
 
   archiveSession(request: WorkspaceArchiveSessionRequest): Promise<RemoteResult<WorkspaceArchiveValue>> {

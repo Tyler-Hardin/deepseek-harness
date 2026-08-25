@@ -34,6 +34,15 @@ async function bench() {
   const remote = new TestRemote(runtime.ctx)
   Object.assign(remote, { directoryPicker })
   runtime.ctx.provide('remote.directoryPicker', directoryPicker as never)
+  // The row menu reads the Host model catalog through `remote.session`; the
+  // namespace only has to exist for ui-workspace's inject to settle here.
+  const session = {
+    modelCatalog: vi.fn(async () => ({
+      ok: true as const,
+      value: { default: undefined, routableProviders: [], groups: [], failures: [] },
+    })),
+  }
+  runtime.ctx.provide('remote.session', session as never)
   const locale = new LocaleRuntime(runtime.ctx)
   runtime.ctx.provide('locale', locale)
   runtime.slots.installLocale(locale)

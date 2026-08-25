@@ -99,6 +99,175 @@ describe('WorkspaceController commands', () => {
     })
   })
 
+  it('points the Workspace\'s blank Sessions at a saved default and leaves chosen ones alone', async () => {
+    const { controller, ctx, root } = await harness()
+    const created = await controller.create({ path: stageDir(root, 'defaults') })
+    const workspaceId = created.workspace.workspaceId
+    const workspace = ctx.workspaceRegistry.get(workspaceId)
+    if (workspace === undefined) throw new Error('fixture Workspace disappeared')
+    const blank = ctx.sessions.create(SessionId('blank-session'), { meta: { cwd: created.workspace.path } })
+    const chosen = ctx.sessions.create(SessionId('chosen-session'), { meta: { cwd: created.workspace.path } })
+    await workspace.attachSession(blank.id)
+    await workspace.attachSession(chosen.id)
+
+    const saveWorkspaceSelection = vi.fn(() => Promise.resolve())
+    ctx.provide('agentDefaultModel', {
+      currentSelection: () => ({ provider: 'shared-gateway', model: 'shared-large' }),
+      workspaceSelection: () => undefined,
+      saveWorkspaceSelection,
+    } as never)
+    ctx.provide('llm', {
+      resolveCallConfig: () => Promise.resolve({ provider: 'acme-gateway', model: 'acme-large' }),
+    } as never)
+    const snapshot = vi.fn((session: { id: string }) => ({
+      values: {
+        modelSelection: session.id === 'chosen-session'
+          ? { lastUsed: { provider: 'own-gateway', model: 'own-large' }, next: { provider: 'own-gateway', model: 'own-large' } }
+          : { lastUsed: null, next: null },
+      },
+    }))
+    ctx.provide('sessionProjections', { snapshot } as never)
+    const selectModel = vi.fn(() => Promise.resolve({ selected: { provider: 'acme-gateway', model: 'acme-large' } }))
+    ctx.provide('sessionController', { selectModel } as never)
+
+    await controller.setDefaultModel({
+      workspaceId,
+      selection: { provider: 'acme-gateway', model: 'acme-large' },
+    })
+
+    expect(saveWorkspaceSelection).toHaveBeenCalledWith(workspaceId, { provider: 'acme-gateway', model: 'acme-large' })
+    expect(selectModel).toHaveBeenCalledTimes(1)
+    expect(selectModel).toHaveBeenCalledWith({
+      sessionId: blank.id, provider: 'acme-gateway', model: 'acme-large',
+    })
+  })
+
+  it('adopts a Session that has no registered selection projection yet', async () => {
+    const { controller, ctx, root } = await harness()
+    const created = await controller.create({ path: stageDir(root, 'defaults-untracked') })
+    const workspace = ctx.workspaceRegistry.get(created.workspace.workspaceId)
+    if (workspace === undefined) throw new Error('fixture Workspace disappeared')
+    const session = ctx.sessions.create(SessionId('untracked-session'), { meta: { cwd: created.workspace.path } })
+    await workspace.attachSession(session.id)
+    ctx.provide('agentDefaultModel', {
+      currentSelection: () => ({ provider: 'shared-gateway', model: 'shared-large' }),
+      workspaceSelection: () => undefined,
+      saveWorkspaceSelection: () => Promise.resolve(),
+    } as never)
+    ctx.provide('llm', {
+      resolveCallConfig: () => Promise.resolve({ provider: 'acme-gateway', model: 'acme-large' }),
+    } as never)
+    ctx.provide('sessionProjections', { snapshot: () => ({ values: {} }) } as never)
+    const selectModel = vi.fn(() => Promise.resolve({ selected: { provider: 'acme-gateway', model: 'acme-large' } }))
+    ctx.provide('sessionController', { selectModel } as never)
+
+    await controller.setDefaultModel({
+      workspaceId: created.workspace.workspaceId,
+      selection: { provider: 'acme-gateway', model: 'acme-large' },
+    })
+
+    expect(selectModel).toHaveBeenCalledWith({
+      sessionId: session.id, provider: 'acme-gateway', model: 'acme-large',
+    })
+  })
+
+  it('skips a Workspace Session that is not live', async () => {
+    const { controller, ctx, root } = await harness()
+    const created = await controller.create({ path: stageDir(root, 'defaults-cold') })
+    const workspace = ctx.workspaceRegistry.get(created.workspace.workspaceId)
+    if (workspace === undefined) throw new Error('fixture Workspace disappeared')
+    const session = ctx.sessions.create(SessionId('cold-session'), { meta: { cwd: created.workspace.path } })
+    await workspace.attachSession(session.id)
+    ctx.provide('agentDefaultModel', {
+      currentSelection: () => ({ provider: 'shared-gateway', model: 'shared-large' }),
+      workspaceSelection: () => undefined,
+      saveWorkspaceSelection: () => Promise.resolve(),
+    } as never)
+    ctx.provide('llm', {
+      resolveCallConfig: () => Promise.resolve({ provider: 'acme-gateway', model: 'acme-large' }),
+    } as never)
+    const selectModel = vi.fn(() => Promise.resolve({ selected: { provider: 'acme-gateway', model: 'acme-large' } }))
+    ctx.provide('sessionController', { selectModel } as never)
+    vi.spyOn(ctx.sessions, 'get').mockReturnValue(undefined)
+
+    await controller.setDefaultModel({
+      workspaceId: created.workspace.workspaceId,
+      selection: { provider: 'acme-gateway', model: 'acme-large' },
+    })
+
+    expect(selectModel).not.toHaveBeenCalled()
+  })
+
+  it('keeps serving a saved default when no Session Controller is mounted', async () => {
+    const { controller, ctx, root } = await harness()
+    const created = await controller.create({ path: stageDir(root, 'defaults-unmounted') })
+    ctx.provide('agentDefaultModel', {
+      currentSelection: () => ({ provider: 'shared-gateway', model: 'shared-large' }),
+      workspaceSelection: () => undefined,
+      saveWorkspaceSelection: () => Promise.resolve(),
+    } as never)
+    ctx.provide('llm', {
+      resolveCallConfig: () => Promise.resolve({ provider: 'acme-gateway', model: 'acme-large' }),
+    } as never)
+
+    await expect(controller.setDefaultModel({
+      workspaceId: created.workspace.workspaceId,
+      selection: { provider: 'acme-gateway', model: 'acme-large' },
+    })).resolves.toEqual({ saved: true })
+  })
+
+  it('clearing a default leaves the Workspace Sessions untouched', async () => {
+    const { controller, ctx, root } = await harness()
+    const created = await controller.create({ path: stageDir(root, 'defaults-cleared') })
+    const workspace = ctx.workspaceRegistry.get(created.workspace.workspaceId)
+    if (workspace === undefined) throw new Error('fixture Workspace disappeared')
+    const session = ctx.sessions.create(SessionId('cleared-session'), { meta: { cwd: created.workspace.path } })
+    await workspace.attachSession(session.id)
+    const saveWorkspaceSelection = vi.fn(() => Promise.resolve())
+    ctx.provide('agentDefaultModel', {
+      currentSelection: () => ({ provider: 'shared-gateway', model: 'shared-large' }),
+      workspaceSelection: () => ({ provider: 'acme-gateway', model: 'acme-large' }),
+      saveWorkspaceSelection,
+    } as never)
+    const selectModel = vi.fn(() => Promise.resolve({ selected: { provider: 'shared-gateway', model: 'shared-large' } }))
+    ctx.provide('sessionProjections', { snapshot: () => ({ values: { modelSelection: { lastUsed: null, next: null } } }) } as never)
+    ctx.provide('sessionController', { selectModel } as never)
+
+    await controller.setDefaultModel({ workspaceId: created.workspace.workspaceId, selection: null })
+
+    expect(saveWorkspaceSelection).toHaveBeenCalledWith(created.workspace.workspaceId, null)
+    expect(selectModel).not.toHaveBeenCalled()
+  })
+
+  it('keeps the saved default when one Session refuses to adopt it', async () => {
+    const { controller, ctx, root } = await harness()
+    const created = await controller.create({ path: stageDir(root, 'defaults-refused') })
+    const workspace = ctx.workspaceRegistry.get(created.workspace.workspaceId)
+    if (workspace === undefined) throw new Error('fixture Workspace disappeared')
+    const session = ctx.sessions.create(SessionId('refusing-session'), { meta: { cwd: created.workspace.path } })
+    await workspace.attachSession(session.id)
+    ctx.provide('agentDefaultModel', {
+      currentSelection: () => ({ provider: 'shared-gateway', model: 'shared-large' }),
+      workspaceSelection: () => undefined,
+      saveWorkspaceSelection: () => Promise.resolve(),
+    } as never)
+    ctx.provide('llm', {
+      resolveCallConfig: () => Promise.resolve({ provider: 'acme-gateway', model: 'acme-large' }),
+    } as never)
+    ctx.provide('sessionProjections', { snapshot: () => ({ values: { modelSelection: { lastUsed: null, next: null } } }) } as never)
+    ctx.provide('sessionController', {
+      selectModel: () => Promise.reject(new Error('session is gone')),
+    } as never)
+    const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
+
+    await expect(controller.setDefaultModel({
+      workspaceId: created.workspace.workspaceId,
+      selection: { provider: 'acme-gateway', model: 'acme-large' },
+    })).resolves.toEqual({ saved: true })
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('did not adopt the workspace default'))
+  })
+
   it('maps invalid paths, blank names, conflicts, and unknown ids to stable failures', async () => {
     const { controller, root } = await harness()
     const first = await controller.create({ path: stageDir(root, 'first') })

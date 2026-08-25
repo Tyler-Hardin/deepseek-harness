@@ -359,6 +359,16 @@ interface WorkspaceInsertSessionBeforeRequest {
 }
 interface WorkspaceArchiveSessionRequest { readonly sessionId: SessionId }
 interface WorkspaceArchiveValue { readonly archivedSessionIds: readonly SessionId[] }
+interface WorkspaceDefaultModelRequest { readonly workspaceId: WorkspaceId }
+interface WorkspaceDefaultModelValue {
+  readonly override: ModelSelection | null
+  readonly shared: ModelSelection
+}
+interface WorkspaceSetDefaultModelRequest {
+  readonly workspaceId: WorkspaceId
+  readonly selection: ModelSelection | null
+}
+interface WorkspaceSetDefaultModelValue { readonly saved: true }
 
 type WorkspaceFollowFrame =
   | {
@@ -380,6 +390,8 @@ interface FixtureWorkspaceApi {
   insertBefore(request: WorkspaceInsertBeforeRequest): Promise<ConnectionRpcResult<WorkspaceOrderValue>>
   insertSessionBefore(request: WorkspaceInsertSessionBeforeRequest): Promise<ConnectionRpcResult<WorkspaceValue>>
   archiveSession(request: WorkspaceArchiveSessionRequest): Promise<ConnectionRpcResult<WorkspaceArchiveValue>>
+  defaultModel(request: WorkspaceDefaultModelRequest): Promise<ConnectionRpcResult<WorkspaceDefaultModelValue>>
+  setDefaultModel(request: WorkspaceSetDefaultModelRequest): Promise<ConnectionRpcResult<WorkspaceSetDefaultModelValue>>
 }
 
 interface FixtureWorkspace {
@@ -2002,6 +2014,8 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
   // Registry-global archive set mirroring the host: archived sessions keep
   // their workspace accounting slot and only grouping surfaces hide them.
   const archivedSessionIds: SessionId[] = []
+  /** Per-workspace default-model overrides; an absent key inherits the shared default. */
+  const workspaceDefaultModels = new Map<WorkspaceId, ModelSelection>()
   const workspaceSnapshot = (workspace: FixtureWorkspace): WorkspaceView => ({
     ...workspace,
     sessionIds: [...workspace.sessionIds],
@@ -3798,6 +3812,33 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
       }
       return sessionOk({ archivedSessionIds: [...archivedSessionIds] })
     },
+    defaultModel: (request) => {
+      if (!workspaces.some(workspace => workspace.workspaceId === request.workspaceId)) {
+        return sessionErr({
+          code: 'workspace/not-found',
+          message: `no workspace ${request.workspaceId}`,
+          details: { workspaceId: request.workspaceId },
+        })
+      }
+      const override = workspaceDefaultModels.get(request.workspaceId)
+      return sessionOk({
+        override: override === undefined ? null : { ...override },
+        shared: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+      })
+    },
+    setDefaultModel: (request) => {
+      if (!workspaces.some(workspace => workspace.workspaceId === request.workspaceId)) {
+        return sessionErr({
+          code: 'workspace/not-found',
+          message: `no workspace ${request.workspaceId}`,
+          details: { workspaceId: request.workspaceId },
+        })
+      }
+      const { selection } = request
+      if (selection === null) workspaceDefaultModels.delete(request.workspaceId)
+      else workspaceDefaultModels.set(request.workspaceId, { ...selection })
+      return sessionOk({ saved: true })
+    },
   }
 
   const rpc: ClientConnectionRpc = {
@@ -3991,6 +4032,8 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
           request as WorkspaceInsertSessionBeforeRequest,
         )
         case 'workspace/archiveSession': return workspaceApi.archiveSession(request as WorkspaceArchiveSessionRequest)
+        case 'workspace/defaultModel': return workspaceApi.defaultModel(request as WorkspaceDefaultModelRequest)
+        case 'workspace/setDefaultModel': return workspaceApi.setDefaultModel(request as WorkspaceSetDefaultModelRequest)
         default:
           return Promise.reject(new Error(`fixture connection RPC endpoint ${JSON.stringify(endpoint)} is unavailable`))
       }

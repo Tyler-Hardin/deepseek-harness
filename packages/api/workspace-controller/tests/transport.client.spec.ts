@@ -23,6 +23,8 @@ import type {
   WorkspaceArchiveValue,
   WorkspaceCreateRequest,
   WorkspaceCreateValue,
+  WorkspaceDefaultModelRequest,
+  WorkspaceDefaultModelValue,
   WorkspaceDeleteRequest,
   WorkspaceDeleteValue,
   WorkspaceFollowFrame,
@@ -30,6 +32,8 @@ import type {
   WorkspaceInsertSessionBeforeRequest,
   WorkspaceOrderValue,
   WorkspaceRenameRequest,
+  WorkspaceSetDefaultModelRequest,
+  WorkspaceSetDefaultModelValue,
   WorkspaceId,
   WorkspaceValue,
   WorkspaceView,
@@ -140,6 +144,16 @@ class ScriptedWorkspaceRemote implements WorkspaceRemote {
     throw new Error('unused')
   }
 
+  defaultModel(_request: WorkspaceDefaultModelRequest): Promise<RemoteResult<WorkspaceDefaultModelValue>> {
+    throw new Error('unused')
+  }
+
+  setDefaultModel(
+    _request: WorkspaceSetDefaultModelRequest,
+  ): Promise<RemoteResult<WorkspaceSetDefaultModelValue>> {
+    throw new Error('unused')
+  }
+
   async *follow(signal = new AbortController().signal): AsyncIterable<WorkspaceFollowFrame> {
     const generation = this.generations[this.calls++]
     if (generation === undefined) throw new Error('no scripted Workspace generation')
@@ -179,6 +193,14 @@ class CommandWorkspaceRemote implements WorkspaceRemote {
   readonly archiveSession = vi.fn<WorkspaceRemote['archiveSession']>(request => Promise.resolve(remoteOk({
     archivedSessionIds: [request.sessionId],
   })))
+
+  readonly defaultModel = vi.fn<WorkspaceRemote['defaultModel']>(() => Promise.resolve(remoteOk({
+    override: null,
+    shared: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+  })))
+
+  readonly setDefaultModel = vi.fn<WorkspaceRemote['setDefaultModel']>(() =>
+    Promise.resolve(remoteOk({ saved: true })))
 
   async *follow(_signal?: AbortSignal): AsyncIterable<WorkspaceFollowFrame> {}
 }
