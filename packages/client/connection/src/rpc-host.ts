@@ -11,10 +11,7 @@ import { clientRequestSchema } from './rpc-schema.ts'
 import { bridge } from './http-bridge.ts'
 import { isTrustedApiRequest } from './api-request-trust.ts'
 import { API_PATH } from './api-path.ts'
-import type { BrowserAuth } from './browser-auth.ts'
 import type {
-  ConnectionIndexRequest,
-  ConnectionIndexResponse,
   ConnectionFetchRoute,
   ConnectionFetchHandler,
   HostConnectionFetch,
@@ -65,12 +62,10 @@ export class HostConnectionService extends Service implements HostConnectionHand
    * Provide the Host half over the active HTTP server.
    * @param ctx - owning Connection plugin context.
    * @param trustedHosts - deployment authorities accepted by the Host/Origin fence.
-   * @param browserAuth - process token and persistent browser-session owner.
    */
   constructor(
     ctx: Context,
     private readonly trustedHosts: readonly string[],
-    private readonly browserAuth: BrowserAuth,
   ) {
     super(ctx, 'connection')
   }
@@ -93,20 +88,31 @@ export class HostConnectionService extends Service implements HostConnectionHand
     }
   }
 
-  /** Apply the configured Host/Origin fence, then browser authentication. */
+  /**
+   * Apply the configured Host/Origin fence. Local fork: the fence is the whole
+   * gate — the deployment reaches this Host through a TLS reverse proxy that
+   * authenticates the client, so no browser handshake runs here.
+   */
   requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection {
     if (!isTrustedApiRequest(request, this.trustedHosts)) return 403
-    return this.browserAuth.isAuthenticated(request) ? undefined : 401
+    return undefined
   }
 
-  /** Authenticate an index request through the process-token exchange or cookie. */
-  authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean {
-    return this.browserAuth.authorizeIndex(request, response)
+  /** Serve the index: the fence decided the request and no handshake exists. */
+  authorizeIndex(): boolean {
+    return true
   }
 
-  /** Add this process's launch token to the clean application URL. */
+  /**
+   * The clean application root URL. Local fork: there is no process token to
+   * carry, so the caller prints and opens the plain deployment URL.
+   */
   authenticatedUrl(baseUrl: string): string {
-    return this.browserAuth.authenticatedUrl(baseUrl)
+    const url = new URL(baseUrl)
+    url.pathname = '/'
+    url.search = ''
+    url.hash = ''
+    return url.href
   }
 
   /**

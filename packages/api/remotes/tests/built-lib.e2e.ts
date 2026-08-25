@@ -130,16 +130,9 @@ describe.skipIf(!requiredArtifacts)('Goal Remote built LIB chain', () => {
       const address = server.address()
       if (address === null || typeof address === 'string') throw new Error('HTTP server has no TCP address')
       const origin = 'http://127.0.0.1:' + String(address.port)
-      const login = await fetch(host.connection.authenticatedUrl(origin), { redirect: 'manual' })
-      const setCookie = login.headers.get('set-cookie')
-      if (login.status !== 303 || setCookie === null) throw new Error('browser token exchange failed')
-      const cookie = setCookie.split(';', 1)[0]
-      const hostFetch = globalThis.fetch
-      globalThis.fetch = (input, init = {}) => {
-        const headers = new Headers(init.headers)
-        headers.set('cookie', cookie)
-        return hostFetch(input, { ...init, headers })
-      }
+      // Local fork: Connection runs no browser handshake, so no token exchange
+      // and no cookie jar exist; the trust fence is the whole gate.
+      void host.connection.authenticatedUrl(origin)
 
       const handoffs = new Map()
       globalThis.window = {

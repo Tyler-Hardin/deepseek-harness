@@ -194,13 +194,14 @@ describe('web e2e: Markdown image rendering', () => {
     if (imageOrigin !== undefined) await stopServer(imageOrigin.server)
   })
 
-  it('authenticates file requests and isolates directly opened active content', async () => {
+  it('serves file requests behind the trust fence and isolates directly opened active content', async () => {
+    // Local fork: the Host/Origin fence is the whole gate, so a same-origin
+    // Node-side probe reaches the file endpoint with no cookie involved.
     const path = `/api/file?path=${encodeURIComponent(join(scaffold.workspaceCwd, 'active.html'))}`
-    const unauthenticated = await fetch(new URL(path, scaffold.baseUrl))
-    expect(unauthenticated.status).toBe(401)
-    await unauthenticated.body?.cancel()
+    const fenced = await fetch(new URL(path, scaffold.baseUrl))
+    expect(fenced.ok).toBe(true)
+    await fenced.body?.cancel()
     const preview = await newEnglishPage(browser)
-    await preview.context().addCookies(await page.context().cookies())
     try {
       const response = await preview.goto(new URL(path, scaffold.baseUrl).href)
       expect(response?.status()).toBe(200)
