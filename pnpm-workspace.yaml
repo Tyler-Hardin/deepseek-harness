@@ -70,3 +70,14 @@ minimumReleaseAgeExclude:
 
 patchedDependencies:
   node-pty@1.2.0-beta.15: patches/node-pty@1.2.0-beta.15.patch
+
+# The virtual store lives inside each project's node_modules/.pnpm, the layout
+# every install in this repository has produced. pnpm's install command
+# resolves enableGlobalVirtualStore to false by default while `pnpm run`
+# resolves it to unset, so pnpm 11's verify-deps-before-run check (default
+# "install") compares false against unset and false-positives on every run —
+# silently spawning `pnpm install` inside git hooks, where its modules-purge
+# prompt blocks on lefthook's pseudo-TTY and `git push` hangs on the pre-push
+# typecheck. Declare the setting so install-time and run-time config agree and
+# the check passes for the right reason.
+enableGlobalVirtualStore: false
