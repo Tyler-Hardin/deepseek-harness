@@ -216,6 +216,11 @@
     - id: ui-settings-plugin-inventory
       name: '@deepseek-ai/dsh-client-ui-settings-plugin-inventory'
 
+    # App settings page (hostname, certificate, diagnostics); registers only
+    # when the page runs inside a native client exposing window.DshApp.
+    - id: ui-app-settings
+      name: '@deepseek-ai/dsh-client-ui-app-settings'
+
     - id: ui-conversation
       name: '@deepseek-ai/dsh-client-ui-conversation'
 

@@ -40,3 +40,13 @@ worktrees/
 .agents/worktrees/
 .typert-*/
 result
+
+# Android app (android/) build artifacts
+android/.android-sdk/
+android/.android-user-home/
+android/.gradle/
+android/.gradle-home/
+android/.nix-cache/
+android/app/build/
+android/build/
+android/local.properties
