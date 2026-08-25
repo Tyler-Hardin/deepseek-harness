@@ -862,6 +862,7 @@ export function WorkspaceBrowser({
   wide,
   usePanelInfo,
   expandSidebar,
+  closeSidebar,
   useSessions,
   useSessionPendingInteraction,
   useWorkspaces,
@@ -886,6 +887,11 @@ export function WorkspaceBrowser({
   renderSlot,
   t,
 }: WorkspaceBrowserProps) {
+  // Navigation actions dismiss the sidebar on narrow viewports (drawer mode);
+  // the frame gates the request, so wide viewports keep the persistent column.
+  const selectSession = (sessionId: SessionId): void => { closeSidebar(); open(sessionId) }
+  const startSessionAndClose = (workspaceId?: WorkspaceId): void => { closeSidebar(); startSession(workspaceId) }
+  const forkSessionAndClose = (sessionId: SessionId): void => { closeSidebar(); forkSession(sessionId) }
   const home = useHostInfo(info => info.home)
   const workspaces = useWorkspaces(state => state.items)
   const workspacePhase = useWorkspaces(state => state.phase)
@@ -957,7 +963,7 @@ export function WorkspaceBrowser({
     setRevealSessionId(sessionId)
     setQuery('')
     setSearchExpanded(false)
-    open(sessionId)
+    selectSession(sessionId)
   }
   const acknowledgeSessionReveal = (sessionId: SessionId): void => {
     setRevealSessionId(current => current === sessionId ? undefined : current)
@@ -1325,7 +1331,7 @@ export function WorkspaceBrowser({
           side="right"
           onPick={(workspaceId) => {
             setWsPickerOpen(false)
-            startSession(workspaceId)
+            startSessionAndClose(workspaceId)
           }}
           onClose={() => { setWsPickerOpen(false) }}
         />
@@ -1372,7 +1378,7 @@ export function WorkspaceBrowser({
               <FlatList
                 usePanelInfo={usePanelInfo}
                 useSessions={useSessions} useSessionPendingInteraction={useSessionPendingInteraction}
-                open={open} forkSession={forkSession}
+                open={selectSession} forkSession={forkSessionAndClose}
                 onSessionRename={onSessionRename} onSessionArchive={onSessionArchive}
                 archivedSessionIds={archivedSessionIds}
                 orderBy={orderBy}
@@ -1392,7 +1398,7 @@ export function WorkspaceBrowser({
                 useSessionPendingInteraction={useSessionPendingInteraction}
                 onSessionRename={onSessionRename}
                 onSessionArchive={onSessionArchive}
-                forkSession={forkSession}
+                forkSession={forkSessionAndClose}
                 workspaces={workspaces}
                 workspaceReady={workspacePhase === 'ready' && workspaceStreamState !== 'loading'}
                 groupExpansion={groupExpansion}
@@ -1402,8 +1408,8 @@ export function WorkspaceBrowser({
                 syncSessionOrderAccount={actions.syncSessionOrderAccount}
                 setSessionOrder={actions.setSessionOrder}
                 archivedSessionIds={archivedSessionIds}
-                startSession={startSession}
-                open={open}
+                startSession={startSessionAndClose}
+                open={selectSession}
                 insertWorkspaceBefore={insertWorkspaceBefore}
                 insertSessionBefore={insertSessionBefore}
                 orderBy={orderBy}

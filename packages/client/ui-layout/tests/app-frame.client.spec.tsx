@@ -7,6 +7,7 @@ import { act, cleanup, render } from '@testing-library/react'
 import { AppFrame } from '../src/client/AppFrame.tsx'
 import type { AppFrameProps } from '../src/client/AppFrame.tsx'
 import type { MainPanelId, RightbarOwnerProps, SidebarOwnerProps } from '../src/client/index.ts'
+import { SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT } from '../src/client/columns.ts'
 import { createLayoutStore } from '../src/client/stores.ts'
 import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -114,6 +115,12 @@ function mountFrame(windowWidth = frameWidth) {
   }
 }
 
+function sidebarColWidth(frame: HTMLElement): string {
+  const column = frame.querySelector<HTMLElement>('[class*="sidebarCol"]')
+  if (column === null) throw new Error('missing sidebar column')
+  return column.style.width
+}
+
 function tracks(frame: HTMLElement): number[] {
   const match = /^([\d.]+)px minmax\(0, 1fr\) ([\d.]+)px$/.exec(frame.style.gridTemplateColumns)
   if (match === null) throw new Error(`unexpected template: ${frame.style.gridTemplateColumns}`)
@@ -200,7 +207,8 @@ describe('AppFrame', () => {
   it('renders owner props for the default sidebar and prospective right panel', () => {
     const { frame, rightOwner, sidebarOwner, slotCalls } = mountFrame()
     expect(tracks(frame)).toEqual([280, 0])
-    expect(sidebarOwner()).toEqual({ collapsed: false, width: 280 })
+    expect(sidebarOwner()).toMatchObject({ collapsed: false, width: 280 })
+    expect(sidebarOwner().closeSidebar).toEqual(expect.any(Function))
     expect(rightOwner()).toEqual({ width: 864, viewportWidth: 1920, canShow: true })
     expect(slotCalls.find(c => c.key === 'main')).toEqual({ key: 'main', props: {}, options: { entryKey: 'conversation' } })
   })
@@ -225,7 +233,7 @@ describe('AppFrame', () => {
     const { frame, instance, sidebarOwner, getByTestId } = mountFrame()
     act(() => { instance.actions.toggleSidebar() })
     expect(tracks(frame)).toEqual([56, 0])
-    expect(sidebarOwner()).toEqual({ collapsed: true, width: 56 })
+    expect(sidebarOwner()).toMatchObject({ collapsed: true, width: 56 })
     expect(getByTestId('sidebar-content')).toBeTruthy()
     expect(frame.querySelector('[data-side="sidebar"]')).toBeNull()
   })
@@ -276,19 +284,23 @@ describe('AppFrame normal width concessions', () => {
     expect(instance.getSnapshot().layoutInfo).toMatchObject({ rightbarShown: true, rightbar: 864 })
     act(() => { instance.actions.closeRightbar() })
     resize(455)
-    expect(tracks(frame)).toEqual([56, 0])
+    // Below the auto-collapse breakpoint the rail leaves the grid and overlays
+    // the centre, so the first track is zero at the rail's rendered width.
+    expect(tracks(frame)).toEqual([0, 0])
     resize(1920)
     expect(tracks(frame)).toEqual([420, 0])
   })
 
   it('uses the post-collapse left rail to permit a narrow first opening', () => {
     frameWidth = 800
-    const { frame, instance, rightOwner } = mountFrame()
+    const { frame, instance, rightOwner, sidebarOwner } = mountFrame()
     act(() => { instance.actions.toggleSidebar() })
-    expect(tracks(frame)).toEqual([280, 0])
+    // The narrow drawer overlays the centre at its rendered width.
+    expect(tracks(frame)).toEqual([0, 0])
+    expect(sidebarOwner()).toMatchObject({ collapsed: false, width: 280 })
     expect(rightOwner()).toEqual({ width: 344, viewportWidth: 800, canShow: true })
     act(() => { instance.actions.openRightbar(true, false) })
-    expect(tracks(frame)).toEqual([56, 344])
+    expect(tracks(frame)).toEqual([0, 344])
     expect(instance.getSnapshot().layoutInfo).toMatchObject({ narrowExpanded: false, rightbar: 360 })
     expect(rightOwner().canShow).toBe(true)
   })
@@ -313,13 +325,13 @@ describe('AppFrame normal width concessions', () => {
     resize(1024)
     expect(tracks(frame)[0]).toBe(400)
     resize(1023)
-    expect(tracks(frame)[0]).toBe(56)
+    expect(tracks(frame)[0]).toBe(0)
     act(() => { instance.actions.toggleSidebar() })
-    expect(tracks(frame)[0]).toBe(400)
+    expect(sidebarColWidth(frame)).toBe('400px')
     resize(980)
-    expect(tracks(frame)[0]).toBe(400)
+    expect(sidebarColWidth(frame)).toBe('400px')
     act(() => { instance.actions.toggleSidebar() })
-    expect(tracks(frame)[0]).toBe(56)
+    expect(sidebarColWidth(frame)).toBe(`${SIDEBAR_COLLAPSED}px`)
     resize(1920)
     expect(tracks(frame)[0]).toBe(400)
   })
@@ -329,7 +341,7 @@ describe('AppFrame normal width concessions', () => {
     act(() => { instance.actions.toggleSidebar() })
     resize(980)
     act(() => { instance.actions.toggleSidebar() })
-    expect(tracks(frame)[0]).toBe(280)
+    expect(sidebarColWidth(frame)).toBe(`${SIDEBAR_DEFAULT}px`)
     expect(instance.getSnapshot().layoutInfo.sidebar).toBe(0)
   })
 })
@@ -420,7 +432,9 @@ describe('AppFrame right panel presentation', () => {
     frameWidth = 700
     const { frame, instance, rightOwner } = mountFrame()
     act(() => { instance.actions.openRightbar(false, true) })
-    expect(tracks(frame)).toEqual([56, 0])
+    // Narrow: the rail overlays the centre, so the grid's first track is zero.
+    expect(tracks(frame)).toEqual([0, 0])
+    expect(sidebarColWidth(frame)).toBe(`${SIDEBAR_COLLAPSED}px`)
     expect(rightOwner()).toEqual({ width: 0, viewportWidth: 700, canShow: false })
     expect(instance.getSnapshot().layoutInfo.rightbarShown).toBe(true)
     expect(frame.querySelector('[data-side="rightbar"]')).toBeNull()
@@ -588,5 +602,120 @@ describe('AppFrame frame measurement lifecycle', () => {
     act(() => { observer.fire(); flushFrames() })
     expect(instance.getSnapshot().layoutInfo.viewportWidth).toBe(1920)
     expect(animationFrames.size).toBe(0)
+  })
+})
+
+describe('AppFrame — narrow-viewport drawer', () => {
+  /** The sidebar column element; its inline width carries the rendered rail/drawer width. */
+  const sidebarCol = (frame: HTMLElement): HTMLElement => {
+    const column = frame.querySelector<HTMLElement>('[class*="sidebarCol"]')
+    if (column === null) throw new Error('missing sidebar column')
+    return column
+  }
+  /** Dispatch one touch-pointer gesture on the frame. */
+  const touch = (frame: HTMLElement, type: string, clientX: number, clientY = 0): void => {
+    act(() => {
+      frame.dispatchEvent(new PointerEvent(type, {
+        pointerId: 7, pointerType: 'touch', clientX, clientY, bubbles: true,
+      }))
+    })
+  }
+
+  it('mounts collapsed below the breakpoint: the rail leaves the grid, the centre keeps its width', () => {
+    frameWidth = 980
+    const { frame, sidebarOwner } = mountFrame()
+    expect(tracks(frame)).toEqual([0, 0])
+    expect(frame.hasAttribute('data-narrow')).toBe(true)
+    expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(true)
+    expect(sidebarCol(frame).style.width).toBe(`${SIDEBAR_COLLAPSED}px`)
+    const owner = sidebarOwner()
+    expect(owner).toMatchObject({ collapsed: true, width: SIDEBAR_COLLAPSED })
+    expect(owner.closeSidebar).toEqual(expect.any(Function))
+    // The narrow drawer has no resize handle, and a collapsed rail has no scrim.
+    expect(frame.querySelectorAll('[class*="handle"]')).toHaveLength(0)
+    expect(frame.querySelector('[class*="scrim"]')).toBeNull()
+  })
+
+  it('a narrow toggle expands the drawer over the full-width centre and back', () => {
+    frameWidth = 980
+    const { frame, instance } = mountFrame()
+    act(() => { instance.actions.toggleSidebar() })
+    expect(tracks(frame)).toEqual([0, 0])
+    expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(false)
+    expect(sidebarCol(frame).style.width).toBe(`${SIDEBAR_DEFAULT}px`)
+    expect(frame.querySelectorAll('[class*="handle"]')).toHaveLength(0)
+    expect(frame.querySelector('[class*="scrim"]')).toBeTruthy()
+    act(() => { instance.actions.toggleSidebar() })
+    expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(true)
+    expect(frame.querySelector('[class*="scrim"]')).toBeNull()
+  })
+
+  it('caps the drawer so a scrim of at least the rail width stays visible', () => {
+    frameWidth = 400
+    const { frame, instance } = mountFrame()
+    // The frame leaves less room than the stored preference: the drawer is
+    // capped at frame minus the rail, so the scrim never disappears.
+    act(() => { instance.actions.setSidebar(420) })
+    act(() => { instance.actions.toggleSidebar() })
+    expect(sidebarCol(frame).style.width).toBe(`${400 - SIDEBAR_COLLAPSED}px`)
+  })
+
+  it('the scrim and the closeSidebar owner prop both close the drawer', () => {
+    frameWidth = 980
+    const { frame, instance, sidebarOwner } = mountFrame()
+    act(() => { instance.actions.toggleSidebar() })
+    const scrim = frame.querySelector<HTMLElement>('[class*="scrim"]')
+    expect(scrim).not.toBeNull()
+    act(() => { scrim!.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 3, bubbles: true })) })
+    expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(true)
+    act(() => { instance.actions.toggleSidebar() })
+    act(() => { sidebarOwner().closeSidebar() })
+    expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(true)
+  })
+
+  it('a wide frame ignores the drawer close request and keeps its resize handle', () => {
+    frameWidth = 1400
+    const { frame, sidebarOwner } = mountFrame()
+    expect(frame.hasAttribute('data-narrow')).toBe(false)
+    expect(sidebarCol(frame).style.width).toBe('')
+    expect(handleFor(frame, 'sidebar')).toBeTruthy()
+    act(() => { sidebarOwner().closeSidebar() })
+    expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(false)
+  })
+
+  it('a touch swipe from the left rail opens the drawer and a swipe on it closes it', () => {
+    frameWidth = 980
+    const { frame, instance } = mountFrame()
+    touch(frame, 'pointerdown', SIDEBAR_COLLAPSED / 2)
+    touch(frame, 'pointermove', SIDEBAR_COLLAPSED / 2 + 60)
+    expect(instance.getSnapshot().layoutInfo.narrowExpanded).toBe(true)
+    touch(frame, 'pointerup', SIDEBAR_COLLAPSED / 2 + 60)
+    // A leftward swipe that started on the open drawer closes it again.
+    touch(frame, 'pointerdown', 200)
+    touch(frame, 'pointermove', 100)
+    expect(instance.getSnapshot().layoutInfo.narrowExpanded).toBe(false)
+  })
+
+  it('ignores short, vertical, mouse, and off-edge gestures', () => {
+    frameWidth = 980
+    const { frame, instance } = mountFrame()
+    // Short travel: below the slop threshold.
+    touch(frame, 'pointerdown', 10)
+    touch(frame, 'pointermove', 20)
+    expect(instance.getSnapshot().layoutInfo.narrowExpanded).toBe(false)
+    // Vertically dominant travel is a scroll, not a swipe.
+    touch(frame, 'pointerdown', 10)
+    touch(frame, 'pointermove', 60, 200)
+    expect(instance.getSnapshot().layoutInfo.narrowExpanded).toBe(false)
+    // A gesture that starts off the rail never opens the drawer.
+    touch(frame, 'pointerdown', 400)
+    touch(frame, 'pointermove', 500)
+    expect(instance.getSnapshot().layoutInfo.narrowExpanded).toBe(false)
+    // A mouse drag is not a swipe.
+    act(() => {
+      frame.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 9, pointerType: 'mouse', clientX: 10, bubbles: true }))
+      frame.dispatchEvent(new PointerEvent('pointermove', { pointerId: 9, pointerType: 'mouse', clientX: 200, bubbles: true }))
+    })
+    expect(instance.getSnapshot().layoutInfo.narrowExpanded).toBe(false)
   })
 })

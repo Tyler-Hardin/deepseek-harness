@@ -63,6 +63,28 @@ describe('createLayoutStore', () => {
     expect(store.getSnapshot().layoutInfo).toMatchObject({ sidebar: 400, narrowExpanded: false })
   })
 
+  it('closeSidebar is explicit: it never reopens (narrow clears the override, wide zeroes the preference)', () => {
+    const { store, actions } = createLayoutStore().create()
+    // Narrow: clears the re-expand override, preference untouched.
+    actions.setSidebar(400)
+    actions.setViewportWidth(980)
+    actions.toggleSidebar()
+    expect(store.getSnapshot().layoutInfo.narrowExpanded).toBe(true)
+    actions.closeSidebar()
+    expect(store.getSnapshot().layoutInfo).toMatchObject({ sidebar: 400, narrowExpanded: false })
+    // Idempotent when already closed.
+    actions.closeSidebar()
+    expect(store.getSnapshot().layoutInfo.narrowExpanded).toBe(false)
+    // Wide: the preference survived narrow and still reads as open; close
+    // zeroes it, and a second close stays closed.
+    actions.setViewportWidth(1920)
+    expect(store.getSnapshot().layoutInfo.sidebar).toBe(400)
+    actions.closeSidebar()
+    expect(store.getSnapshot().layoutInfo.sidebar).toBe(0)
+    actions.closeSidebar()
+    expect(store.getSnapshot().layoutInfo.sidebar).toBe(0)
+  })
+
   it('clears the manual override only when crossing 1024px', () => {
     const { store, actions } = createLayoutStore().create()
     actions.setViewportWidth(980)
