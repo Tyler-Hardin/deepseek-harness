@@ -102,24 +102,11 @@ describe('real Loader composition', () => {
     expect(unloaded).toEqual([])
     const server = loaded.webServer
     const port = server.port
-    const launchUrl = loaded.connection.authenticatedUrl(`http://127.0.0.1:${String(port)}`)
-    const exchange = await fetch(launchUrl, { redirect: 'manual' })
-    expect(exchange.status).toBe(303)
-    expect(exchange.headers.get('location')).toBe('/')
-    const setCookie = exchange.headers.get('set-cookie')
-    if (setCookie === null) throw new Error('authenticated frontend did not set a cookie')
-    const cookie = setCookie.split(';', 1)[0]!
-    const authenticated = (init?: RequestInit): RequestInit => {
-      const headers = new Headers(init?.headers)
-      headers.set('cookie', cookie)
-      return { ...init, headers }
-    }
-
-    expect(await request(port, '/')).toMatchObject({
-      status: 401,
-      type: 'text/plain; charset=utf-8',
-      body: 'dsh web authentication required; reopen the URL printed by dsh web.\n',
-    })
+    // Local fork: Connection runs no browser handshake, so the deployment URL
+    // is served as printed and no cookie is involved.
+    expect(loaded.connection.authenticatedUrl(`http://127.0.0.1:${String(port)}`))
+      .toBe(`http://127.0.0.1:${String(port)}/`)
+    const authenticated = (init?: RequestInit): RequestInit => init ?? {}
 
     // Real assets with their MIME types; a live rebuild is served on the next read.
     expect(await request(port, '/app.js')).toMatchObject({ status: 200, type: 'text/javascript; charset=utf-8', body: 'export {}' })

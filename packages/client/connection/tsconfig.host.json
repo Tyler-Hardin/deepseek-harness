@@ -8,7 +8,6 @@
   "files": [
     "src/api-path.ts",
     "src/api-request-trust.ts",
-    "src/browser-auth.ts",
     "src/http-bridge.ts",
     "src/index.ts",
     "src/loopback-hostname.ts",
@@ -18,26 +17,11 @@
     "src/rpc.ts"
   ],
   "references": [
-    {
-      "path": "../../../vendor/cordis"
-    },
-    {
-      "path": "../../../vendor/schemastery"
-    },
-    {
-      "path": "../../attachment/attachment"
-    },
-    {
-      "path": "../../credentials/credentials"
-    },
-    {
-      "path": "../../core/session"
-    },
-    {
-      "path": "../../host/webserver"
-    },
-    {
-      "path": "../../util/brand"
-    }
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../../vendor/schemastery" },
+    { "path": "../../attachment/attachment" },
+    { "path": "../../core/session" },
+    { "path": "../../host/webserver" },
+    { "path": "../../util/brand" }
   ]
 }

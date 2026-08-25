@@ -111,9 +111,12 @@ interface ClientTransportGlobal {
  */
 export interface ConnectionHandle {
   /**
-   * Whether the privileged surface is reachable: the page authority is
-   * loopback, the transport declares the page owns the Host
-   * ({@link ClientTransportHooks.ownsHost}), or the context is not a browser.
+   * Whether the current page may exercise native-capability RPCs (the
+   * configuration plane, native dialogs, path opening). True for a loopback
+   * authority, when the transport declares the page owns the Host
+   * ({@link ClientTransportHooks.ownsHost}), in non-browser contexts, and —
+   * local-fork extension — for any HTTPS page, whose certificate the browser
+   * validated.
    */
   readonly isLoopback: boolean
   /** Current Remote event generation and the Host facts carried by its opening frame. */
@@ -224,7 +227,10 @@ export function apply(ctx: Context): void {
     publishState(undefined)
   }
   const handle: ConnectionHandle = {
-    isLoopback: transport?.ownsHost === true || pageLocation === undefined || isLoopbackHostname(pageLocation.hostname),
+    isLoopback: transport?.ownsHost === true
+      || pageLocation === undefined
+      || isLoopbackHostname(pageLocation.hostname)
+      || pageLocation.protocol === 'https:',
     generation: {
       getSnapshot: () => generation,
       subscribe: (listener) => {
