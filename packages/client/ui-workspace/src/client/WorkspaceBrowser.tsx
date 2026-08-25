@@ -766,6 +766,7 @@ function SearchResults({
 export function WorkspaceBrowser({
   wide,
   expandSidebar,
+  closeSidebar,
   useSessions,
   useWorkspaces,
   useStore,
@@ -789,6 +790,11 @@ export function WorkspaceBrowser({
   renderSlot,
   t,
 }: WorkspaceBrowserProps) {
+  // Navigation actions dismiss the sidebar on narrow viewports (drawer mode);
+  // the frame gates the request, so wide viewports keep the persistent column.
+  const selectSession = (sessionId: SessionId): void => { closeSidebar(); open(sessionId) }
+  const startSessionAndClose = (workspaceId?: WorkspaceId): void => { closeSidebar(); startSession(workspaceId) }
+  const forkSessionAndClose = (sessionId: SessionId): void => { closeSidebar(); forkSession(sessionId) }
   const home = useHostDescription(description => description?.home)
   const workspaces = useWorkspaces(state => state.items)
   const workspacePhase = useWorkspaces(state => state.phase)
@@ -1212,7 +1218,7 @@ export function WorkspaceBrowser({
           side="right"
           onPick={(workspaceId) => {
             setWsPickerOpen(false)
-            startSession(workspaceId)
+            startSessionAndClose(workspaceId)
           }}
           onClose={() => { setWsPickerOpen(false) }}
         />
@@ -1243,7 +1249,7 @@ export function WorkspaceBrowser({
           ? (
             <SearchResults
               useSessions={useSessions}
-              open={open}
+              open={selectSession}
               workspaces={workspaces}
               archivedSessionIds={archivedSessionIds}
               query={normalizedQuery}
@@ -1255,7 +1261,7 @@ export function WorkspaceBrowser({
           : groupBy === 'flat'
             ? (
               <FlatList
-                useSessions={useSessions} open={open} forkSession={forkSession}
+                useSessions={useSessions} open={selectSession} forkSession={forkSessionAndClose}
                 onSessionRename={onSessionRename} onSessionArchive={onSessionArchive}
                 archivedSessionIds={archivedSessionIds}
                 orderBy={orderBy}
@@ -1271,7 +1277,7 @@ export function WorkspaceBrowser({
                 useSessions={useSessions}
                 onSessionRename={onSessionRename}
                 onSessionArchive={onSessionArchive}
-                forkSession={forkSession}
+                forkSession={forkSessionAndClose}
                 workspaces={workspaces}
                 groupExpansion={groupExpansion}
                 setGroupExpanded={actions.setGroupExpanded}
@@ -1280,8 +1286,8 @@ export function WorkspaceBrowser({
                 syncSessionOrderAccount={actions.syncSessionOrderAccount}
                 setSessionOrder={actions.setSessionOrder}
                 archivedSessionIds={archivedSessionIds}
-                startSession={startSession}
-                open={open}
+                startSession={startSessionAndClose}
+                open={selectSession}
                 insertWorkspaceBefore={insertWorkspaceBefore}
                 insertSessionBefore={insertSessionBefore}
                 orderBy={orderBy}

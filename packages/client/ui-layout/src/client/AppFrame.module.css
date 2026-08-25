@@ -17,9 +17,60 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .frame {
+  .frame,
+  .frame[data-narrow] .sidebarCol,
+  .scrim {
     transition: none;
+    animation: none;
   }
+}
+
+/* Narrow viewports (mobile / Android wrapper): the sidebar is a drawer that
+   overlays the conversation instead of squeezing it. It leaves the grid
+   (first track is 0px) and anchors absolutely at the left edge, so the
+   center keeps the full viewport behind the scrim. `pan-y` on the column
+   keeps vertical pans with its nested scrollers while horizontal swipes
+   reach the frame's gesture handlers — scoped to the column so the
+   conversation's own horizontal scrolling (code blocks) keeps working. */
+.frame[data-narrow] .sidebarCol {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  touch-action: pan-y;
+  /* The collapsed rail width; the open drawer's wider width arrives inline
+     from AppFrame. The width transition slides the drawer out from the rail
+     position (the same curve as the wide grid-track slide). */
+  width: 56px;
+  transition: width var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+}
+
+/* The open drawer sits above the scrim; the collapsed rail stays unstacked
+   so the settings seat's fixed full-viewport panel can escape its column. */
+.frame[data-narrow]:not([data-sidebar-collapsed]) .sidebarCol {
+  z-index: 15;
+  box-shadow: var(--dsw-shadow-lv2);
+}
+
+/* The center clears the rail with left padding in BOTH narrow states: the
+   conversation's content box never changes when the drawer opens — the
+   drawer only covers more of it — so lines never reflow. */
+.frame[data-narrow] .centerCol {
+  padding-left: 56px;
+}
+
+/* Drawer scrim: dims and blocks the conversation while the drawer is open;
+   a touch on it closes the drawer. Above the columns, below the drawer. */
+.scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: var(--dsw-alias-bg-mask-2);
+  animation: scrim-in 150ms var(--ds-ease-in-out);
+}
+
+@keyframes scrim-in {
+  from { opacity: 0; }
 }
 
 .sidebarCol {
@@ -30,6 +81,12 @@
 }
 
 .centerCol {
+  /* Explicit track placement: the narrow drawer removes the sidebar column
+     from the grid flow (it anchors absolutely), so without this the two
+     remaining in-flow columns would auto-place one track left — the
+     conversation into the 0px rail track and the details panel across the
+     full center. */
+  grid-column: 2;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -37,6 +94,7 @@
 }
 
 .detailsCol {
+  grid-column: 3;
   min-width: 0;
   overflow: hidden;
   border-left: 1px solid var(--dsw-alias-border-l2);

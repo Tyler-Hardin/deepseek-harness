@@ -46,7 +46,7 @@ async function bench(options: { locale?: 'en' } = {}) {
 describe('sidebar shell snapshots', () => {
   it('renders the expanded column in the default locale (zh, no setLocale)', async () => {
     const { runtime } = await bench()
-    const slot = runtime.renderSlot('sidebar', { collapsed: false, width: 300 })
+    const slot = runtime.renderSlot('sidebar', { collapsed: false, width: 300, closeSidebar: vi.fn() })
     // Wordmark + capsule both start a session in the expanded state.
     expect(slot.view.getAllByRole('button', { name: '新建会话' })).toHaveLength(2)
     expect(slot.container).toMatchSnapshot()
@@ -55,7 +55,7 @@ describe('sidebar shell snapshots', () => {
 
   it('renders the expanded column (wordmark, capsule, empty holes)', async () => {
     const { runtime } = await bench({ locale: 'en' })
-    const slot = runtime.renderSlot('sidebar', { collapsed: false, width: 300 })
+    const slot = runtime.renderSlot('sidebar', { collapsed: false, width: 300, closeSidebar: vi.fn() })
     // Wordmark + capsule both start a session in the expanded state.
     expect(slot.view.getAllByRole('button', { name: 'New session' })).toHaveLength(2)
     expect(slot.container).toMatchSnapshot()
@@ -64,9 +64,9 @@ describe('sidebar shell snapshots', () => {
 
   it('renders the collapsed rail after the crossfade settles, in place', async () => {
     const { runtime } = await bench({ locale: 'en' })
-    const slot = runtime.renderSlot('sidebar', { collapsed: false, width: 300 })
+    const slot = runtime.renderSlot('sidebar', { collapsed: false, width: 300, closeSidebar: vi.fn() })
     const shell = slot.container.firstElementChild
-    slot.update({ collapsed: true, width: 56 })
+    slot.update({ collapsed: true, width: 56, closeSidebar: vi.fn() })
     // The wide content (wordmark shortcut) unmounts at the 150ms settle;
     // only the rail's capsule remains a New-session button.
     await waitFor(() => {
@@ -80,7 +80,7 @@ describe('sidebar shell snapshots', () => {
 
   it('a locale switch refreshes mounted copy without re-registration', async () => {
     const { runtime, locale } = await bench()
-    const slot = runtime.renderSlot('sidebar', { collapsed: false, width: 300 })
+    const slot = runtime.renderSlot('sidebar', { collapsed: false, width: 300, closeSidebar: vi.fn() })
     expect(slot.view.getAllByRole('button', { name: '新建会话' })).toHaveLength(2)
     // Same fiber, same registration: setLocale alone re-renders the outlet.
     act(() => { locale.setLocale('en') })

@@ -96,6 +96,13 @@ export interface SidebarOwnerProps {
   collapsed: boolean
   /** Rendered column width in px (SIDEBAR_COLLAPSED when collapsed). */
   width: number
+  /**
+   * Request that the sidebar close. On narrow viewports the sidebar is a
+   * drawer (selection auto-close, scrim taps), so the request closes it;
+   * on wide viewports the persistent column ignores the request so a
+   * selection never dismisses it.
+   */
+  closeSidebar: () => void
 }
 
 /** Conversation owner share: business state and actions belong to the registrant. */

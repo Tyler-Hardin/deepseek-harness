@@ -11,11 +11,12 @@
  * resizes are driven through the ResizeObserver stub.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { act, cleanup, render } from '@testing-library/react'
 import { useSyncExternalStore } from 'react'
 import { AppFrame } from '@deepseek-ai/dsh-client-ui-layout/src/client/AppFrame.tsx'
 import type { AppFrameProps } from '@deepseek-ai/dsh-client-ui-layout/src/client/AppFrame.tsx'
-import { SIDEBAR_COLLAPSED } from '@deepseek-ai/dsh-client-ui-layout/src/client/columns.ts'
+import { SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT } from '@deepseek-ai/dsh-client-ui-layout/src/client/columns.ts'
 import { createLayoutStore } from '@deepseek-ai/dsh-client-ui-layout/src/client/stores.ts'
 import type {
   SessionId, SessionListState, WorkspaceListState,
@@ -99,6 +100,32 @@ function tracks(frame: HTMLElement): number[] {
   const m = /^(\d+)px minmax\(0, 1fr\) (\d+)px$/.exec(frame.style.gridTemplateColumns)
   if (m === null) throw new Error(`unexpected template: ${frame.style.gridTemplateColumns}`)
   return [Number(m[1]), Number(m[2])]
+}
+
+/** Latest sidebar-slot owner share; closeSidebar asserted separately (function identity). */
+function lastSidebarProps(slotCalls: { key: string; props: unknown }[]): {
+  collapsed: boolean
+  width: number
+  closeSidebar: () => void
+} {
+  const call = slotCalls.filter(c => c.key === 'sidebar').at(-1)
+  if (call === undefined) throw new Error('sidebar slot not rendered')
+  return call.props as { collapsed: boolean; width: number; closeSidebar: () => void }
+}
+
+/** Inline width of the first (sidebar) column — the drawer's rendered width on narrow. */
+function sidebarColWidth(frame: HTMLElement): string {
+  return (frame.firstElementChild as HTMLElement).style.width
+}
+
+/** One touch swipe on the frame: down, horizontal move past the slop, up. */
+function swipe(frame: HTMLElement, fromX: number, toX: number, fromY = 100, toY = 100): void {
+  const down = new PointerEvent('pointerdown', { pointerId: 1, clientX: fromX, clientY: fromY, pointerType: 'touch', bubbles: true })
+  const move = new PointerEvent('pointermove', { pointerId: 1, clientX: toX, clientY: toY, pointerType: 'touch', bubbles: true })
+  const up = new PointerEvent('pointerup', { pointerId: 1, clientX: toX, clientY: toY, pointerType: 'touch', bubbles: true })
+  act(() => { frame.dispatchEvent(down) })
+  act(() => { frame.dispatchEvent(move) })
+  act(() => { frame.dispatchEvent(up) })
 }
 
 function drag(handle: Element, fromX: number, toX: number): void {
@@ -216,7 +243,9 @@ describe('AppFrame', () => {
 
   it('sidebar slot receives live concession output as owner props', () => {
     const { slotCalls } = mountFrame()
-    expect(slotCalls.find(c => c.key === 'sidebar')!.props).toEqual({ collapsed: false, width: 280 })
+    const props = lastSidebarProps(slotCalls)
+    expect(props).toMatchObject({ collapsed: false, width: 280 })
+    expect(props.closeSidebar).toEqual(expect.any(Function))
   })
 
   it('sidebar drag widens through rAF-batched pointer moves', () => {
@@ -257,8 +286,9 @@ describe('AppFrame', () => {
     expect(tracks(frame)).toEqual([SIDEBAR_COLLAPSED, 0])
     expect(getByTestId('sidebar-content')).toBeTruthy()
     expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(true)
-    const lastSidebarCall = slotCalls.filter(c => c.key === 'sidebar').at(-1)!
-    expect(lastSidebarCall.props).toEqual({ collapsed: true, width: SIDEBAR_COLLAPSED })
+    const sidebarProps = lastSidebarProps(slotCalls)
+    expect(sidebarProps).toMatchObject({ collapsed: true, width: SIDEBAR_COLLAPSED })
+    expect(sidebarProps.closeSidebar).toEqual(expect.any(Function))
   })
 
   it('viewport shrink triggers the concession chain via ResizeObserver', () => {
@@ -284,25 +314,38 @@ describe('AppFrame', () => {
   })
 })
 
-describe('AppFrame — narrow-viewport auto-collapse', () => {
-  it('mounts collapsed below the breakpoint with no sidebar handle', () => {
+describe('AppFrame — narrow-viewport drawer', () => {
+  it('mounts collapsed below the breakpoint: rail overlays, center full-width, no sidebar handle', () => {
     frameWidth = 980
     const { frame, slotCalls } = mountFrame()
-    expect(tracks(frame)).toEqual([SIDEBAR_COLLAPSED, 0])
+    // The sidebar left the grid (first track 0px) and anchors absolutely at
+    // the rail width; the center keeps the full viewport.
+    expect(tracks(frame)).toEqual([0, 0])
+    expect(frame.hasAttribute('data-narrow')).toBe(true)
     expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(true)
-    expect(slotCalls.filter(c => c.key === 'sidebar').at(-1)!.props).toEqual({ collapsed: true, width: SIDEBAR_COLLAPSED })
+    expect(sidebarColWidth(frame)).toBe(`${SIDEBAR_COLLAPSED}px`)
+    const sidebarProps = lastSidebarProps(slotCalls)
+    expect(sidebarProps).toMatchObject({ collapsed: true, width: SIDEBAR_COLLAPSED })
+    expect(sidebarProps.closeSidebar).toEqual(expect.any(Function))
     expect(frame.querySelectorAll('[class*="handle"]')).toHaveLength(0)
+    expect(frame.querySelector('[class*="scrim"]')).toBeNull()
   })
 
-  it('narrow toggle re-expands over the squeezed center and back', () => {
+  it('narrow toggle expands the drawer over the full-width center and back', () => {
     frameWidth = 980
     const { frame, instance } = mountFrame()
     act(() => { instance.actions.toggleSidebar() })
-    expect(tracks(frame)).toEqual([280, 0])
+    expect(tracks(frame)).toEqual([0, 0])
     expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(false)
-    expect(frame.querySelectorAll('[class*="handle"]')).toHaveLength(1)
+    expect(sidebarColWidth(frame)).toBe('280px')
+    // The drawer overlays: no resize handle, and a tap-to-close scrim covers
+    // the center.
+    expect(frame.querySelectorAll('[class*="handle"]')).toHaveLength(0)
+    expect(frame.querySelector('[class*="scrim"]')).toBeTruthy()
     act(() => { instance.actions.toggleSidebar() })
-    expect(tracks(frame)).toEqual([SIDEBAR_COLLAPSED, 0])
+    expect(tracks(frame)).toEqual([0, 0])
+    expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(true)
+    expect(frame.querySelector('[class*="scrim"]')).toBeNull()
   })
 
   it('a wide-closed preference re-expands at the contract default while narrow', () => {
@@ -312,7 +355,8 @@ describe('AppFrame — narrow-viewport auto-collapse', () => {
     frameWidth = 980
     act(() => { fireResize?.(); vi.advanceTimersByTime(20) })
     act(() => { instance.actions.toggleSidebar() })
-    expect(tracks(frame)).toEqual([280, 0])
+    expect(tracks(frame)).toEqual([0, 0])
+    expect(sidebarColWidth(frame)).toBe(`${SIDEBAR_DEFAULT}px`)
     expect(instance.getSnapshot().sidebar).toBe(0) // preference untouched
   })
 
@@ -321,10 +365,113 @@ describe('AppFrame — narrow-viewport auto-collapse', () => {
     act(() => { instance.actions.setSidebar(400) })
     frameWidth = 980
     act(() => { fireResize?.(); vi.advanceTimersByTime(20) })
-    expect(tracks(frame)).toEqual([SIDEBAR_COLLAPSED, 0])
+    expect(tracks(frame)).toEqual([0, 0])
+    expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(true)
     frameWidth = 1920
     act(() => { fireResize?.(); vi.advanceTimersByTime(20) })
     expect(tracks(frame)).toEqual([400, 0])
+  })
+
+  it('the drawer width is capped so a scrim of at least the rail width stays visible', () => {
+    frameWidth = 375 // phone
+    const { frame, instance } = mountFrame()
+    act(() => { instance.actions.setSidebar(400) })
+    act(() => { instance.actions.toggleSidebar() })
+    // 400 preference capped to viewport - rail (319); the scrim keeps 56px.
+    expect(sidebarColWidth(frame)).toBe('319px')
+  })
+
+  it('the scrim closes the drawer on touch', () => {
+    frameWidth = 980
+    const { frame, instance } = mountFrame()
+    act(() => { instance.actions.toggleSidebar() })
+    const scrim = frame.querySelector('[class*="scrim"]')!
+    act(() => { scrim.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, pointerType: 'touch', bubbles: true })) })
+    expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(true)
+    expect(instance.getSnapshot().narrowExpanded).toBe(false)
+  })
+
+  it('the closeSidebar owner prop closes only on narrow viewports', () => {
+    // Wide: the persistent column ignores the request (selections keep it open).
+    frameWidth = 1920
+    const wide = mountFrame()
+    const wideClose = (wide.slotCalls.filter(c => c.key === 'sidebar').at(-1)!.props as { closeSidebar: () => void }).closeSidebar
+    act(() => { wideClose() })
+    expect(wide.instance.getSnapshot().sidebar).toBe(SIDEBAR_DEFAULT)
+    // Narrow: the same request closes the drawer.
+    frameWidth = 980
+    const narrow = mountFrame()
+    act(() => { narrow.instance.actions.toggleSidebar() })
+    const narrowClose = (narrow.slotCalls.filter(c => c.key === 'sidebar').at(-1)!.props as { closeSidebar: () => void }).closeSidebar
+    act(() => { narrowClose() })
+    expect(narrow.instance.getSnapshot().narrowExpanded).toBe(false)
+    expect(narrow.frame.hasAttribute('data-sidebar-collapsed')).toBe(true)
+  })
+
+  it('a touch swipe from the left rail opens the drawer', () => {
+    frameWidth = 980
+    const { frame, instance } = mountFrame()
+    swipe(frame, 20, 90)
+    expect(instance.getSnapshot().narrowExpanded).toBe(true)
+    expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(false)
+  })
+
+  it('a touch swipe on the open drawer closes it', () => {
+    frameWidth = 980
+    const { frame, instance } = mountFrame()
+    act(() => { instance.actions.toggleSidebar() })
+    swipe(frame, 120, 50)
+    expect(instance.getSnapshot().narrowExpanded).toBe(false)
+    expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(true)
+  })
+
+  it('swipes that start on the scrim or off the edge never toggle the drawer', () => {
+    frameWidth = 980
+    const { frame, instance } = mountFrame()
+    act(() => { instance.actions.toggleSidebar() })
+    // Leftward swipe starting on the scrim (beyond the 280px drawer).
+    swipe(frame, 320, 240)
+    expect(instance.getSnapshot().narrowExpanded).toBe(true)
+    // Rightward swipe starting beyond the rail while collapsed does not open.
+    act(() => { instance.actions.toggleSidebar() })
+    swipe(frame, 200, 280)
+    expect(instance.getSnapshot().narrowExpanded).toBe(false)
+  })
+
+  it('vertical pans, short drags, and mouse drags are not swipes', () => {
+    frameWidth = 980
+    const { frame, instance } = mountFrame()
+    // Vertical pan on the collapsed rail.
+    swipe(frame, 20, 20, 100, 400)
+    expect(instance.getSnapshot().narrowExpanded).toBe(false)
+    // Short horizontal drag (below the slop).
+    swipe(frame, 20, 50)
+    expect(instance.getSnapshot().narrowExpanded).toBe(false)
+    // Mouse drag from the rail is not a swipe (touch gestures only).
+    const down = new PointerEvent('pointerdown', { pointerId: 1, clientX: 20, clientY: 100, pointerType: 'mouse', bubbles: true })
+    const move = new PointerEvent('pointermove', { pointerId: 1, clientX: 120, clientY: 100, pointerType: 'mouse', bubbles: true })
+    act(() => { frame.dispatchEvent(down); frame.dispatchEvent(move) })
+    expect(instance.getSnapshot().narrowExpanded).toBe(false)
+  })
+
+  it('a move without a preceding pointerdown is ignored', () => {
+    frameWidth = 980
+    const { frame, instance } = mountFrame()
+    act(() => {
+      frame.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 200, clientY: 100, pointerType: 'touch', bubbles: true }))
+    })
+    expect(instance.getSnapshot().narrowExpanded).toBe(false)
+  })
+
+  it('pointerup and pointercancel end the gesture without committing', () => {
+    frameWidth = 980
+    const { frame, instance } = mountFrame()
+    // A committed open, then a cancel immediately after a new down.
+    act(() => { frame.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, clientX: 20, clientY: 100, pointerType: 'touch', bubbles: true })) })
+    act(() => { frame.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, clientX: 20, clientY: 100, pointerType: 'touch', bubbles: true })) })
+    // The start was cleared by pointerup: the move must not commit.
+    act(() => { frame.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 120, clientY: 100, pointerType: 'touch', bubbles: true })) })
+    expect(instance.getSnapshot().narrowExpanded).toBe(false)
   })
 })
 
@@ -394,5 +541,42 @@ describe('AppFrame — unmount with an in-flight resize frame', () => {
     frameWidth = 1250
     act(() => { fireResize?.(); fireResize?.(); vi.advanceTimersByTime(20) })
     expect(tracks(frame)).toEqual([280, 330])
+  })
+})
+
+describe('AppFrame — column grid placement', () => {
+  // The narrow drawer removes the sidebar column from the grid flow (it
+  // anchors absolutely); the two remaining in-flow columns must keep their
+  // explicit tracks or they auto-place one track left — the conversation
+  // into the 0px rail track and the details panel across the full center.
+  const css = readFileSync('packages/client/ui-layout/src/client/AppFrame.module.css', 'utf8')
+
+  /** Declarations of one exact selector rule, whitespace-collapsed. */
+  function declarations(selector: string): Map<string, string> | undefined {
+    const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, ' ')
+    for (const [, selectorList = '', body = ''] of withoutComments.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (!selectorList.split(',').map(value => value.trim()).includes(selector)) continue
+      const found = new Map<string, string>()
+      for (const part of body.split(';')) {
+        const colon = part.indexOf(':')
+        if (colon === -1) continue
+        found.set(part.slice(0, colon).trim(), part.slice(colon + 1).trim().replace(/\s+/g, ' '))
+      }
+      return found.size === 0 ? undefined : found
+    }
+    return undefined
+  }
+
+  it('places the conversation in the center track and details in the third', () => {
+    expect(declarations('.centerCol')?.get('grid-column')).toBe('2')
+    expect(declarations('.detailsCol')?.get('grid-column')).toBe('3')
+  })
+
+  it('keeps the conversation content box constant across the drawer states', () => {
+    // The narrow center clears the rail with a fixed 56px left padding in
+    // BOTH states; opening the drawer must only cover more of the same box,
+    // never reclaim the strip (which would reflow every line).
+    expect(declarations('.frame[data-narrow] .centerCol')?.get('padding-left')).toBe('56px')
+    expect(declarations('.frame[data-narrow]:not([data-sidebar-collapsed]) .centerCol')).toBeUndefined()
   })
 })

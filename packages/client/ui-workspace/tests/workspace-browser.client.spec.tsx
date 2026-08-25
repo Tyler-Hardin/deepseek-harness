@@ -63,6 +63,7 @@ function mount(overrides: Partial<WorkspaceBrowserProps> = {}) {
   const props: WorkspaceBrowserProps = {
     wide: true,
     expandSidebar: vi.fn(),
+    closeSidebar: vi.fn(),
     useSessions: hook(sessionState([])),
     useWorkspaces: hook(workspaceState([])),
     useStore: bindSnapshotSelector(store),
@@ -1377,5 +1378,89 @@ describe('WorkspaceBrowser', () => {
       await act(async () => { resolveSave() })
       await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
     })
+  })
+})
+
+describe('WorkspaceBrowser — drawer auto-close on selection', () => {
+  it('opens a session row and requests the sidebar close', () => {
+    const open = vi.fn()
+    const closeSidebar = vi.fn()
+    mount({
+      useSessions: hook(sessionState([summary('alpha-s', 1)])),
+      useWorkspaces: hook(workspaceState([workspace('alpha', ['alpha-s'])])),
+      open,
+      closeSidebar,
+    })
+    fireEvent.click(screen.getByText('alpha'))
+    fireEvent.click(screen.getByText('alpha-s'))
+    expect(open).toHaveBeenCalledWith(sid('alpha-s'))
+    expect(closeSidebar).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes the sidebar when a search result is opened', () => {
+    const open = vi.fn()
+    const closeSidebar = vi.fn()
+    const b = mount({
+      useSessions: hook(sessionState([summary('alpha-s', 1)])),
+      useWorkspaces: hook(workspaceState([workspace('alpha', ['alpha-s'])])),
+      open,
+      closeSidebar,
+    })
+    b.store.actions.setGroupBy('flat')
+    rerender(b, {})
+    fireEvent.change(screen.getByPlaceholderText('搜索会话…'), { target: { value: 'alpha' } })
+    fireEvent.click(screen.getByText('alpha-s'))
+    expect(open).toHaveBeenCalledWith(sid('alpha-s'))
+    expect(closeSidebar).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes the sidebar when a session is forked', () => {
+    const forkSession = vi.fn()
+    const closeSidebar = vi.fn()
+    mount({
+      useSessions: hook(sessionState([summary('alpha-s', 1)])),
+      useWorkspaces: hook(workspaceState([workspace('alpha', ['alpha-s'])])),
+      forkSession,
+      closeSidebar,
+    })
+    fireEvent.click(screen.getByText('alpha'))
+    const row = screen.getByText('alpha-s').closest('[role="treeitem"]') as HTMLElement
+    fireEvent.click(within(row).getByRole('button', { name: '会话“alpha-s”的操作' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '分叉会话' }))
+    expect(forkSession).toHaveBeenCalledWith(sid('alpha-s'))
+    expect(closeSidebar).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes the sidebar when a session starts from a workspace ＋ and the pick flow', () => {
+    const startSession = vi.fn()
+    const closeSidebar = vi.fn()
+    mount({
+      useSessions: hook(sessionState([])),
+      useWorkspaces: hook(workspaceState([workspace('alpha', [])])),
+      startSession,
+      closeSidebar,
+    })
+    fireEvent.click(screen.getByRole('button', { name: '在“alpha”中新建会话' }))
+    expect(startSession).toHaveBeenCalledWith(wid('alpha'))
+    expect(closeSidebar).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not close on browsing-only actions (group toggle, view options)', () => {
+    const closeSidebar = vi.fn()
+    const b = mount({
+      useSessions: hook(sessionState([summary('alpha-s', 1)])),
+      useWorkspaces: hook(workspaceState([workspace('alpha', ['alpha-s'])])),
+      closeSidebar,
+    })
+    fireEvent.click(screen.getByText('alpha'))
+    fireEvent.click(screen.getByRole('button', { name: '视图选项' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '最近更新' }))
+    expect(closeSidebar).not.toHaveBeenCalled()
+    // The shell's own New Session buttons are the shell's to close; the
+    // region's rail expand requests never close either.
+    b.store.actions.setGroupBy('flat')
+    rerender(b, { wide: false })
+    fireEvent.click(screen.getByRole('button', { name: '搜索会话' }))
+    expect(closeSidebar).not.toHaveBeenCalled()
   })
 })

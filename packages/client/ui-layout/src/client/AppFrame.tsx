@@ -6,16 +6,29 @@
  * renders HERE with live parameters from the concession solve, and the
  * session-aware occupants render in fixed column positions; strict entries
  * gate themselves on current-session availability while session-maybe
- * entries retain identity. Pure component: everything arrives
- * through the three framework shares — zero cordis or framework imports,
- * zero self-made hooks.
+ * entries retain identity. Below the auto-collapse breakpoint the sidebar
+ * becomes an overlay drawer (narrow CSS + swipe gestures + scrim + selection
+ * auto-close; see the mobile-sidebar-drawer Agent Note). Pure component:
+ * everything arrives through the three framework shares — zero cordis or
+ * framework imports, zero self-made hooks.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
-import { computeColumns, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT } from './columns.ts'
+import {
+  computeColumns, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT,
+} from './columns.ts'
 import type { createLayoutStore } from './stores.ts'
 import css from './AppFrame.module.css'
+
+/**
+ * Narrow drawer swipe gestures: how far from the frame's left edge a
+ * rightward touch-swipe starts before it counts as an open request. The rail
+ * is the natural grab zone — it spans the first SIDEBAR_COLLAPSED pixels.
+ */
+const SWIPE_EDGE_PX = SIDEBAR_COLLAPSED
+/** Horizontal travel (in excess of any vertical movement) before a swipe commits. */
+const SWIPE_SLOP_PX = 40
 
 /** Full composed props: runtime share + child-slot render share + store share. */
 export type AppFrameProps =
@@ -143,6 +156,52 @@ export function AppFrame({
   const colsRef = useRef(cols)
   colsRef.current = cols
 
+  // Narrow viewports render the sidebar as a drawer that overlays the center
+  // (AppFrame.module.css): it leaves the grid and anchors absolutely at the
+  // left edge, its width animated directly, so the conversation keeps the
+  // full viewport behind the scrim instead of being squeezed to a sliver.
+  // The rendered drawer width is the preference capped so a scrim of at
+  // least the rail width always stays visible; the collapsed rail keeps its
+  // fixed SIDEBAR_COLLAPSED width.
+  const drawerWidth = narrow && !sidebarCollapsed
+    ? Math.min(cols.sidebar, viewport - SIDEBAR_COLLAPSED)
+    : cols.sidebar
+  const renderedSidebarWidth = narrow ? (sidebarCollapsed ? SIDEBAR_COLLAPSED : drawerWidth) : cols.sidebar
+  // Drawer-mode close request: selections and the scrim close the drawer, but
+  // the persistent wide column must survive them (desktop behavior).
+  const closeDrawer = useCallback(() => {
+    if (narrow) actions.closeSidebar()
+  }, [actions, narrow])
+
+  // Touch swipe gestures on narrow viewports: a rightward swipe starting in
+  // the left rail opens the drawer, a leftward swipe starting on the open
+  // drawer closes it. The column's `touch-action: pan-y` (AppFrame.module.css)
+  // keeps vertical pans with its nested scrollers and delivers horizontal
+  // movement here; the gesture commits once on the first slop crossing.
+  const swipeStart = useRef<{ x: number; y: number; opened: boolean } | null>(null)
+  const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!narrow || e.pointerType !== 'touch') return
+    swipeStart.current = { x: e.clientX, y: e.clientY, opened: !sidebarCollapsed }
+  }, [narrow, sidebarCollapsed])
+  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!narrow || swipeStart.current === null) return
+    const start = swipeStart.current
+    const dx = e.clientX - start.x
+    const dy = e.clientY - start.y
+    // Horizontal dominance only: a vertical pan is a scroll, not a swipe.
+    if (Math.abs(dx) < SWIPE_SLOP_PX || Math.abs(dx) <= Math.abs(dy)) return
+    swipeStart.current = null
+    if (start.opened) {
+      // Swiping the open drawer leftward closes it; a swipe that started on
+      // the scrim (or the conversation) never closes.
+      if (dx < 0 && start.x < drawerWidth) actions.toggleSidebar()
+    } else if (dx > 0 && start.x < SWIPE_EDGE_PX) {
+      // Swiping right from the left edge opens the collapsed rail.
+      actions.toggleSidebar()
+    }
+  }, [actions, drawerWidth, narrow])
+  const onSwipeEnd = useCallback(() => { swipeStart.current = null }, [])
+
   // The drag base is the rendered width captured at drag start (grabbing a
   // concession-clamped panel must not jump back to the stored preference);
   // it stays frozen for the whole gesture so dx deltas do not compound.
@@ -165,12 +224,19 @@ export function AppFrame({
     <div
       ref={frameRef}
       className={css.frame}
-      style={{ gridTemplateColumns: `${cols.sidebar}px minmax(0, 1fr) ${cols.details}px` }}
+      style={{ gridTemplateColumns: narrow
+        ? `0px minmax(0, 1fr) ${cols.details}px`
+        : `${cols.sidebar}px minmax(0, 1fr) ${cols.details}px` }}
+      data-narrow={narrow || undefined}
       data-sidebar-collapsed={sidebarCollapsed || undefined}
       data-details-collapsed={cols.details === 0 || undefined}
       data-dragging={dragging || undefined}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onSwipeEnd}
+      onPointerCancel={onSwipeEnd}
     >
-      <div className={css.sidebarCol}>
+      <div className={css.sidebarCol} style={narrow ? { width: renderedSidebarWidth } : undefined}>
         {/* Render-site slot call with live concession output: a closed
             sidebar keeps the mounted slot at the compact-rail width, and the
             component sees its rendered state as owner params decided here
@@ -178,7 +244,8 @@ export function AppFrame({
             renders the rail UI too). */}
         {renderSlot('sidebar', {
           collapsed: sidebarCollapsed,
-          width: cols.sidebar,
+          width: renderedSidebarWidth,
+          closeSidebar: closeDrawer,
         })}
       </div>
       <>
@@ -193,8 +260,18 @@ export function AppFrame({
       <div className={css.overlayLayer} data-shell-overlay>
         {renderSlot('shell.overlay', {})}
       </div>
-      {/* The collapsed rail is fixed-width: no resize handle while closed. */}
-      {!sidebarCollapsed && <DragHandle side="sidebar" left={cols.sidebar} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
+      {/* Drawer scrim: covers the frame under the open drawer; a touch closes
+          it. Above the columns, below the drawer and the overlay layer. */}
+      {narrow && !sidebarCollapsed && (
+        <div
+          className={css.scrim}
+          aria-hidden="true"
+          onPointerDown={closeDrawer}
+        />
+      )}
+      {/* The collapsed rail is fixed-width: no resize handle while closed, and
+          the narrow drawer has no resize either (fixed drawer width). */}
+      {!sidebarCollapsed && !narrow && <DragHandle side="sidebar" left={cols.sidebar} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
       {cols.details > 0 && <DragHandle side="details" left={viewport - cols.details} onStart={onDetailsStart} onDrag={onDetailsDrag} onEnd={onDragEnd} />}
     </div>
   )

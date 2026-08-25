@@ -68,6 +68,12 @@ export interface SidebarSectionOwnerProps {
   wide: boolean
   /** Rail icons request expansion; the browser rides the wide flip for focus. */
   expandSidebar: () => void
+  /**
+   * Close request after a session/workspace selection. Narrow viewports
+   * (drawer mode) close the drawer; wide viewports ignore the request
+   * (the frame gates it) so the persistent column survives selections.
+   */
+  closeSidebar: () => void
 }
 
 /**

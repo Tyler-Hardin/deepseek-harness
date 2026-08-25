@@ -61,6 +61,28 @@ describe('createLayoutStore', () => {
     expect(store.getSnapshot().sidebar).toBe(400)
   })
 
+  it('closeSidebar is explicit: it never reopens (narrow clears the override, wide zeroes the preference)', () => {
+    const { store, actions } = createLayoutStore().create()
+    // Narrow: clears the re-expand override, preference untouched.
+    actions.setSidebar(400)
+    actions.setNarrow(true)
+    actions.toggleSidebar()
+    expect(store.getSnapshot().narrowExpanded).toBe(true)
+    actions.closeSidebar()
+    expect(store.getSnapshot()).toEqual({ sidebar: 400, details: 0, narrow: true, narrowExpanded: false })
+    // Idempotent when already closed.
+    actions.closeSidebar()
+    expect(store.getSnapshot().narrowExpanded).toBe(false)
+    // Wide: the preference survived narrow and still reads as open; close
+    // zeroes it, and a second close stays closed.
+    actions.setNarrow(false)
+    expect(store.getSnapshot().sidebar).toBe(400)
+    actions.closeSidebar()
+    expect(store.getSnapshot().sidebar).toBe(0)
+    actions.closeSidebar()
+    expect(store.getSnapshot().sidebar).toBe(0)
+  })
+
   it('crossing the breakpoint drops the override; a same-value setNarrow keeps it', () => {
     const { store, actions } = createLayoutStore().create()
     actions.setNarrow(true)
