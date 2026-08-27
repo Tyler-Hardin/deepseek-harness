@@ -431,10 +431,11 @@ export class Session implements SessionFace {
     this.events = []
     this.views = []
     this.baseSeq = 0
-    // Superseded, not settled: the baseline replay re-sends still-pending requested frames verbatim
-    // (same rpcId), re-minting fresh waits; a stale reference's respond() still reaches the host.
-    this.pending.clear()
-    this.pendingRev++
+    // Pending waits survive resync: the mux-open replay re-mints still-pending
+    // requested frames with the same key, and it races AHEAD of the onConnected
+    // that drives resync — clearing here would wipe the just-re-minted wait
+    // while the host still blocks on the answer. The generation-death sweep
+    // (handleDisconnected) is the only place pending clears.
     this.subscribedLastSeq = null
     this.liveBuffer = []
     this.notifier.markDirty()
@@ -578,6 +579,20 @@ export class Session implements SessionFace {
   /** host/session-removed relay: flag the snapshot (instance survives — resident-instance rule). */
   handleRemoved(): void {
     this.removed = true
+    this.notifier.markDirty()
+  }
+
+  /**
+   * Generation-death sweep (manager calls this before any next-generation
+   * frame can arrive): drop every pending wait. A wait resolved while
+   * disconnected sends no frame, so a stale entry must not survive into the
+   * next generation; the mux-open replay re-mints still-pending requested
+   * frames with their live rpcId.
+   */
+  handleDisconnected(): void {
+    if (this.pending.size === 0) return
+    this.pending.clear()
+    this.pendingRev++
     this.notifier.markDirty()
   }
 

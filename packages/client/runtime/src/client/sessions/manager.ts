@@ -889,6 +889,7 @@ export class SessionManager {
       this.pendingInteractions.clear()
       this.notifier.markDirty()
     }
+    for (const session of this.sessions.values()) session.handleDisconnected()
     for (const [sessionId, buffer] of [...this.pendingBuffers]) {
       const kept = buffer.filter(item =>
         item.payload.type !== 'approval/requested' && item.payload.type !== 'question/requested')

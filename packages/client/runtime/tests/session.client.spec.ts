@@ -917,7 +917,7 @@ describe('remaining branches', () => {
 })
 
 describe('resync', () => {
-  it('rebuilds the window and clears pending; cold instances no-op', async () => {
+  it('rebuilds the window and preserves pending waits; cold instances no-op', async () => {
     const { api, session } = makeSession()
     api.onHistory = () => histResponse(plainTurn(0, 0, 'a', 'b'))
     await session.open()
@@ -926,12 +926,29 @@ describe('resync', () => {
     await session.resync()
     const snapshot = session.getSnapshot()
     expect(snapshot.openState).toBe('open')
-    expect(snapshot.pending).toEqual([]) // baseline replay re-sends still-pending frames
+    expect(snapshot.pending.map(p => p.kind)).toEqual(['approval']) // only generation death clears pending; resync preserves it
     expect(snapshot.nodes).toHaveLength(4)
 
     const cold = makeSession()
     await cold.session.resync()
     expect(cold.api.calls).toEqual([]) // never opened: no traffic
+  })
+
+  it('sweeps pending at generation death and keeps the replayed re-mint through resync', async () => {
+    const { api, session } = makeSession()
+    api.onHistory = () => histResponse(plainTurn(0, 0, 'a', 'b'))
+    await session.open()
+    session.handleMuxEnvelope('rq' as never, { type: 'question/requested', sessionId: SID, questions: [] })
+    expect(session.getSnapshot().pending.map(p => p.kind)).toEqual(['question'])
+    // Generation death drops the stale wait (a resolve-while-disconnected
+    // question sends no frame and must not survive)…
+    session.handleDisconnected()
+    expect(session.getSnapshot().pending).toEqual([])
+    // …the mux-open replay re-mints it (stream open precedes onConnected), and
+    // the resync onConnected triggers must not wipe that re-mint.
+    session.handleMuxEnvelope('rq' as never, { type: 'question/requested', sessionId: SID, questions: [] })
+    await session.resync()
+    expect(session.getSnapshot().pending.map(p => p.kind)).toEqual(['question'])
   })
 
   it('re-mints a replayed requested frame as a fresh wait with the same key (old reference superseded)', async () => {
