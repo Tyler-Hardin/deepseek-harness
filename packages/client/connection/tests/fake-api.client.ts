@@ -168,6 +168,9 @@ export class FakeApiClient implements IApiClient {
     archiveSession: (payload: unknown) => this.record('workspace.archiveSession', payload, Promise.resolve(ok({
       archivedSessionIds: [(payload as { sessionId: SessionId }).sessionId],
     }))),
+    unarchiveSession: (payload: unknown) => this.record('workspace.unarchiveSession', payload, Promise.resolve(ok({
+      archivedSessionIds: [],
+    }))),
     defaultModel: (payload: unknown) => this.record('workspace.defaultModel', payload, Promise.resolve(ok({
       selection: null,
       shared: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },

@@ -205,6 +205,9 @@ export class FakeApiClient implements IApiClient {
   onWorkspaceArchiveSession: (payload: unknown) => Promise<RpcResponse<{ archivedSessionIds: SessionId[] }>> =
     payload => Promise.resolve(ok({ archivedSessionIds: [(payload as { sessionId: SessionId }).sessionId] }))
 
+  onWorkspaceUnarchiveSession: (payload: unknown) => Promise<RpcResponse<{ archivedSessionIds: SessionId[] }>> =
+    () => Promise.resolve(ok({ archivedSessionIds: [] }))
+
   onWorkspaceDefaultModel: (payload: unknown) => Promise<RpcResponse<{
     selection: ModelSelection | null
     shared: ModelSelection
@@ -235,6 +238,8 @@ export class FakeApiClient implements IApiClient {
       this.record('workspace.insertSessionBefore', payload, this.onWorkspaceInsertSessionBefore(payload)),
     archiveSession: (payload: unknown) =>
       this.record('workspace.archiveSession', payload, this.onWorkspaceArchiveSession(payload)),
+    unarchiveSession: (payload: unknown) =>
+      this.record('workspace.unarchiveSession', payload, this.onWorkspaceUnarchiveSession(payload)),
     defaultModel: (payload: unknown) =>
       this.record('workspace.defaultModel', payload, this.onWorkspaceDefaultModel(payload)),
     setDefaultModel: (payload: unknown) =>

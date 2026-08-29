@@ -519,6 +519,38 @@ describe('WorkspaceRuntime', () => {
     await workspaces.refresh()
     expect(workspaces.list.getSnapshot().archivedSessionIds).toEqual([])
   })
+
+  it('unarchives a session, projects the set from the response, and keeps a failed restore intact', async () => {
+    const ctx = new Context()
+    const api = new FakeApiClient()
+    const sessions = new SessionRuntime(ctx, api, fakeRemote())
+    const workspaces = new WorkspaceRuntime(ctx, api, sessions)
+    api.onWorkspaceList = () => Promise.resolve(ok({ items: [], archivedSessionIds: [sid('s-idle')] }) as never)
+    await workspaces.refresh()
+    expect(workspaces.list.getSnapshot().archivedSessionIds).toEqual(['s-idle'])
+
+    // The unary echo installs the returned (shrunk) set without waiting for
+    // the changed frame; the selection is untouched by unarchiving.
+    api.onWorkspaceUnarchiveSession = () => Promise.resolve(ok({ archivedSessionIds: [] }))
+    await expect(workspaces.unarchiveSession(sid('s-idle'))).resolves.toBeUndefined()
+    expect(api.callsOf('workspace.unarchiveSession')).toEqual([{ sessionId: 's-idle' }])
+    expect(workspaces.list.getSnapshot().archivedSessionIds).toEqual([])
+
+    // The changed frame re-installs the full set.
+    workspaces.handleHostEnvelope({
+      rpcId: 'frame' as never,
+      payload: { type: 'host/archived-sessions-changed', archivedSessionIds: [sid('s-idle')] },
+    } as never)
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(workspaces.list.getSnapshot().archivedSessionIds).toEqual(['s-idle'])
+
+    // A Host failure leaves the set untouched.
+    api.onWorkspaceUnarchiveSession = () => Promise.resolve(err({
+      code: 'session-not-found', message: 'no session ghost', details: { sessionId: sid('ghost') },
+    }))
+    await expect(workspaces.unarchiveSession(sid('ghost'))).rejects.toThrow(/session-not-found/)
+    expect(workspaces.list.getSnapshot().archivedSessionIds).toEqual(['s-idle'])
+  })
 })
 
 describe('startInitialSelection', () => {

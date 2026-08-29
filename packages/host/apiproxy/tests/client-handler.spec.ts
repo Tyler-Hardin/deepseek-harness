@@ -88,6 +88,7 @@ function scriptedApi(overrides: {
       insertBefore: r => ok(r, { workspaceIds: [r.payload.workspaceId] }),
       insertSessionBefore: r => ok(r, { workspace: { workspaceId: 'w1' as never, path: '/t', title: 't', sessionIds: [], createdAt: '0', updatedAt: '0' } }),
       archiveSession: r => ok(r, { archivedSessionIds: [r.payload.sessionId] }),
+      unarchiveSession: r => ok(r, { archivedSessionIds: [] }),
       defaultModel: r => ok(r, {
         selection: null,
         shared: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
@@ -440,6 +441,8 @@ describe('workspace domain round trip', () => {
     if (created.result.ok) expect(created.result.value.created).toBe(true)
     const archivedResponse = await c.workspace.archiveSession({ sessionId: 's-arch' as never })
     expect(archivedResponse.result).toEqual({ ok: true, value: { archivedSessionIds: ['s-arch'] } })
+    const unarchivedResponse = await c.workspace.unarchiveSession({ sessionId: 's-arch' as never })
+    expect(unarchivedResponse.result).toEqual({ ok: true, value: { archivedSessionIds: [] } })
     const defaultView = await c.workspace.defaultModel({ workspaceId: 'w1' as never })
     expect(defaultView.result).toEqual({
       ok: true,

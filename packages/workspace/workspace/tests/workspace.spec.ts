@@ -1012,4 +1012,61 @@ describe('registry-global session archive', () => {
     const upgraded = await harness({ pool: legacy })
     expect(upgraded.registry.archivedSessionIds).toEqual([])
   })
+
+  it('unarchives durably, idempotently skips non-members, and leaves accounting untouched', async () => {
+    const dir = await makeDir('unarchive-home')
+    const result = await harness({ sessions: [header('kept', dir, 100), header('gone', dir, 200)] })
+    const workspace = result.registry.list()[0]!
+    await result.registry.archiveSession(SessionId('gone'))
+    await result.registry.archiveSession(SessionId('kept'))
+    expect(result.registry.archivedSessionIds).toEqual(['gone', 'kept'])
+
+    await result.registry.unarchiveSession(SessionId('gone'))
+    expect(result.registry.archivedSessionIds).toEqual(['kept'])
+    // Unarchiving is also a display-set write: the workspace account keeps the id.
+    expect(workspace.sessionIds).toContain('gone')
+    expect(storedState(result.pool).archivedSessionIds).toEqual(['kept'])
+    const changesAfterFirst = result.changes.filter(change => change.table === '').length
+
+    await result.registry.unarchiveSession(SessionId('gone'))
+    expect(result.registry.archivedSessionIds).toEqual(['kept'])
+    // The idempotent repeat neither rewrites the medium nor emits a change.
+    expect(result.changes.filter(change => change.table === '').length).toBe(changesAfterFirst)
+
+    await result.registry.unarchiveSession(SessionId('kept'))
+    expect(result.registry.archivedSessionIds).toEqual([])
+  })
+
+  it('unarchives a live session but rejects an unknown id without writing', async () => {
+    const dir = await makeDir('unarchive-strays')
+    const live = await makeDir('unarchive-live')
+    const result = await harness({
+      sessions: [header('stray', dir, 100)],
+      liveSessions: [header('live-only', live, 200)],
+    })
+    await result.registry.archiveSession(SessionId('stray'))
+    await result.registry.archiveSession(SessionId('live-only'))
+    expect(result.registry.archivedSessionIds).toEqual(['stray', 'live-only'])
+
+    await result.registry.unarchiveSession(SessionId('live-only'))
+    expect(result.registry.archivedSessionIds).toEqual(['stray'])
+
+    await expect(result.registry.unarchiveSession(SessionId('ghost')))
+      .rejects.toThrow(/cannot unarchive session 'ghost'/)
+    expect(storedState(result.pool).archivedSessionIds).toEqual(['stray'])
+  })
+
+  it('restores an empty archive set across restarts after unarchiving', async () => {
+    const dir = await makeDir('unarchive-restart')
+    const pool = new MemoryMediaPool()
+    const first = await harness({ pool, sessions: [header('s1', dir, 100)] })
+    await first.registry.archiveSession(SessionId('s1'))
+    await first.registry.unarchiveSession(SessionId('s1'))
+    expect(first.registry.archivedSessionIds).toEqual([])
+    await first.fiber.dispose()
+
+    const second = await harness({ pool, sessions: [header('s1', dir, 100)] })
+    expect(second.registry.archivedSessionIds).toEqual([])
+    await second.fiber.dispose()
+  })
 })

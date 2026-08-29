@@ -1026,6 +1026,25 @@ function workspaceNotFound<T>(request: RpcRequest<unknown>, workspaceId: string)
   })
 }
 
+/**
+ * Map the registry's unknown-session rejection to the wire session-not-found
+ * refusal; any other failure rethrows and propagates as an internal error.
+ * Shared by the archive and unarchive rows, whose only business rejection is
+ * the unknown-session miss.
+ * @param error - the thrown registry error.
+ * @param request - the request being answered.
+ * @param sessionId - the session the operation addressed.
+ * @returns the session-not-found refusal.
+ */
+function sessionNotFoundResponse(error: unknown, request: RpcRequest<unknown>, sessionId: SessionId): RpcResponse<never> {
+  if (!(error instanceof WorkspaceUnknownSessionError)) throw error
+  return err(request, {
+    code: 'session-not-found',
+    message: error.message,
+    details: { sessionId },
+  })
+}
+
 /** Wire projection of one workspace entity (the workspace.* value row). */
 function workspaceView(workspace: Workspace): WorkspaceView {
   const place = workspace.place.kind === 'local' ? undefined
@@ -2950,14 +2969,17 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         try {
           await ctx.workspaceRegistry.archiveSession(sessionId)
         } catch (error: unknown) {
-          // Only the registry's unknown-session rejection is the business
-          // code; storage/durability failures propagate as internal errors.
-          if (!(error instanceof WorkspaceUnknownSessionError)) throw error
-          return err(request, {
-            code: 'session-not-found',
-            message: error.message,
-            details: { sessionId },
-          })
+          return sessionNotFoundResponse(error, request, sessionId)
+        }
+        return ok(request, { archivedSessionIds: [...ctx.workspaceRegistry.archivedSessionIds] })
+      },
+
+      async unarchiveSession(request) {
+        const { sessionId } = request.payload
+        try {
+          await ctx.workspaceRegistry.unarchiveSession(sessionId)
+        } catch (error: unknown) {
+          return sessionNotFoundResponse(error, request, sessionId)
         }
         return ok(request, { archivedSessionIds: [...ctx.workspaceRegistry.archivedSessionIds] })
       },

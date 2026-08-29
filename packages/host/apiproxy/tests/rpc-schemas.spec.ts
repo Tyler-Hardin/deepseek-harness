@@ -21,6 +21,7 @@ import {
 } from '../src/api/host.schema.ts'
 import {
   workspaceArchiveSessionRequestSchema, workspaceArchiveSessionValueSchema,
+  workspaceUnarchiveSessionRequestSchema, workspaceUnarchiveSessionValueSchema,
   workspaceCreateRequestSchema, workspaceCreateValueSchema, workspaceIdSchema,
   workspaceDeleteRequestSchema, workspaceDeleteValueSchema,
   workspaceInsertBeforeRequestSchema, workspaceInsertBeforeValueSchema,
@@ -369,6 +370,14 @@ describe('workspace domain schemas', () => {
     expect(workspaceArchiveSessionValueSchema.parse({ archivedSessionIds: ['s1', 's2'] }).archivedSessionIds)
       .toEqual(['s1', 's2'])
     expect(() => workspaceArchiveSessionValueSchema.parse({ archivedSessionIds: 's1' })).toThrow()
+  })
+
+  it('unarchiveSession request/value mirror the archive pair', () => {
+    expect(workspaceUnarchiveSessionRequestSchema.parse({ sessionId: 's1' }).sessionId).toBe('s1')
+    expect(() => workspaceUnarchiveSessionRequestSchema.parse({})).toThrow()
+    expect(workspaceUnarchiveSessionValueSchema.parse({ archivedSessionIds: ['s2'] }).archivedSessionIds)
+      .toEqual(['s2'])
+    expect(() => workspaceUnarchiveSessionValueSchema.parse({ archivedSessionIds: 's1' })).toThrow()
   })
 
   it('insertSessionBefore accepts an anchored and an anchorless move', () => {

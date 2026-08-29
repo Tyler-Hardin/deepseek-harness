@@ -2800,6 +2800,17 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         }
         return ok(request, { archivedSessionIds: [...archivedSessionIds] })
       },
+      unarchiveSession: (request) => {
+        const missing = requireSession(request)
+        if (missing !== undefined) return missing
+        const { sessionId } = request.payload
+        const index = archivedSessionIds.indexOf(sessionId)
+        if (index !== -1) {
+          archivedSessionIds.splice(index, 1)
+          emitHost({ type: 'host/archived-sessions-changed', archivedSessionIds: [...archivedSessionIds] })
+        }
+        return ok(request, { archivedSessionIds: [...archivedSessionIds] })
+      },
       defaultModel: (request) => {
         const missing = requireWorkspace(request)
         if (missing !== undefined) return missing
@@ -3234,6 +3245,7 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'workspace.insertBefore': return this.api.workspace.insertBefore(request)
       case 'workspace.insertSessionBefore': return this.api.workspace.insertSessionBefore(request)
       case 'workspace.archiveSession': return this.api.workspace.archiveSession(request)
+      case 'workspace.unarchiveSession': return this.api.workspace.unarchiveSession(request)
       case 'workspace.defaultModel': return this.api.workspace.defaultModel(request)
       case 'workspace.setDefaultModel': return this.api.workspace.setDefaultModel(request)
       case 'skill.list': return this.api.skills.list(request)

@@ -44,6 +44,7 @@ import {
   workspaceListRequestSchema,
   workspaceRenameRequestSchema,
   workspaceSetDefaultModelRequestSchema,
+  workspaceUnarchiveSessionRequestSchema,
 } from '../api/workspace.schema.ts'
 import { skillListRequestSchema } from '../api/skills.schema.ts'
 import {
@@ -118,6 +119,7 @@ const UNARY_ROUTES: UnaryRoutes = {
   'workspace.insertBefore': { schema: workspaceInsertBeforeRequestSchema, invoke: (api, r) => api.workspace.insertBefore(r) },
   'workspace.insertSessionBefore': { schema: workspaceInsertSessionBeforeRequestSchema, invoke: (api, r) => api.workspace.insertSessionBefore(r) },
   'workspace.archiveSession': { schema: workspaceArchiveSessionRequestSchema, invoke: (api, r) => api.workspace.archiveSession(r) },
+  'workspace.unarchiveSession': { schema: workspaceUnarchiveSessionRequestSchema, invoke: (api, r) => api.workspace.unarchiveSession(r) },
   'workspace.defaultModel': { schema: workspaceDefaultModelRequestSchema, invoke: (api, r) => api.workspace.defaultModel(r) },
   'workspace.setDefaultModel': { schema: workspaceSetDefaultModelRequestSchema, invoke: (api, r) => api.workspace.setDefaultModel(r) },
   'skill.list': { schema: skillListRequestSchema, invoke: (api, r) => api.skills.list(r) },

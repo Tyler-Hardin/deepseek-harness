@@ -2409,6 +2409,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'resolution after durability.',
       },
       {
+        signature: 'unarchiveSession(sessionId: SessionId): Promise<void>',
+        description: 'Remove one session from the registry-global archive set durably, so its grouping surface restores the retained accounting position. The session must still exist (live or in session persistence) — same existence rule as archiving, so a typo\'d id fails loud whether or not the set holds it. A session absent from the set resolves without writing.',
+        parameters: [{ name: 'sessionId', description: 'The session to unarchive.' }],
+        returns: 'resolution after durability.',
+      },
+      {
         signature: 'async resolveByPath(path: string): Promise<Workspace | undefined>',
         description: 'Resolve by canonical directory path without creating or mutating a workspace. A missing path rejects during `realpath`; an existing unowned directory returns `undefined`.',
         parameters: [{ name: 'path', description: 'Existing directory path in any spelling.' }],

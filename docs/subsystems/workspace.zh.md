@@ -238,6 +238,17 @@ insertBefore(id: WorkspaceId, beforeId?: WorkspaceId): Promise<readonly Workspac
 archiveSession(sessionId: SessionId): Promise<void>
 
 /**
+ * Remove one session from the registry-global archive set durably, so its
+ * grouping surface restores the retained accounting position. The session
+ * must still exist (live or in session persistence) — same existence rule
+ * as archiving, so a typo'd id fails loud whether or not the set holds it.
+ * A session absent from the set resolves without writing.
+ * @param sessionId - The session to unarchive.
+ * @returns resolution after durability.
+ */
+unarchiveSession(sessionId: SessionId): Promise<void>
+
+/**
  * Resolve by canonical directory path without creating or mutating a
  * workspace. A missing path rejects during `realpath`; an existing unowned
  * directory returns `undefined`.

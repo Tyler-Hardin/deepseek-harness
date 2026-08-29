@@ -95,6 +95,13 @@ export interface IWorkspaces {
    */
   archiveSession(sessionId: SessionId): Promise<void>
   /**
+   * Restore a session from the registry-global set (it reappears on grouping
+   * surfaces at its retained accounting slot). Idempotent for an id already
+   * absent from the set; an unknown session rejects.
+   * @param sessionId - session to unarchive.
+   */
+  unarchiveSession(sessionId: SessionId): Promise<void>
+  /**
    * Read one Workspace's default-model view: its explicit override (null when
    * the Workspace inherits the shared default), the shared default, and the
    * advisory provider/model catalog a picker renders from.

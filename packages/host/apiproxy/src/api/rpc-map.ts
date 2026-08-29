@@ -50,6 +50,7 @@ export interface RpcMethodMap {
   'workspace.insertBefore': WorkspaceApi['insertBefore']
   'workspace.insertSessionBefore': WorkspaceApi['insertSessionBefore']
   'workspace.archiveSession': WorkspaceApi['archiveSession']
+  'workspace.unarchiveSession': WorkspaceApi['unarchiveSession']
   'workspace.defaultModel': WorkspaceApi['defaultModel']
   'workspace.setDefaultModel': WorkspaceApi['setDefaultModel']
   'skill.list': SkillsApi['list']

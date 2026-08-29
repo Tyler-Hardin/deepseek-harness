@@ -21,7 +21,7 @@ import type {
 } from '@deepseek-ai/dsh-client-runtime/client'
 import type { WorkspaceBrowserProps } from './contract/slots.ts'
 import type { SessionNode, SessionOrderBy } from './tree.ts'
-import { deriveFlat, deriveGroups, deriveSearchResults, UNGROUPED_KEY } from './tree.ts'
+import { deriveFlat, deriveGroups, deriveSearchResults, ARCHIVED_KEY, UNGROUPED_KEY } from './tree.ts'
 import { ProjectRowItem, SearchResultItem, SessionNodeItem } from './rows/Rows.tsx'
 import { FLAT_SESSION_ORDER_KEY } from './stores.ts'
 import { WorkspacePickFlow } from './WorkspacePicker.tsx'
@@ -261,6 +261,8 @@ type SessionTreeProps = Pick<
   onSessionRename: (sessionId: SessionNode['id'], currentTitle: string) => void
   /** Archive a session (row menu action; the row disappears on the state echo). */
   onSessionArchive: (sessionId: SessionNode['id']) => void
+  /** Restore an archived session (archived-section row menu action). */
+  onSessionUnarchive: (sessionId: SessionNode['id']) => void
   /** Session order behavior: fixed after edits, or additionally promoted by user activity. */
   orderBy: SessionOrderBy
 }
@@ -268,7 +270,7 @@ type SessionTreeProps = Pick<
 /** The scrolling session tree; unmounting drops the sessions subscription and expand-all state. */
 function SessionTree({
   useSessions, startSession, open, forkSession, workspaces, archivedSessionIds,
-  onRenameRequest, onDefaultModelRequest, onDeleteRequest, onSessionRename, onSessionArchive,
+  onRenameRequest, onDefaultModelRequest, onDeleteRequest, onSessionRename, onSessionArchive, onSessionUnarchive,
   insertWorkspaceBefore, insertSessionBefore, orderBy,
   groupExpansion, setGroupExpanded,
   sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, home, t,
@@ -347,6 +349,14 @@ function SessionTree({
     }),
     [list, orderedWorkspaces, archivedSessionIds, expandedGroups, sessionOrderByAccount],
   )
+  // The archived section opens by default the first time it appears: a
+  // collapsed restore surface would hide the very rows it exists to show.
+  const hasArchivedGroup = groups.some(group => group.key === ARCHIVED_KEY)
+  useEffect(() => {
+    if (hasArchivedGroup && !Object.hasOwn(groupExpansion, ARCHIVED_KEY)) {
+      setGroupExpanded(ARCHIVED_KEY, true)
+    }
+  }, [hasArchivedGroup, setGroupExpanded, groupExpansion])
   const now = Date.now()
   const commitSessionDrag = (activeDrag: DragState, over: NonNullable<DragState['over']>): void => {
     if (sessionDropCommitted.current) return
@@ -508,8 +518,10 @@ function SessionTree({
               ).map((node) => {
               // Session drag never leaves its group. Ungrouped writes only the
               // browser-local account; real Workspaces may also write Host order.
+              // Archived rows are not draggable: their account is the registry
+              // archive set, not an order.
                 const sameGroupDrag = drag !== null && drag.accountKey === group.key
-                const dragProps = {
+                const dragProps = group.key === ARCHIVED_KEY ? undefined : {
                   start: () => {
                     sessionDropCommitted.current = false
                     setDrag({ accountKey: group.key, sessionId: node.id, over: null })
@@ -541,6 +553,8 @@ function SessionTree({
                     onRename={onSessionRename}
                     onFork={forkSession}
                     onArchive={onSessionArchive}
+                    onUnarchive={onSessionUnarchive}
+                    archived={group.key === ARCHIVED_KEY}
                     drag={dragProps}
                     t={t}
                   />
@@ -781,6 +795,7 @@ export function WorkspaceBrowser({
   setDefaultModel,
   insertWorkspaceBefore,
   archiveSession,
+  unarchiveSession,
   insertSessionBefore,
   createWorkspace,
   searchSessions,
@@ -837,6 +852,7 @@ export function WorkspaceBrowser({
     actions.retainAccountKeys([
       UNGROUPED_KEY,
       FLAT_SESSION_ORDER_KEY,
+      ARCHIVED_KEY,
       ...workspaces.map(workspace => workspace.workspaceId as string),
     ])
   }, [actions.retainAccountKeys, workspacePhase, workspaces])
@@ -999,6 +1015,14 @@ export function WorkspaceBrowser({
   const onSessionArchive = (sessionId: SessionNode['id']) => {
     archiveSession(sessionId).catch((reason: unknown) => {
       console.warn('session archive rejected:', reason)
+    })
+  }
+  // Restore mirrors archive: dialog-free, committed on the echo, non-fatal
+  // on rejection. The row leaves the archived section and returns to its
+  // workspace group (or Ungrouped) when the echo lands.
+  const onSessionUnarchive = (sessionId: SessionNode['id']) => {
+    unarchiveSession(sessionId).catch((reason: unknown) => {
+      console.warn('session unarchive rejected:', reason)
     })
   }
 
@@ -1277,6 +1301,7 @@ export function WorkspaceBrowser({
                 useSessions={useSessions}
                 onSessionRename={onSessionRename}
                 onSessionArchive={onSessionArchive}
+                onSessionUnarchive={onSessionUnarchive}
                 forkSession={forkSessionAndClose}
                 workspaces={workspaces}
                 groupExpansion={groupExpansion}

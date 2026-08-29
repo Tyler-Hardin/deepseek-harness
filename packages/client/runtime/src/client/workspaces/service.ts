@@ -295,6 +295,17 @@ export class WorkspaceRuntime implements IWorkspaces {
   }
 
   /**
+   * Restore a session from the registry-global set; the projection sweep
+   * needs no counterpart rule because unarchiving never touches the
+   * selection.
+   * @param sessionId - session to unarchive.
+   */
+  async unarchiveSession(sessionId: SessionId): Promise<void> {
+    const result = await this.manager.unarchiveSession(sessionId)
+    if (!result.ok) throw new Error(`session unarchive failed: ${result.error.code}: ${result.error.message}`)
+  }
+
+  /**
    * Read one Workspace's default-model view (explicit override, shared
    * default, advisory catalog).
    * @param workspaceId - target workspace.

@@ -232,6 +232,18 @@ export class WorkspaceManager {
   }
 
   /**
+   * Unarchive one session from the registry-global set, then install the
+   * returned full set without waiting for the changed frame.
+   * @param sessionId - session to unarchive.
+   * @returns the wire result.
+   */
+  async unarchiveSession(sessionId: SessionId): Promise<RpcResult<{ archivedSessionIds: SessionId[] }>> {
+    const { result } = await this.api.workspace.unarchiveSession({ sessionId })
+    if (result.ok) this.installArchived(result.value.archivedSessionIds)
+    return result
+  }
+
+  /**
    * Read one Workspace's default-model view (explicit override, shared
    * default, advisory catalog). No local projection participates: the
    * dialog renders entirely from the Host response.

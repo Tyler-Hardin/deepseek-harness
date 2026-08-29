@@ -435,6 +435,35 @@ describe('workspace browser rows', () => {
     expect(screen.queryByRole('menu')).toBeNull()
   })
 
+  it('archived row menu offers only the restore action and never opens the session', () => {
+    const onOpen = vi.fn()
+    const onRename = vi.fn()
+    const onFork = vi.fn()
+    const onArchive = vi.fn()
+    const onUnarchive = vi.fn()
+    const node: SessionNode = {
+      id: sid('s1'), title: 'One', blank: false, running: false,
+      runningSubagentCount: 0, completed: false, updatedAt: 0,
+    }
+    render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={onOpen}
+      onRename={onRename} onFork={onFork} onArchive={onArchive} onUnarchive={onUnarchive}
+      archived t={t} />)
+    // The archived row is inert: clicking it opens nothing.
+    fireEvent.click(screen.getByRole('treeitem'))
+    expect(onOpen).not.toHaveBeenCalled()
+    // The menu holds exactly the restore action — rename/fork/archive are absent.
+    fireEvent.click(screen.getByRole('button', { name: '会话“One”的操作' }))
+    expect(screen.queryByRole('menuitem', { name: '重命名' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: '分叉会话' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: '归档会话' })).toBeNull()
+    fireEvent.click(screen.getByRole('menuitem', { name: '恢复会话' }))
+    expect(onUnarchive).toHaveBeenCalledWith(node.id)
+    expect(onRename).not.toHaveBeenCalled()
+    expect(onFork).not.toHaveBeenCalled()
+    expect(onArchive).not.toHaveBeenCalled()
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+
 
   it('shows the hover card after the dwell and suppresses it while the row menu is open', () => {
     vi.useFakeTimers()

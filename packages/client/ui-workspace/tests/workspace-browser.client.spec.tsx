@@ -84,6 +84,7 @@ function mount(overrides: Partial<WorkspaceBrowserProps> = {}) {
     })),
     setDefaultModel: vi.fn(async () => {}),
     archiveSession: vi.fn(async () => {}),
+    unarchiveSession: vi.fn(async () => {}),
     insertWorkspaceBefore: vi.fn(async () => {}),
     insertSessionBefore: vi.fn(async () => {}),
     createWorkspace: vi.fn(async () => workspace('created', [])),
@@ -365,7 +366,7 @@ describe('WorkspaceBrowser', () => {
     expect(screen.getAllByRole('treeitem').slice(1)[0]?.textContent).toContain('two')
   })
 
-  it('archives a session from the row menu and hides archived rows in both modes', async () => {
+  it('archives a session from the row menu and moves it into the archived section', async () => {
     const archiveSession = vi.fn(async () => {})
     const b = mount({
       useSessions: hook(sessionState([summary('kept-s', 2), summary('gone-s', 1)])),
@@ -377,13 +378,36 @@ describe('WorkspaceBrowser', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: '归档会话' }))
     expect(archiveSession).toHaveBeenCalledWith(sid('gone-s'))
 
-    // The archive-set echo hides the row in grouped and flat modes.
+    // The archive-set echo moves the row out of its group into the trailing
+    // archived section (auto-expanded on first appearance).
     rerender(b, { useWorkspaces: hook(workspaceState([workspace('alpha', ['kept-s', 'gone-s'])], [sid('gone-s')])) })
-    expect(screen.queryByText('gone-s')).toBeNull()
+    await screen.findByText('已归档')
+    expect(screen.getByText('kept-s')).toBeTruthy()
+    expect(screen.getAllByText('gone-s')).toHaveLength(1)
+    // Flat mode has no archived section: the row is hidden there.
     fireEvent.click(screen.getByRole('button', { name: '视图选项' }))
     fireEvent.click(screen.getByRole('menuitem', { name: '单列表' }))
     expect(screen.getByText('kept-s')).toBeTruthy()
     expect(screen.queryByText('gone-s')).toBeNull()
+  })
+
+  it('restores an archived session from the archived section row menu', async () => {
+    const unarchiveSession = vi.fn(async () => {})
+    const b = mount({
+      useSessions: hook(sessionState([summary('kept-s', 2), summary('gone-s', 1)])),
+      useWorkspaces: hook(workspaceState([workspace('alpha', ['kept-s', 'gone-s'])], [sid('gone-s')])),
+      unarchiveSession,
+    })
+    fireEvent.click(screen.getByText('alpha'))
+    // The archived section auto-expands; its rows carry only the restore action.
+    await screen.findByText('已归档')
+    fireEvent.click(screen.getByRole('button', { name: '会话“gone-s”的操作' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '恢复会话' }))
+    expect(unarchiveSession).toHaveBeenCalledWith(sid('gone-s'))
+    // The echo returns the row to its workspace group and withdraws the section.
+    rerender(b, { useWorkspaces: hook(workspaceState([workspace('alpha', ['kept-s', 'gone-s'])], [])) })
+    await screen.findByText('gone-s')
+    expect(screen.queryByText('已归档')).toBeNull()
   })
 
   it('logs and keeps the tree when the archive call rejects', async () => {
@@ -403,6 +427,28 @@ describe('WorkspaceBrowser', () => {
       await Promise.resolve()
       expect(warn).toHaveBeenCalledWith('session archive rejected:', rejection)
       expect(screen.getByText('alpha-s')).toBeTruthy()
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('logs and keeps the tree when the unarchive call rejects', async () => {
+    const rejection = new Error('unarchive exploded')
+    const unarchiveSession = vi.fn(async () => { throw rejection })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      mount({
+        useSessions: hook(sessionState([summary('gone-s', 1)])),
+        useWorkspaces: hook(workspaceState([], [sid('gone-s')])),
+        unarchiveSession,
+      })
+      await screen.findByText('已归档')
+      fireEvent.click(screen.getByRole('button', { name: '会话“gone-s”的操作' }))
+      fireEvent.click(screen.getByRole('menuitem', { name: '恢复会话' }))
+      await Promise.resolve()
+      await Promise.resolve()
+      expect(warn).toHaveBeenCalledWith('session unarchive rejected:', rejection)
+      expect(screen.getByText('gone-s')).toBeTruthy()
     } finally {
       warn.mockRestore()
     }

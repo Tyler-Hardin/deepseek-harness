@@ -131,6 +131,12 @@ export type WorkspaceBrowserInjected = {
    */
   archiveSession: (sessionId: SessionId) => Promise<void>
   /**
+   * Restore a Session from the registry-global set: it reappears on grouping
+   * surfaces at its retained accounting slot. Idempotent for an id already
+   * absent from the set; an unknown session rejects.
+   */
+  unarchiveSession: (sessionId: SessionId) => Promise<void>
+  /**
    * Reorder a session inside its Workspace account (DOM-insertBefore
    * semantics: omitted anchor appends to the end). The view refreshes from
    * the Host response/changed frame; failures leave the order unchanged.
