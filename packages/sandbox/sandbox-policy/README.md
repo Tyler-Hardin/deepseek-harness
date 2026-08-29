@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Use this package to apply one file-effect policy to every confined bash, filesystem, and terminal call. Deployments choose a default mode and fallback workspace root, while each session can switch modes independently. Session choices survive restart, and all enforcing capabilities use the same mode and workspace for a call. Before each model request, the model receives the effective policy and workspace without an inventory of mounted capabilities.
+Use this package to apply one file-effect policy to every confined bash, filesystem, and terminal call. Deployments choose a default mode, a fallback workspace root, and optional host-local extra writable roots, while each session can switch modes independently. Session choices survive restart, and all enforcing capabilities use the same mode and workspace for a call. Before each model request, the model receives the effective policy and workspace without an inventory of mounted capabilities.
 
 ## Table of Contents
 
@@ -46,8 +46,13 @@ Load the package with a default mode; the fail-safe default is `read-only`, and 
 |---|---|---|
 | `mode` | `read-only` | The deployment default mode a session starts from, validated at load |
 | `workspaceRoot` | `process.cwd()` | The fallback root `workspace-write` may write under for agentless calls or sessions without a cwd; normal agent calls use the session's immutable cwd instead |
+| `extraWritableRoots` | `[]` | Host-local absolute directories `workspace-write` may write under in addition to the session workspace and platform temp areas (for example `~/.cache`; a leading `~` expands to the user's home, and non-absolute spellings are rejected at load). Remote execution worlds never receive them |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-sandbox-policy) is the exhaustive source for every accepted field and its JSDoc.
+
+### Configuring extra writable roots
+
+`extraWritableRoots` grants standing write access beyond the session workspace and the platform temp areas, for host-local directories a workflow genuinely needs (a build cache, a shared checkout). Leave it empty when the session workspace should be the whole writable surface. The user-layer `sandbox` settings namespace overlays the deployment default: a stored section replaces the list wholesale, and a stored change reaches the next confined call through `resolve()` without a restart.
 
 ### Switching a session's mode
 
@@ -69,7 +74,7 @@ This section explains policy resolution, the per-session store, and the model-vi
 
 ### Resolution precedence
 
-`resolve({ session, mode })` returns one complete per-call policy: an approved explicit mode outranks the session's last `sandbox/mode` event, which outranks the deployment default. The session's immutable `cwd` is canonicalized with filesystem semantics before becoming the workspace root, so `symlink/..` agrees with process working-directory resolution; otherwise the configured fallback applies.
+`resolve({ session, mode })` returns one complete per-call policy: an approved explicit mode outranks the session's last `sandbox/mode` event, which outranks the deployment default. The session's immutable `cwd` is canonicalized with filesystem semantics before becoming the workspace root, so `symlink/..` agrees with process working-directory resolution; otherwise the configured fallback applies. Effective extra writable roots are canonicalized, deduplicated, and carried on the policy only when the list is non-empty.
 
 ### The per-session store
 
@@ -144,9 +149,10 @@ The stable system prompt remains byte-identical across mode changes. A changed f
 
 These limits define the policy surface this package provides. They are current package constraints, not a general sandbox comparison or a task backlog.
 
-- **One primary workspace root per session** — policy resolves `SessionHeader.cwd`; extra writable roots are not part of `SandboxExecutionPolicy`.
+- **One primary workspace root per session** — policy resolves `SessionHeader.cwd`, and the confined subset carries only that root; `extraWritableRoots` rides beside it as an additional grant rather than a second root.
 - **File-effect modes only** — `SandboxMode` governs file effects; network and process policy are outside its vocabulary, so no knob here restricts them.
 - **Temporary areas are deliberately summarized** — enforcing backends grant different platform temporary areas, which are selected after policy resolution and therefore cannot be enumerated truthfully in the current context.
+- **Extra roots are host-local by convention** — remote execution worlds never receive them, so the list cannot authorize a same-named path on another host; per-host remote policy is deferred to the remote confinement work.
 
 <a id="dev-note"></a>
 ### Dev Note
