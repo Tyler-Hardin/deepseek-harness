@@ -59,6 +59,8 @@ await project.setTitle('Renamed')
 ctx.workspaceRegistry.list() // shows the project, newest first
 ```
 
+A project's place can also be a remote ssh destination. `ctx.workspaceRegistry.createAtPlace(place, path, title?)` behaves exactly like `create` for a local place; for an ssh place it stores the destination together with the remote absolute working path and reuses an existing record by host and remote path. The registry does not probe remote reachability — the local filesystem has no authority over a remote path — so a transport-aware consumer connects and remote-stats the place before calling. `Workspace.place` is the durable remote-ness statement: `{ kind: 'local' }` for directory projects, `{ kind: 'ssh', host, user?, port? }` for remote ones, with the working path kept once in `Workspace.path`. `Workspace.status()` is an uncached place check reporting `'ok' | 'missing'`; a remote place reports `'missing'` until a transport-backed probe is composed in, and a missing place never mutates the record.
+
 ### Grouping sessions under a project
 
 A session joins the project of the directory it runs in: create a session in a project's directory and it appears under that project, newest first. A session can only belong to one project. A session whose directory cannot be validated — no recorded directory, or a moved or deleted folder — cannot join and stays ungrouped.

@@ -25,6 +25,12 @@ interface ShellExecRequest {
   command: string
   /** Working directory override (default: implementation-configured). */
   workdir?: string | undefined
+  /**
+   * Opaque execution-world identity a router dispatches on. A router provider
+   * resolves `world(session)` and fills this before `resolve()`; direct
+   * executors ignore it. Absent means the executor's own world.
+   */
+  world?: string | undefined
   /** Timeout override in milliseconds (implementations cap it). */
   timeoutMs?: number | undefined
   /**
@@ -74,6 +80,11 @@ interface ShellExecRequest {
 interface ShellExecSpec {
   command: string
   workdir: string
+  /**
+   * Opaque execution-world identity the router dispatched on; direct
+   * executors ignore it. Carried through from {@link ShellExecRequest.world}.
+   */
+  world?: string | undefined
   timeoutMs: number
   /**
    * Resolved foreground stdout capture budget in bytes. `run()` uses it for

@@ -173,6 +173,17 @@ flowchart LR
   svc_fs["ctx.fs<br/>Filesystem provider seam"]
   pkg_fs_local["fs-local"]
   pkg_fs_observation_policy["fs-observation-policy"]
+  pkg_ssh["ssh"]
+  svc_ssh["ctx.ssh<br/>SSH transport seam"]
+  pkg_ssh_client["ssh-client"]
+  pkg_fs_ssh["fs-ssh"]
+  pkg_bash_ssh["bash-ssh"]
+  pkg_ssh_worlds["ssh-worlds"]
+  pkg_worlds["worlds"]
+  svc_worlds["ctx.worlds<br/>Execution-worlds service"]
+  pkg_worlds_local["worlds-local"]
+  pkg_fs_router["fs-router"]
+  pkg_shell_router["shell-router"]
   pkg_voice_context["voice-context"]
   svc_voiceContext["ctx.voiceContext<br/>Speech-to-text Remote service"]
   pkg_client_web["client-web"]
@@ -314,6 +325,9 @@ flowchart LR
   pkg_skill_filesystem --> svc_skills
   pkg_spill --> svc_spillStore
   pkg_spill_local --> svc_spillStore
+  pkg_ssh --> svc_ssh
+  pkg_ssh_client --> svc_ssh
+  pkg_ssh_worlds --> svc_worlds
   pkg_storage --> svc_storage
   pkg_storage_domain --> svc_storageDomain
   pkg_storage_json --> svc_storage
@@ -347,6 +361,8 @@ flowchart LR
   pkg_workflow --> svc_workflowEngine
   pkg_workflow_worker_thread --> svc_workflowEngine
   pkg_workspace --> svc_workspaceRegistry
+  pkg_worlds --> svc_worlds
+  pkg_worlds_local --> svc_worlds
   svc_agentDefaultModel --> pkg_api_session_controller
   svc_agentDefaultModel --> pkg_headless
   svc_agentLoop --> pkg_base
@@ -430,6 +446,9 @@ flowchart LR
   svc_shellEnv --> pkg_tool_pwsh
   svc_skills --> pkg_tool_skill
   svc_spillStore --> pkg_spill_policy
+  svc_ssh --> pkg_bash_ssh
+  svc_ssh --> pkg_fs_ssh
+  svc_ssh --> pkg_ssh_worlds
   svc_storage --> pkg_storage_domain
   svc_storageDomain --> pkg_workspace
   svc_subagentModelSelection --> pkg_tool_subagent
@@ -474,6 +493,9 @@ flowchart LR
   svc_workflowEngine --> pkg_tool_workflow
   svc_workspaceRegistry --> pkg_api_session_controller
   svc_workspaceRegistry --> pkg_api_workspace_controller
+  svc_worlds --> pkg_api_workspace_controller
+  svc_worlds --> pkg_fs_router
+  svc_worlds --> pkg_shell_router
   svc_fs -. event gate .-> pkg_fs_observation_policy
 ```
 
@@ -536,6 +558,8 @@ flowchart LR
 | `ctx.permissionPresets` | `core` | [`permission-presets`](../packages/interaction/permission-presets) | - | - | - | User-facing preset table (`workspace-write`/`danger-full-access`) bundling the sandbox-mode and approval-policy knobs; a switch writes one `permission/preset` event through to both knob events. |
 | `ctx.codeRuntime` | `seam` | [`code-runtime`](../packages/code-runtime/code-runtime) | [`code-runtime-worker-thread`](../packages/code-runtime/code-runtime-worker-thread), [`experimental-code-runtime-python`](../packages/experimental/code-runtime-python) | [`tools`](../packages/core/tools) | - | Runs one model-written program against host-provided async bindings; backends differ by substrate and language (the tool registry consumes it for PTC mode). |
 | `ctx.fs` | `seam` | [`fs`](../packages/fs/fs) | [`fs-local`](../packages/fs/fs-local), [`fs-sandbox`](../packages/fs/fs-sandbox), [`fs-e2b`](../packages/e2b/fs-e2b) | [`tool-fs`](../packages/fs/tool-fs) | [`fs-observation-policy`](../packages/fs/fs-observation-policy) | tool-fs executes read/write/edit through ctx.fs; fs-sandbox fences mutations by the shared sandbox mode; fs-observation-policy contributes observed-state checks through the fs/* event gate. |
+| `ctx.ssh` | `seam` | [`ssh`](../packages/ssh/ssh) | [`ssh-client`](../packages/ssh/ssh-client) | [`fs-ssh`](../packages/fs/fs-ssh), [`bash-ssh`](../packages/shell/bash-ssh), [`ssh-worlds`](../packages/ssh/ssh-worlds) | - | The ssh2-backed provider connects remote execution worlds with agent-then-keys authentication; the fs-ssh and bash-ssh adapters and the ssh-worlds provider consume the transport. |
+| `ctx.worlds` | `seam` | [`worlds`](../packages/worlds/worlds) | [`worlds-local`](../packages/worlds/worlds-local), [`ssh-worlds`](../packages/ssh/ssh-worlds) | [`fs-router`](../packages/fs/fs-router), [`shell-router`](../packages/shell/shell-router), [`api-workspace-controller`](../packages/api/workspace-controller) | - | Resolves a session (or workspace place) to one execution world and owns world lifecycles; router providers dispatch seam calls to the resolved world’s fs/shell backends. |
 | `ctx.voiceContext` | `seam` | [`voice-context`](../packages/voice/voice-context) | [`voice-context`](../packages/voice/voice-context) | [`client-web`](../packages/client/web) | - | The transcribe Remote crosses the browser-trust fence per call; the optional /voice-local command manages the local offline backend. |
 | `ctx.compaction` | `seam` | [`compaction`](../packages/compaction/compaction) | [`compaction-basic`](../packages/compaction/compaction-basic) | [`compaction-basic`](../packages/compaction/compaction-basic) | - | The basic backend consumes post-step pressure and request-error recovery events; there is no model-facing compact tool. |
 | `ctx.subagents` | `seam` | [`subagent`](../packages/subagent/subagent) | [`subagent-spawn-in-process`](../packages/subagent/subagent-spawn-in-process), [`subagent-fork-in-process`](../packages/subagent/subagent-fork-in-process), [`subagent-acp`](../packages/subagent/subagent-acp), [`subagent-codex`](../packages/subagent/subagent-codex), [`subagent-claude-code`](../packages/subagent/subagent-claude-code), [`subagent-dsh-sdk`](../packages/subagent/subagent-dsh-sdk) | [`tool-subagent`](../packages/subagent/tool-subagent), [`tool-subagent-control`](../packages/subagent/tool-subagent-control), [`tool-ralph`](../packages/workflow/tool-ralph) | - | Providers implement transports; the service also owns optional Activation-based continuation orchestration, tool-subagent selects one-shot or continuable delegation, tool-subagent-control delivers follow-ups, and tool-ralph requires one fresh structured-output route. |

@@ -22,12 +22,13 @@ kind: "package-group"
 <a id="packages"></a>
 ## 包
 
-该家族包含一个会话服务、一个 shell 后端与一组面向模型的工具。完整约定由各子级 README 负责；共享词汇与生成的服务接口面由子系统参考负责。
+该家族包含一个会话服务、本地与远程两个 shell 后端与一组面向模型的工具。完整约定由各子级 README 负责；共享词汇与生成的服务接口面由子系统参考负责。
 
 | 包 | 角色 | ctx 键 |
 |---|---|---|
 | [`terminal/`](terminal/README.zh.md) | 会话服务：限定所有者范围的会话、不透明 id、精确到所有者的限制与等待完成的清理 | `ctx.terminals` |
 | [`terminal-bash/`](terminal-bash/README.zh.md) | shell 后端：在共享沙箱策略下启动交互式 bash 或 pwsh，带就绪检测与有界输出 | 注册后端到 `ctx.terminals` |
+| [`terminal-ssh/`](terminal-ssh/README.zh.md) | 远程 shell 后端：在 ssh 执行世界的 pty 通道之上运行，基于静默的就绪检测、控制字节信号与通道自有清理 | 注册后端到 `ctx.terminals` |
 | [`tool-terminal/`](tool-terminal/README.zh.md) | 6 个面向模型的工具，带所有者隔离与可选后台发送 | 注册到 `ctx.tools` |
 
 -----

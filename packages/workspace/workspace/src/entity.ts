@@ -12,7 +12,7 @@ import { stat } from 'node:fs/promises'
 import type { SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import type { WorkspaceRecord } from './spec.ts'
-import type { Workspace, WorkspaceId } from './types.ts'
+import type { Workspace, WorkspaceId, WorkspacePlace } from './types.ts'
 import { realpathNormalize } from './paths.ts'
 
 /** An insertSessionBefore request named a session or anchor not on the account (storage failures stay plain errors). */
@@ -86,6 +86,11 @@ export class WorkspaceEntity implements Workspace {
     return this.record.path
   }
 
+  get place(): WorkspacePlace {
+    // Records written before the place field are local by construction.
+    return this.record.place ?? { kind: 'local' }
+  }
+
   get title(): string {
     return this.record.title
   }
@@ -119,29 +124,43 @@ export class WorkspaceEntity implements Workspace {
           + 'its stored header carries no cwd to validate against',
         )
       }
-      let cwd: string
-      try {
-        cwd = await realpathNormalize(header.cwd)
-      } catch (error) {
-        throw new Error(
-          `cannot attach session '${sessionId}' to workspace '${this.record.path}': `
-          + `its cwd '${header.cwd}' does not resolve, so it cannot be validated`,
-          { cause: error },
-        )
+      if (this.record.place?.kind === 'ssh') {
+        // The working path for a remote workspace is the remote absolute
+        // path: membership is exact-path equality (the transport probed
+        // reachability when the workspace was created), and the local
+        // filesystem has no authority over it.
+        if (header.cwd !== this.record.path) {
+          throw new Error(
+            `cannot attach session '${sessionId}' to workspace '${this.record.path}': `
+            + `its cwd '${header.cwd}' does not match the remote working path`,
+          )
+        }
+        this.host.rememberSessionPath(sessionId, header.cwd)
+      } else {
+        let cwd: string
+        try {
+          cwd = await realpathNormalize(header.cwd)
+        } catch (error) {
+          throw new Error(
+            `cannot attach session '${sessionId}' to workspace '${this.record.path}': `
+            + `its cwd '${header.cwd}' does not resolve, so it cannot be validated`,
+            { cause: error },
+          )
+        }
+        if (!(await stat(cwd)).isDirectory()) {
+          throw new Error(
+            `cannot attach session '${sessionId}' to workspace '${this.record.path}': `
+            + `its cwd '${header.cwd}' is not a directory`,
+          )
+        }
+        if (cwd !== this.record.path) {
+          throw new Error(
+            `cannot attach session '${sessionId}' to workspace '${this.record.path}': `
+            + `its cwd resolves to '${cwd}'`,
+          )
+        }
+        this.host.rememberSessionPath(sessionId, cwd)
       }
-      if (!(await stat(cwd)).isDirectory()) {
-        throw new Error(
-          `cannot attach session '${sessionId}' to workspace '${this.record.path}': `
-          + `its cwd '${header.cwd}' is not a directory`,
-        )
-      }
-      if (cwd !== this.record.path) {
-        throw new Error(
-          `cannot attach session '${sessionId}' to workspace '${this.record.path}': `
-          + `its cwd resolves to '${cwd}'`,
-        )
-      }
-      this.host.rememberSessionPath(sessionId, cwd)
     }
     await this.mutate(record => record.sessionIds.includes(sessionId)
       ? record
@@ -177,13 +196,19 @@ export class WorkspaceEntity implements Workspace {
       : record)
   }
 
-  async status(): Promise<'ok' | 'missing-dir'> {
+  async status(): Promise<'ok' | 'missing'> {
+    // A local place is a directory check; a remote place's reachability is
+    // the transport's concern, so this record-level probe reports 'missing'
+    // until a transport-backed probe is composed in.
+    /* v8 ignore start -- the registry only creates local places today; the ssh arm is the transport's future probe */
+    if (this.record.place?.kind === 'ssh') return 'missing'
+    /* v8 ignore stop */
     try {
-      return (await stat(this.record.path)).isDirectory() ? 'ok' : 'missing-dir'
+      return (await stat(this.record.path)).isDirectory() ? 'ok' : 'missing'
     } catch {
       // Any stat failure (ENOENT, dangling parent, permission loss) means the
       // directory is not usable right now; the record itself never mutates.
-      return 'missing-dir'
+      return 'missing'
     }
   }
 

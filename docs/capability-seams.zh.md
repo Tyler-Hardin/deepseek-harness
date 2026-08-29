@@ -175,6 +175,17 @@ flowchart LR
   svc_fs["ctx.fs<br/>Filesystem provider seam"]
   pkg_fs_local["fs-local"]
   pkg_fs_observation_policy["fs-observation-policy"]
+  pkg_ssh["ssh"]
+  svc_ssh["ctx.ssh<br/>SSH transport seam"]
+  pkg_ssh_client["ssh-client"]
+  pkg_fs_ssh["fs-ssh"]
+  pkg_bash_ssh["bash-ssh"]
+  pkg_ssh_worlds["ssh-worlds"]
+  pkg_worlds["worlds"]
+  svc_worlds["ctx.worlds<br/>Execution-worlds service"]
+  pkg_worlds_local["worlds-local"]
+  pkg_fs_router["fs-router"]
+  pkg_shell_router["shell-router"]
   pkg_voice_context["voice-context"]
   svc_voiceContext["ctx.voiceContext<br/>Speech-to-text Remote service"]
   pkg_client_web["client-web"]
@@ -316,6 +327,9 @@ flowchart LR
   pkg_skill_filesystem --> svc_skills
   pkg_spill --> svc_spillStore
   pkg_spill_local --> svc_spillStore
+  pkg_ssh --> svc_ssh
+  pkg_ssh_client --> svc_ssh
+  pkg_ssh_worlds --> svc_worlds
   pkg_storage --> svc_storage
   pkg_storage_domain --> svc_storageDomain
   pkg_storage_json --> svc_storage
@@ -349,6 +363,8 @@ flowchart LR
   pkg_workflow --> svc_workflowEngine
   pkg_workflow_worker_thread --> svc_workflowEngine
   pkg_workspace --> svc_workspaceRegistry
+  pkg_worlds --> svc_worlds
+  pkg_worlds_local --> svc_worlds
   svc_agentDefaultModel --> pkg_api_session_controller
   svc_agentDefaultModel --> pkg_headless
   svc_agentLoop --> pkg_base
@@ -432,6 +448,9 @@ flowchart LR
   svc_shellEnv --> pkg_tool_pwsh
   svc_skills --> pkg_tool_skill
   svc_spillStore --> pkg_spill_policy
+  svc_ssh --> pkg_bash_ssh
+  svc_ssh --> pkg_fs_ssh
+  svc_ssh --> pkg_ssh_worlds
   svc_storage --> pkg_storage_domain
   svc_storageDomain --> pkg_workspace
   svc_subagentModelSelection --> pkg_tool_subagent
@@ -476,6 +495,9 @@ flowchart LR
   svc_workflowEngine --> pkg_tool_workflow
   svc_workspaceRegistry --> pkg_api_session_controller
   svc_workspaceRegistry --> pkg_api_workspace_controller
+  svc_worlds --> pkg_api_workspace_controller
+  svc_worlds --> pkg_fs_router
+  svc_worlds --> pkg_shell_router
   svc_fs -. event gate .-> pkg_fs_observation_policy
 ```
 
@@ -538,6 +560,8 @@ flowchart LR
 | `ctx.permissionPresets` | `core` | [`permission-presets`](../packages/interaction/permission-presets) | - | - | - | 面向用户的预设表（`workspace-write`／`danger-full-access`），将沙箱模式与审批策略选项组合在一起；一次切换会写入一个 `permission/preset` 事件，并贯通到两个选项事件。 |
 | `ctx.codeRuntime` | `seam` | [`code-runtime`](../packages/code-runtime/code-runtime) | [`code-runtime-worker-thread`](../packages/code-runtime/code-runtime-worker-thread), [`experimental-code-runtime-python`](../packages/experimental/code-runtime-python) | [`tools`](../packages/core/tools) | - | 使用 Host 提供的异步绑定运行一段由模型编写的程序；各后端采用不同的基础环境和语言（工具注册表在 PTC mode 下消费该服务）。 |
 | `ctx.fs` | `seam` | [`fs`](../packages/fs/fs) | [`fs-local`](../packages/fs/fs-local), [`fs-sandbox`](../packages/fs/fs-sandbox), [`fs-e2b`](../packages/e2b/fs-e2b) | [`tool-fs`](../packages/fs/tool-fs) | [`fs-observation-policy`](../packages/fs/fs-observation-policy) | tool-fs 通过 ctx.fs 执行读取／写入／编辑；fs-sandbox 按共享沙箱模式限制变更；fs-observation-policy 通过 fs/* 事件门禁贡献基于观测状态的检查。 |
+| `ctx.ssh` | `seam` | [`ssh`](../packages/ssh/ssh) | [`ssh-client`](../packages/ssh/ssh-client) | [`fs-ssh`](../packages/fs/fs-ssh), [`bash-ssh`](../packages/shell/bash-ssh), [`ssh-worlds`](../packages/ssh/ssh-worlds) | - | ssh2 支持的后端以 agent 优先、密钥兜底的认证方式连接远程执行世界；`fs-ssh`、`bash-ssh` 适配器与 `ssh-worlds` 提供方消费该传输。 |
+| `ctx.worlds` | `seam` | [`worlds`](../packages/worlds/worlds) | [`worlds-local`](../packages/worlds/worlds-local), [`ssh-worlds`](../packages/ssh/ssh-worlds) | [`fs-router`](../packages/fs/fs-router), [`shell-router`](../packages/shell/shell-router), [`api-workspace-controller`](../packages/api/workspace-controller) | - | 把会话（或工作区 place）解析为一个执行世界，并负责世界的生命周期；路由提供方把 seam 调用分发到已解析世界的 fs/shell 后端。 |
 | `ctx.voiceContext` | `seam` | [`voice-context`](../packages/voice/voice-context) | [`voice-context`](../packages/voice/voice-context) | [`client-web`](../packages/client/web) | - | `transcribe` Remote 每次调用都经过浏览器信任围栏；可选的 `/voice-local` 命令管理本地离线后端。 |
 | `ctx.compaction` | `seam` | [`compaction`](../packages/compaction/compaction) | [`compaction-basic`](../packages/compaction/compaction-basic) | [`compaction-basic`](../packages/compaction/compaction-basic) | - | 基础后端消费步骤后的压力事件和请求错误恢复事件；不存在面向模型的压缩工具。 |
 | `ctx.subagents` | `seam` | [`subagent`](../packages/subagent/subagent) | [`subagent-spawn-in-process`](../packages/subagent/subagent-spawn-in-process), [`subagent-fork-in-process`](../packages/subagent/subagent-fork-in-process), [`subagent-acp`](../packages/subagent/subagent-acp), [`subagent-codex`](../packages/subagent/subagent-codex), [`subagent-claude-code`](../packages/subagent/subagent-claude-code), [`subagent-dsh-sdk`](../packages/subagent/subagent-dsh-sdk) | [`tool-subagent`](../packages/subagent/tool-subagent), [`tool-subagent-control`](../packages/subagent/tool-subagent-control), [`tool-ralph`](../packages/workflow/tool-ralph) | - | 提供方实现传输；该服务还负责可选的、基于 Activation 的延续编排，tool-subagent 选择一次性或可延续委派，tool-subagent-control 传递后续消息，而 tool-ralph 要求一条全新的结构化输出路由。 |

@@ -22,12 +22,13 @@ The `terminal/` family lets agents keep interactive shell and REPL sessions aliv
 <a id="packages"></a>
 ## Packages
 
-The family is one session service, one shell backend, and one set of model-facing tools. Each child README owns the full contract; the subsystem reference owns the shared vocabulary and the generated service surface.
+The family is one session service, a local and a remote shell backend, and one set of model-facing tools. Each child README owns the full contract; the subsystem reference owns the shared vocabulary and the generated service surface.
 
 | Package | Role | ctx key |
 |---|---|---|
 | [`terminal/`](terminal/README.md) | Session service: owner-scoped sessions with opaque ids, exact-owner fencing, and awaited cleanup | `ctx.terminals` |
 | [`terminal-bash/`](terminal-bash/README.md) | Shell backend: interactive bash or pwsh under the shared sandbox policy, with readiness detection and bounded output | registers a backend on `ctx.terminals` |
+| [`terminal-ssh/`](terminal-ssh/README.md) | Remote shell backend over an ssh world's pty channel: silence-based readiness, control-byte signals, and channel-owned cleanup | registers a backend on `ctx.terminals` |
 | [`tool-terminal/`](tool-terminal/README.md) | Six model-facing tools with owner isolation and optional background sends | registers on `ctx.tools` |
 
 -----

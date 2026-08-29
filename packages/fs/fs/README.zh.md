@@ -63,7 +63,7 @@ kind: "package-reference"
 
 ### 调用流程
 
-每个普通操作都以 `resolve(path, { cwd })` 开始，它产生稳定的 `FsTarget`（不透明 `targetKey` 加用于模型/UI 输出的 `displayPath`）；经不同路径到达同一文件会产生相同 key。`processPathFromHostPath(hostPath)` 在后端共享或显式映射宿主文件时，单独把绝对宿主文件映射进此执行世界，否则返回 `undefined`。读取随后执行 `stat` → `readText`/`streamText`/`readBytes`/`readByteRange`，列出执行 `listDir`，变更则经过每个目标一个临界区：先检查可选防护，应用新内容，再原子发布结果。
+每个普通操作都以 `resolve(path, { cwd })` 开始，它产生稳定的 `FsTarget`（不透明 `targetKey` 加用于模型/UI 输出的 `displayPath`）；经不同路径到达同一文件会产生相同 key。`cwd` 是相对路径解析所依据的基准，可选的 `world` 是路由分发所依据的不透明执行世界标识——直接后端会忽略它。`processPathFromHostPath(hostPath)` 在后端共享或显式映射宿主文件时，单独把绝对宿主文件映射进此执行世界，否则返回 `undefined`。读取随后执行 `stat` → `readText`/`streamText`/`readBytes`/`readByteRange`，列出执行 `listDir`，变更则经过每个目标一个临界区：先检查可选防护，应用新内容，再原子发布结果。
 
 ### `fs/*` 策略事件
 

@@ -17,7 +17,10 @@ afterEach(cleanup)
 /** Locale stub faithful to the real interpolation ({name} placeholders). */
 const t = (key: string, params?: Record<string, unknown>): string => {
   const text = en[key as AppSettingsLocaleKey] ?? key
-  return text.replace(/\{(\w+)\}/g, (_, name: string) => String(params?.[name] ?? ''))
+  return text.replace(/\{(\w+)\}/g, (_, name: string) => {
+    const value = params?.[name]
+    return typeof value === 'string' ? value : ''
+  })
 }
 
 interface BridgeHarness {
@@ -61,7 +64,7 @@ describe('AppSection', () => {
   it('renders the bridge state on mount', () => {
     const { renderSection } = makeBridge()
     renderSection()
-    expect((screen.getByLabelText('Web UI hostname') as HTMLInputElement).value)
+    expect(screen.getByLabelText<HTMLInputElement>('Web UI hostname').value)
       .toBe('https://dsh.example.com:3080')
     expect(screen.getByText('Using certificate: user-cert')).toBeDefined()
     expect(screen.getByText(/line1\s+line2/)).toBeDefined()

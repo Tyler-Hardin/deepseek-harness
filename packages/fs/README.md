@@ -22,12 +22,14 @@ The `fs/` group gives agents durable, policy-governed access to files: the `ctx.
 <a id="packages"></a>
 ## Packages
 
-Eight packages plus the remote sibling `fs-e2b` play the filesystem roles; the subsystem reference owns the exhaustive contracts and the error taxonomy.
+Ten packages plus the remote sibling `fs-e2b` play the filesystem roles; the subsystem reference owns the exhaustive contracts and the error taxonomy.
 
 | Package | Role | ctx key |
 |---|---|---|
 | [`fs/`](fs/README.md) | `ctx.fs` service contract: execution-world paths, bounded text I/O, and atomic mutations with an optional version guard | `ctx.fs` |
 | [`fs-local/`](fs-local/README.md) | Host-filesystem backend: reads, writes, and edits real files on the local machine | registers on `ctx.fs` |
+| [`fs-router/`](fs-router/README.md) | World-dispatching backend: routes each call to the resolved execution world's `FileSystem` | registers on `ctx.fs` |
+| [`fs-ssh/`](fs-ssh/README.md) | SSH-backed backend: one connection's SFTP session behind the provider contract, with atomic staging and version guards | per-world instances; no global registration |
 | [`fs-sandbox/`](fs-sandbox/README.md) | Sandbox-enforcing backend: fences writes and edits by the per-call sandbox mode while reads pass through | registers on `ctx.fs` |
 | [`e2b/fs-e2b`](../e2b/fs-e2b/README.md) | E2B-backed backend: file state lives in the remote execution world shared with the E2B subprocess provider | registers on `ctx.fs` |
 | [`fs-observation-policy/`](fs-observation-policy/README.md) | Read-before-edit policy: records observed presence or absence and guards write/edit through the `fs/*` events | `fs/*` listeners |

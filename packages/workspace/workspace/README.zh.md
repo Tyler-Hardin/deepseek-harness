@@ -59,6 +59,8 @@ await project.setTitle('Renamed')
 ctx.workspaceRegistry.list() // shows the project, newest first
 ```
 
+项目的 place 也可以是远程 ssh 目标。对本地 place，`ctx.workspaceRegistry.createAtPlace(place, path, title?)` 的行为与 `create` 完全一致；对 ssh place，它把目标与远程绝对工作路径一并保存，并按主机与远程路径复用已有记录。注册表不探测远程可达性——本地文件系统对远程路径没有权威——因此可感知传输层的消费者会在调用前连接并远程 stat 该 place。`Workspace.place` 是持久的远程性声明：目录项目为 `{ kind: 'local' }`，远程项目为 `{ kind: 'ssh', host, user?, port? }`，工作路径只在 `Workspace.path` 中保存一份。`Workspace.status()` 是未缓存的 place 检查，返回 `'ok' | 'missing'`；在接入可感知传输层的探测前，远程 place 返回 `'missing'`，而 place 缺失绝不会改动记录。
+
 ### 将会话归入项目
 
 会话加入它运行目录所在的项目：在项目目录中创建会话，它就会出现在该项目下，新到旧排列。一个会话只能属于一个项目。目录无法校验的会话——没有记录目录，或目录被移动、删除——无法加入，保持 Ungrouped。

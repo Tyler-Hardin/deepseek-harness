@@ -58,10 +58,12 @@ describe('Session creation failures', () => {
 
     expect(created.sessionId).toMatch(/^session-/)
     expect(created).not.toHaveProperty('agentPreset')
+    // The fifth argument is the Workspace's place: an ungrouped Session has none.
     expect(ensureSession).toHaveBeenCalledWith(
       created.sessionId,
       '/default-workspace',
       false,
+      undefined,
       undefined,
     )
     await ctx.fiber.dispose()

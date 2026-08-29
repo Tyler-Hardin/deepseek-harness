@@ -4,7 +4,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { ModelSelection as AgentModelSelection } from '@deepseek-ai/dsh-agent'
 import type { AgentDefaultModelConfig } from '@deepseek-ai/dsh-agent-default-model'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
-import type { Workspace } from '@deepseek-ai/dsh-workspace'
+import type { Workspace, WorkspacePlace } from '@deepseek-ai/dsh-workspace'
 import {
   WorkspaceId,
   WorkspaceMoveInvalidError,
@@ -44,14 +44,23 @@ export class WorkspaceCommands {
    * @param request - directory path to register.
    * @returns the Workspace and whether this call created it.
    */
-  create(request: WorkspaceCreateRequest): Promise<WorkspaceCreateValue> {
-    return this.enqueue(async () => {
+  async create(request: WorkspaceCreateRequest): Promise<WorkspaceCreateValue> {
+    const { place } = request
+    // The remote probe runs before the serialized chain: connecting a host is
+    // slow and independent of the registry's create ordering.
+    if (place !== undefined && place.kind === 'ssh') await this.probeRemotePlace(place, request.path)
+    return await this.enqueue(async () => {
       try {
-        const existing = await this.ctx.workspaceRegistry.resolveByPath(request.path)
+        const remote = place !== undefined && place.kind === 'ssh'
+        // A remote path has no local realpath to resolve against, so ssh reuse
+        // is decided by the registry's own host + remote-path match.
+        const existing = remote ? undefined : await this.ctx.workspaceRegistry.resolveByPath(request.path)
         if (existing !== undefined) {
           return { workspace: workspaceView(existing), created: false }
         }
-        const workspace = await this.ctx.workspaceRegistry.create(request.path)
+        const workspace = place === undefined || place.kind === 'local'
+          ? await this.ctx.workspaceRegistry.create(request.path)
+          : await this.ctx.workspaceRegistry.createAtPlace(place, request.path)
         return { workspace: workspaceView(workspace), created: true }
       } catch (error) {
         if (remoteErrorOf(error) !== undefined) throw error
@@ -263,6 +272,36 @@ export class WorkspaceCommands {
     const workspace = this.ctx.workspaceRegistry.get(WorkspaceId(workspaceId))
     if (workspace === undefined) throw workspaceNotFound(workspaceId)
     return workspace
+  }
+
+  /**
+   * Probe an ssh place before creating a Workspace over it: connect the
+   * transport through the optional execution-worlds service and stat the remote
+   * working path. A missing worlds service leaves the place unprobed, and the
+   * failure then surfaces on first use; an unreachable host or a missing or
+   * non-directory remote path rejects, because the registry stores only
+   * validated places.
+   * @param place - ssh destination to probe.
+   * @param path - remote working path.
+   */
+  private async probeRemotePlace(place: Extract<WorkspacePlace, { kind: 'ssh' }>, path: string): Promise<void> {
+    // Structural edge to the optional execution-worlds service: this package
+    // must not hard-depend on the worlds group, so only the consumed surface is
+    // typed here (a host without a worlds provider stores the place unprobed).
+    const worlds = this.ctx.get('worlds') as {
+      resolve(request: { place: WorkspacePlace; path: string }): Promise<{
+        fs(): { lstat(remotePath: string): Promise<{ type: string } | undefined> }
+      }>
+    } | undefined
+    if (worlds === undefined) return
+    const world = await worlds.resolve({ place, path })
+    const info = await world.fs().lstat(path)
+    if (info === undefined) {
+      throw new Error(`remote path '${path}' does not exist on '${place.host}'`)
+    }
+    if (info.type !== 'directory') {
+      throw new Error(`remote path '${path}' on '${place.host}' is not a directory`)
+    }
   }
 
   private enqueue<T>(operation: () => Promise<T>): Promise<T> {

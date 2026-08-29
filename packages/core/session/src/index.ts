@@ -114,6 +114,9 @@ function validateSessionHeader(id: SessionId, input: unknown): SessionHeader {
       throw new Error(`session header cwd must be an absolute path, got "${record.cwd}"`)
     }
   }
+  if (record.world !== undefined && typeof record.world !== 'string') {
+    throw new Error('session header world must be a string')
+  }
   if (record.parentSession !== undefined && typeof record.parentSession !== 'string') {
     throw new Error('session header parentSession must be a string')
   }
@@ -994,6 +997,7 @@ export class SessionStore extends Service {
       id: sessionId,
       createdAt: meta?.createdAt ?? Date.now(),
       ...meta?.cwd === undefined ? {} : { cwd: meta.cwd },
+      ...meta?.world === undefined ? {} : { world: meta.world },
       ...meta?.parentSession === undefined ? {} : { parentSession: meta.parentSession },
       isSeeded: meta?.isSeeded ?? false,
       ...meta?.origin === undefined ? {} : { origin: meta.origin },

@@ -298,10 +298,12 @@ Abstract filesystem provider. Targets must preserve identity across aliases; rea
  * async even though the local backend only normalizes + realpaths.
  *
  * @param path - the path to resolve; relative paths resolve against `opts.cwd`.
- * @param opts - optional cwd override and cancellation signal.
+ * @param opts - optional cwd override, cancellation signal, and the opaque
+ *   execution-world identity a router dispatches on (a router provider
+ *   resolves `world(session)` and passes it here; direct providers ignore it).
  * @returns the stable target; the same file yields the same `targetKey`.
  */
-abstract resolve(path: string, opts?: { cwd?: string; signal?: AbortSignal }): Promise<FsTarget>
+abstract resolve(path: string, opts?: { cwd?: string; signal?: AbortSignal; world?: string }): Promise<FsTarget>
 
 /**
  * Return the canonical absolute path a subprocess in this filesystem's

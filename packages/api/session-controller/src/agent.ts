@@ -14,6 +14,7 @@ import type { SessionInspection } from '@deepseek-ai/dsh-session-persistence'
 import { SessionQueryError, type SessionObservation } from '@deepseek-ai/dsh-session-query'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from '@deepseek-ai/dsh-typert-registry'
+import type { WorkspacePlace } from '@deepseek-ai/dsh-workspace'
 import type { ModelSelection } from './types.ts'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import type {} from '@deepseek-ai/dsh-workspace'
@@ -251,6 +252,7 @@ export class ApiSessionAgentController {
    * @param cwd - directory the Session must own.
    * @param checkPersistedIdentity - whether to inspect a cold identity before creation.
    * @param presetId - optional Agent preset the Session must own.
+   * @param place - the Workspace's place, which selects the Session's execution world.
    * @returns the matching live ordinary Agent.
    */
   async ensureSession(
@@ -258,10 +260,11 @@ export class ApiSessionAgentController {
     cwd: string,
     checkPersistedIdentity: boolean,
     presetId?: string,
+    place?: WorkspacePlace,
   ): Promise<Agent> {
     let creation = this.creations.get(sessionId)
     if (creation === undefined) {
-      creation = this.createOrAdopt(sessionId, cwd, checkPersistedIdentity, presetId)
+      creation = this.createOrAdopt(sessionId, cwd, checkPersistedIdentity, presetId, place)
         .catch((error: unknown) => {
           const live = this.ctx.agents.get(sessionId)
           if (live !== undefined) {
@@ -473,6 +476,7 @@ export class ApiSessionAgentController {
     cwd: string,
     checkPersistedIdentity: boolean,
     presetId: string | undefined,
+    place: WorkspacePlace | undefined,
   ): Promise<Agent> {
     const attached = this.ctx.sessions.get(sessionId)
     const live = this.ctx.agents.get(sessionId)
@@ -504,10 +508,15 @@ export class ApiSessionAgentController {
       }
     }
 
-    try {
-      await mkdir(cwd, { recursive: true })
-    } catch (error: unknown) {
-      throw new Error(`failed to ensure project directory "${cwd}": ${String(error)}`, { cause: error })
+    const world = await this.resolveSessionWorld(place, cwd)
+    // A remote working path already exists on the connected host (the create
+    // path probed it), and the local filesystem has no authority over it.
+    if (world === undefined) {
+      try {
+        await mkdir(cwd, { recursive: true })
+      } catch (error: unknown) {
+        throw new Error(`failed to ensure project directory "${cwd}": ${String(error)}`, { cause: error })
+      }
     }
     const composition = await this.composeAgent(presetId)
     return (await this.ctx.agents.create({
@@ -515,10 +524,41 @@ export class ApiSessionAgentController {
       agentOptions: this.agentOptions(),
       meta: {
         cwd,
+        // A mounted worlds service freezes the session's execution world into
+        // the header at creation; without one (local-only compositions) the
+        // session is local by default.
+        ...world === undefined ? {} : { world },
         ...(composition.agentPreset === undefined ? {} : { agentPreset: composition.agentPreset }),
       },
       setup: composition.setup,
     })).agent
+  }
+
+  /**
+   * Resolve the execution world a Session should run in, when a worlds service
+   * is mounted. A local place, an absent place, and an unmounted worlds service
+   * all resolve to `undefined` (the Session stays local). A resolution failure
+   * degrades to local rather than failing Session creation: remote worlds are an
+   * opt-in deployment, and the failure surfaces on the first routed call.
+   * @param place - the Workspace's place, when the Session has a Workspace.
+   * @param cwd - the Session's working path (the remote path for an ssh place).
+   * @returns the world id to freeze into the Session header, or `undefined`.
+   */
+  private async resolveSessionWorld(place: WorkspacePlace | undefined, cwd: string): Promise<string | undefined> {
+    if (place === undefined || place.kind === 'local') return undefined
+    // Structural edge to the optional execution-worlds service: this package
+    // must not hard-depend on the worlds group, so only the consumed surface is
+    // typed here (a host without a worlds provider stays local).
+    const worlds = this.ctx.get('worlds') as {
+      resolve(request: { place: WorkspacePlace; path: string }): Promise<{ id: { toString(): string } }>
+    } | undefined
+    if (worlds === undefined) return undefined
+    try {
+      const world = await worlds.resolve({ place, path: cwd })
+      return String(world.id)
+    } catch {
+      return undefined
+    }
   }
 
   private agentOptions(): AgentOptions {
