@@ -22,12 +22,14 @@ kind: "package-group"
 <a id="packages"></a>
 ## 包
 
-八个包加上远程同级 `fs-e2b` 承担文件系统角色；子系统参考文档完整收录各项约定与错误分类体系。
+十个包加上远程同级 `fs-e2b` 承担文件系统角色；子系统参考文档完整收录各项约定与错误分类体系。
 
 | 包 | 职责 | ctx 键 |
 |---|---|---|
 | [`fs/`](fs/README.zh.md) | `ctx.fs` 服务约定：执行世界路径、有界文本 I/O，以及带可选版本防护的原子变更 | `ctx.fs` |
 | [`fs-local/`](fs-local/README.zh.md) | 宿主文件系统后端：读取、写入并编辑本机上的真实文件 | 注册到 `ctx.fs` |
+| [`fs-router/`](fs-router/README.zh.md) | 按世界分发的后端：把每次调用路由到已解析执行世界的 `FileSystem` | 注册到 `ctx.fs` |
+| [`fs-ssh/`](fs-ssh/README.zh.md) | 以 SSH 为后端的实现：用一个连接的 SFTP 会话满足提供方约定，具备原子暂存与版本守卫 | 按世界实例；无全局注册 |
 | [`fs-sandbox/`](fs-sandbox/README.zh.md) | 沙箱强制后端：按每次调用的沙箱模式约束写入与编辑，读取直接通过 | 注册到 `ctx.fs` |
 | [`e2b/fs-e2b`](../e2b/fs-e2b/README.zh.md) | 以 E2B 为后端：文件状态位于与 E2B 子进程提供方共享的远程执行世界 | 注册到 `ctx.fs` |
 | [`fs-observation-policy/`](fs-observation-policy/README.zh.md) | 编辑前读取策略：记录观测到的存在或缺失，并通过 `fs/*` 事件防护写入/编辑 | `fs/*` 监听器 |

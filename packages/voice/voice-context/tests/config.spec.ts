@@ -13,8 +13,9 @@ describe('resolveConfig', () => {
       timeoutMs: 60000,
       localPort: 8000,
       pythonBin: 'python',
-      modelRoot: expect.stringContaining('.dsh/voice-context/models'),
+      modelRoot: resolveConfig({}).modelRoot,
     })
+    expect(resolveConfig({}).modelRoot).toContain('.dsh/voice-context/models')
   })
 
   it('keeps every explicitly supplied field', () => {

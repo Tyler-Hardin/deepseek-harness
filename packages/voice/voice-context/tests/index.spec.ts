@@ -13,7 +13,7 @@ describe('VoiceContextService', () => {
     const register = vi.fn()
     ctx.provide('commands', { register } as never)
     await ctx.plugin(VoiceContextService)
-    await vi.waitFor(() => expect(register).toHaveBeenCalled())
+    await vi.waitFor(() => { expect(register).toHaveBeenCalled() })
     const definition = register.mock.calls[0]?.[0] as { handler: (invocation: CommandInvocation) => Promise<unknown> }
     await definition.handler({ rawInput: 'status', signal: new AbortController().signal } as CommandInvocation)
   })

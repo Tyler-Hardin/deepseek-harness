@@ -18,9 +18,9 @@ export { WorkspaceMoveInvalidError } from './entity.ts'
 import { defaultWorkspaceTitle, realpathNormalize } from './paths.ts'
 import { workspaceDomainSpec } from './spec.ts'
 import type { WorkspaceDomainState, WorkspaceRecord } from './spec.ts'
-import type { Workspace, WorkspaceId as WorkspaceIdBrand } from './types.ts'
+import type { Workspace, WorkspaceId as WorkspaceIdBrand, WorkspacePlace } from './types.ts'
 
-export type { Workspace } from './types.ts'
+export type { Workspace, WorkspacePlace } from './types.ts'
 export { workspaceDomainState, workspaceRecord, workspaceDomainSpec } from './spec.ts'
 export type { WorkspaceDomainState, WorkspaceRecord } from './spec.ts'
 export { realpathNormalize } from './paths.ts'
@@ -163,6 +163,25 @@ export class WorkspaceRegistry extends Service {
   }
 
   /**
+   * Create or reuse a workspace for a place. A local place behaves exactly
+   * like {@link create}: the path is realpath-canonicalized and must be an
+   * existing directory. An ssh place is stored as given — the working path is
+   * the remote absolute path, and the local filesystem has no authority over
+   * it — so reachability (connect + remote stat) is the calling transport
+   * consumer's job, done before this call. The remote destination is still
+   * normalised (a bare host keeps `/` as its default remote path).
+   * @param place - where the workspace lives (local directory or ssh destination).
+   * @param path - the working path: local absolute for a local place, the
+   *   remote absolute path for an ssh place.
+   * @param title - Display title used only when a new record is created.
+   * @returns the existing or newly durable workspace.
+   */
+  async createAtPlace(place: WorkspacePlace, path: string, title?: string): Promise<Workspace> {
+    if (place.kind === 'local') return await this.create(path, title)
+    return await this.enqueueOperation(() => this.createRemoteCanonical(place, path, title))
+  }
+
+  /**
    * Look up a workspace by id.
    * @param id - Workspace id.
    * @returns the workspace, or `undefined` when unknown.
@@ -285,20 +304,34 @@ export class WorkspaceRegistry extends Service {
     for (const entity of this.entities.values()) {
       if (entity.path === canonical) return entity
     }
+    return await this.writeCreate({ path: canonical, title: title ?? defaultWorkspaceTitle(canonical) })
+  }
 
-    const workspaceName = title ?? defaultWorkspaceTitle(canonical)
+  /** Create a remote workspace record: the working path is the remote absolute path. */
+  private async createRemoteCanonical(place: Extract<WorkspacePlace, { kind: 'ssh' }>, path: string, title?: string): Promise<WorkspaceEntity> {
+    // Reuse when the same destination is already owned (path equality; the
+    // remote path is already the canonical absolute form from the caller).
+    for (const entity of this.entities.values()) {
+      if (entity.place.kind === 'ssh' && entity.place.host === place.host && entity.path === path) return entity
+    }
+    return await this.writeCreate({ path, title: title ?? defaultWorkspaceTitle(path), place })
+  }
+
+  /** Persist one new workspace record under the create pending-mutation protocol. */
+  private async writeCreate(record: Pick<WorkspaceRecord, 'path' | 'title'> & { place?: WorkspacePlace }): Promise<WorkspaceEntity> {
     const table = this.requireTable()
     const state = this.requireState()
     const id = WorkspaceId(randomUUID())
     const now = new Date().toISOString()
-    const record: WorkspaceRecord = {
-      path: canonical,
-      title: workspaceName,
+    const full: WorkspaceRecord = {
+      path: record.path,
+      title: record.title,
       sessionIds: [],
       createdAt: now,
       updatedAt: now,
+      ...record.place === undefined ? {} : { place: record.place },
     }
-    const entity = new WorkspaceEntity(this.host, id, record)
+    const entity = new WorkspaceEntity(this.host, id, full)
     this.entities.set(id, entity)
     const pendingState: WorkspaceDomainState = {
       ...state,
@@ -311,7 +344,7 @@ export class WorkspaceRegistry extends Service {
       throw error
     }
     try {
-      await table.put(id, record)
+      await table.put(id, full)
     } catch (error) {
       this.entities.delete(id)
       try {

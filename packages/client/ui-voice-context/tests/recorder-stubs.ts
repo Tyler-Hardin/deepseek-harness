@@ -63,6 +63,11 @@ export function fakeStream(): MediaStream {
   return { getTracks: () => [track] } as unknown as MediaStream
 }
 
+/** The stop() spy of a fake stream's single track. */
+export function trackStop(stream: MediaStream): ReturnType<typeof vi.fn> {
+  return (stream.getTracks()[0] as unknown as { stop: ReturnType<typeof vi.fn> }).stop
+}
+
 /**
  * Install the recorder environment on globalThis: MediaRecorder, AudioContext,
  * and navigator.mediaDevices. Returns the stream getUserMedia resolves to.
@@ -72,7 +77,6 @@ export function installRecorderEnvironment(): { stream: MediaStream } {
   vi.stubGlobal('MediaRecorder', FakeMediaRecorder)
   vi.stubGlobal('AudioContext', FakeAudioContext)
   vi.stubGlobal('navigator', {
-    ...navigator,
     language: 'en-US',
     mediaDevices: { getUserMedia: vi.fn(async () => stream) },
   })

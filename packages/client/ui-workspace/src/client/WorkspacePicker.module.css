@@ -18,3 +18,21 @@
 .menuStatus {
   color: var(--dsw-alias-label-secondary);
 }
+
+/* The remote-workspace connection form: stacked labelled inputs inside the
+ * shared Modal. */
+.remoteForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.remoteField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+}

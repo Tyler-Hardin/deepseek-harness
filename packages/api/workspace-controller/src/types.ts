@@ -7,16 +7,22 @@
 
 import type { ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
+import type { WorkspaceId, WorkspacePlace } from '@deepseek-ai/dsh-workspace/types'
 
-export type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
+export type { WorkspaceId, WorkspacePlace } from '@deepseek-ai/dsh-workspace/types'
 export type { ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
 export type { DirectoryEntry, DirectoryListing } from '@deepseek-ai/dsh-host-directory-picker/types'
 
 /** One durable Workspace projected for browser consumers. */
 export interface WorkspaceView {
   readonly workspaceId: WorkspaceId
-  /** Canonical host directory path. */
+  /**
+   * The durable remote-ness statement: absent means local, so the path is the
+   * canonical host directory; an ssh destination carries host/user/port and the
+   * path is the remote absolute working path.
+   */
+  readonly place?: WorkspacePlace | undefined
+  /** Canonical working path: host directory for a local place, remote absolute for ssh. */
   readonly path: string
   /** User-visible title. */
   readonly title: string
@@ -80,9 +86,11 @@ export interface WorkspaceSetDefaultModelValue {
   readonly saved: true
 }
 
-/** Existing directory requested for Workspace adoption. */
+/** Existing directory or ssh destination requested for Workspace adoption. */
 export interface WorkspaceCreateRequest {
   readonly path: string
+  /** Place to adopt: omitted and `{ kind: 'local' }` both mean the local directory. */
+  readonly place?: WorkspacePlace | undefined
 }
 
 /** Created or previously registered Workspace. */

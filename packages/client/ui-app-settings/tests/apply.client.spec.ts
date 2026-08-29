@@ -103,9 +103,15 @@ describe('ui-app-settings apply', () => {
     injected.forgetCertificate()
     injected.clearDiagnostics()
     injected.clearCrashLog()
-    expect(bridge.setServerUrl).toHaveBeenCalledWith('https://new.example.com')
-    expect(bridge.forgetCertificate).toHaveBeenCalledTimes(1)
-    expect(bridge.clearDiagnostics).toHaveBeenCalledTimes(1)
-    expect(bridge.clearCrashLog).toHaveBeenCalledTimes(1)
+    const mocks = bridge as unknown as {
+      setServerUrl: ReturnType<typeof vi.fn>
+      forgetCertificate: ReturnType<typeof vi.fn>
+      clearDiagnostics: ReturnType<typeof vi.fn>
+      clearCrashLog: ReturnType<typeof vi.fn>
+    }
+    expect(mocks.setServerUrl).toHaveBeenCalledWith('https://new.example.com')
+    expect(mocks.forgetCertificate).toHaveBeenCalledTimes(1)
+    expect(mocks.clearDiagnostics).toHaveBeenCalledTimes(1)
+    expect(mocks.clearCrashLog).toHaveBeenCalledTimes(1)
   })
 })

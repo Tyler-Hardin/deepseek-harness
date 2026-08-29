@@ -21,8 +21,10 @@ import type {
  * @returns detached Workspace projection for Remote consumers.
  */
 export function workspaceView(workspace: Workspace): WorkspaceView {
+  const place = workspace.place.kind === 'local' ? undefined : workspace.place
   return {
     workspaceId: workspace.id,
+    ...place === undefined ? {} : { place },
     path: workspace.path,
     title: workspace.title,
     sessionIds: [...workspace.sessionIds],
@@ -35,6 +37,7 @@ function changedWorkspaceView(workspaceId: string, value: unknown): WorkspaceVie
   const record: WorkspaceRecord = workspaceRecord.parse(value)
   return {
     workspaceId: WorkspaceId(workspaceId),
+    ...record.place === undefined ? {} : { place: record.place },
     path: record.path,
     title: record.title,
     sessionIds: [...record.sessionIds],

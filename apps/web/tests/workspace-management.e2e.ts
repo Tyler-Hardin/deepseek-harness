@@ -47,11 +47,17 @@ describe('web e2e: workspace management (create / rename / flat view / hover aff
 
   /**
    * Raise the region header's directory dialog and drive it to a directory via
-   * the path-edit affordance. Adding is the header button's only action, so
-   * the click lands in the dialog with no menu in between.
+   * the path-edit affordance. The header button raises the add picker once a
+   * Workspace exists — the local entry leads to the directory dialog, the
+   * remote one to the SSH form — while the very first add opens the directory
+   * dialog straight away, so the local entry is a step only when it appears.
    */
   async function browseTo(path: string): Promise<Locator> {
     await page.getByRole('button', { name: 'Add workspace' }).click()
+    const local = page.getByRole('menuitem', { name: 'Add workspace…' })
+    if (await local.waitFor({ state: 'visible', timeout: 2_000 }).then(() => true, () => false)) {
+      await local.click()
+    }
     const dialog = page.getByRole('dialog', { name: 'Select Workspace Directory' })
     await dialog.waitFor({ timeout: 10_000 })
     await dialog.getByRole('button', { name: 'Edit path' }).click()
