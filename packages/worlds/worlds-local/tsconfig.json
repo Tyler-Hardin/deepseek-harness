@@ -1,0 +1,36 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../../vendor/cordis"
+    },
+    {
+      "path": "../../fs/fs"
+    },
+    {
+      "path": "../../fs/fs-local"
+    },
+    {
+      "path": "../../shell/shell"
+    },
+    {
+      "path": "../../shell/bash-local"
+    },
+    {
+      "path": "../../workspace/workspace"
+    },
+    {
+      "path": "../worlds"
+    },
+    {
+      "path": "../../runtime-diagnostics/invariants"
+    }
+  ]
+}

@@ -98,6 +98,18 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [{ name: 'next', description: 'resolved selection accepted by an entry point.' }],
         returns: 'fulfillment after the optional settings write settles.',
       },
+      {
+        signature: 'workspaceSelection(workspaceId: WorkspaceId): ModelSelection | undefined',
+        description: 'Read one workspace\'s explicit default model override.',
+        parameters: [{ name: 'workspaceId', description: 'the owning workspace.' }],
+        returns: 'the override, or undefined when the workspace inherits the shared default.',
+      },
+      {
+        signature: 'async saveWorkspaceSelection(workspaceId: WorkspaceId, next: ModelSelection | null): Promise<void>',
+        description: 'Save or clear one workspace\'s explicit default model override. A null selection removes the override so the workspace inherits the shared default again. A deployment without a settings provider keeps the stored document unchanged.',
+        parameters: [{ name: 'workspaceId', description: 'the owning workspace.' }, { name: 'next', description: 'the override, or null to clear it.' }],
+        returns: 'fulfillment after the optional settings write settles.',
+      },
     ],
   },
   {
@@ -739,9 +751,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Abstract filesystem provider. Targets must preserve identity across aliases; reads expose regular UTF-8 text or typed errors, listings are stable and content-free, and mutations are atomic. Optional guards add stale protection without changing the unguarded provider contract.',
     methods: [
       {
-        signature: 'abstract resolve(path: string, opts?: { cwd?: string; signal?: AbortSignal }): Promise<FsTarget>',
+        signature: 'abstract resolve(path: string, opts?: { cwd?: string; signal?: AbortSignal; world?: string }): Promise<FsTarget>',
         description: 'Resolve a model/plugin-supplied path into a stable FsTarget. May perform I/O (a remote/sandboxed backend may need a round-trip to map a path to a stable identity), hence async even though the local backend only normalizes + realpaths.',
-        parameters: [{ name: 'path', description: 'the path to resolve; relative paths resolve against `opts.cwd`.' }, { name: 'opts', description: 'optional cwd override and cancellation signal.' }],
+        parameters: [{ name: 'path', description: 'the path to resolve; relative paths resolve against `opts.cwd`.' }, { name: 'opts', description: 'optional cwd override, cancellation signal, and the opaque execution-world identity a router dispatches on (a router provider resolves `world(session)` and passes it here; direct providers ignore it).' }],
         returns: 'the stable target; the same file yields the same `targetKey`.',
       },
       {
@@ -1724,6 +1736,30 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'ssh',
+    summary: 'Abstract SSH transport service.',
+    description: 'Abstract SSH transport service. Subclass, implement the abstract methods, and load the subclass as a plugin — it registers as `ctx.ssh` (one implementation per context; loading a second throws, which is cordis\' standard duplicate-service behavior).\n\nImplementations must honor these semantics:\n\n- connect resolves with a live world or rejects with an SshError; authentication tries the agent first, then the resolved identity files, and never a password.\n- Host keys follow the known_hosts policy: TOFU learn on first sight, changed-key rejection, optional strict mode.\n- worlds lists every live world; disconnect removes it.\n- Disposal of the service disposes every live world.',
+    methods: [
+      {
+        signature: 'abstract connect(target: SshTarget, options?: SshConnectOptions): Promise<SshWorld>',
+        description: 'Connect to a target and return its world.',
+        parameters: [{ name: 'target', description: 'the workspace place\'s remote half.' }, { name: 'options', description: 'connect timeout, host-key strictness, and cancellation.' }],
+        returns: 'the connected world, refcounted by id.',
+      },
+      {
+        signature: 'abstract worlds(): readonly SshWorld[]',
+        description: 'List the live worlds.',
+        parameters: [],
+        returns: 'every connected, not-yet-disposed world.',
+      },
+      {
+        signature: 'abstract disconnect(worldId: SshWorldId): Promise<void>',
+        description: 'Disconnect a world.',
+        parameters: [{ name: 'worldId', description: 'the world to close; unknown ids resolve without error.' }],
+      },
+    ],
+  },
+  {
     key: 'storage',
     summary: 'The storage hub service.',
     description: 'The storage hub service. Backends register under `backend`; data forms mount under their `StorageForms` key and are reached as `ctx.storage.<form>`.',
@@ -2337,6 +2373,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the existing or newly durable workspace.',
       },
       {
+        signature: 'async createAtPlace(place: WorkspacePlace, path: string, title?: string): Promise<Workspace>',
+        description: 'Create or reuse a workspace for a place. A local place behaves exactly like create: the path is realpath-canonicalized and must be an existing directory. An ssh place is stored as given — the working path is the remote absolute path, and the local filesystem has no authority over it — so reachability (connect + remote stat) is the calling transport consumer\'s job, done before this call. The remote destination is still normalised (a bare host keeps `/` as its default remote path).',
+        parameters: [{ name: 'place', description: 'where the workspace lives (local directory or ssh destination).' }, { name: 'path', description: 'the working path: local absolute for a local place, the remote absolute path for an ssh place.' }, { name: 'title', description: 'Display title used only when a new record is created.' }],
+        returns: 'the existing or newly durable workspace.',
+      },
+      {
         signature: 'get(id: WorkspaceId): Workspace | undefined',
         description: 'Look up a workspace by id.',
         parameters: [{ name: 'id', description: 'Workspace id.' }],
@@ -2371,6 +2413,36 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Resolve by canonical directory path without creating or mutating a workspace. A missing path rejects during `realpath`; an existing unowned directory returns `undefined`.',
         parameters: [{ name: 'path', description: 'Existing directory path in any spelling.' }],
         returns: 'the workspace owning the canonical path, when one exists.',
+      },
+    ],
+  },
+  {
+    key: 'worlds',
+    summary: 'Abstract execution-worlds service.',
+    description: 'Abstract execution-worlds service. Subclass, implement the abstract methods, and load the subclass as a plugin — it registers as `ctx.worlds` (one implementation per context; loading a second throws, which is cordis\' standard duplicate-service behavior).\n\nImplementations must honor these semantics:\n\n- resolve resolves the session\'s workspace place (or an explicit place) to a world: local places to the local world, remote places to a connected remote world. It connects a remote world on first resolve and refcounts worlds by id.\n- worlds lists every live world; disconnect removes it.\n- Disposal of the service disposes every live world.',
+    methods: [
+      {
+        signature: 'abstract resolve(request?: WorldsResolveRequest): Promise<World>',
+        description: 'Resolve the world for a session\'s workspace (or an explicit place). Local places resolve to the local world; remote places connect a remote world on first resolve.',
+        parameters: [{ name: 'request', description: 'the calling session and/or an explicit place.' }],
+        returns: 'the world serving the resolved place, refcounted by id.',
+      },
+      {
+        signature: 'abstract worlds(): readonly World[]',
+        description: 'List the live worlds.',
+        parameters: [],
+        returns: 'every connected, not-yet-disposed world.',
+      },
+      {
+        signature: 'abstract get(worldId: WorldId): World | undefined',
+        description: 'Look up a live world by id.',
+        parameters: [{ name: 'worldId', description: 'the world to find.' }],
+        returns: 'the world, or `undefined` when no live world carries that id.',
+      },
+      {
+        signature: 'abstract disconnect(worldId: WorldId): Promise<void>',
+        description: 'Disconnect a world.',
+        parameters: [{ name: 'worldId', description: 'the world to close; unknown ids resolve without error.' }],
       },
     ],
   },
@@ -3212,7 +3284,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CreateSessionOptions',
-    declaration: 'export interface CreateSessionOptions {\n    readonly seed?: readonly SessionEvent[];\n    readonly meta?: {\n        readonly cwd?: string;\n        readonly parentSession?: SessionId;\n        readonly createdAt?: number;\n        readonly seedLength?: number;\n        readonly origin?: \'subagent\';\n        readonly delegationDepth?: number;\n        readonly agentPreset?: string;\n    };\n}',
+    declaration: 'export interface CreateSessionOptions {\n    readonly seed?: readonly SessionEvent[];\n    readonly meta?: {\n        readonly cwd?: string;\n        readonly world?: string;\n        readonly parentSession?: SessionId;\n        readonly createdAt?: number;\n        readonly seedLength?: number;\n        readonly origin?: \'subagent\';\n        readonly delegationDepth?: number;\n        readonly agentPreset?: string;\n    };\n}',
   },
   {
     name: 'CreateTeamTaskRequest',
@@ -3365,6 +3437,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'FileReferenceCandidate',
     declaration: 'export interface FileReferenceCandidate {\n    path: string;\n    kind: \'file\' | \'directory\';\n}',
+  },
+  {
+    name: 'FileSystem',
+    declaration: 'export abstract class FileSystem extends Service {\n    constructor(ctx: Context);\n    get sandboxMode(): SandboxMode | undefined;\n    abstract resolve(path: string, opts?: {\n        cwd?: string;\n        signal?: AbortSignal;\n        world?: string;\n    }): Promise<FsTarget>;\n    abstract processPath(target: FsTarget): string;\n    abstract fileUrl(target: FsTarget): string;\n    abstract contains(parent: FsTarget, child: FsTarget): boolean;\n    abstract stat(target: FsTarget, signal?: AbortSignal): Promise<FsInfo | undefined>;\n    abstract lstat(path: string, opts?: {\n        cwd?: string;\n    }, signal?: AbortSignal): Promise<FsPathInfo | undefined>;\n    abstract readText(target: FsTarget, signal?: AbortSignal): Promise<string>;\n    abstract streamText(target: FsTarget, signal?: AbortSignal): Promise<AsyncIterable<string>>;\n    abstract readBytes(target: FsTarget, signal: AbortSignal | undefined, maxBytes: number): Promise<Uint8Array>;\n    abstract listDir(target: FsTarget, signal?: AbortSignal): Promise<FsDirEntry[]>;\n    abstract writeText(target: FsTarget, content: string, expected?: FsWriteIntent, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy): Promise<FsWriteOutcome>;\n    abstract editText(target: FsTarget, edit: FsEditRequest, expected?: {\n        version: FsVersion;\n    }, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy): Promise<FsEditOutcome>;\n}',
   },
   {
     name: 'FinishReason',
@@ -3979,6 +4055,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type ResolvedRetryPolicy = ResolvedNormalRetryPolicy | ResolvedAlwaysRetryPolicy;',
   },
   {
+    name: 'ResolvedSshHost',
+    declaration: 'export interface ResolvedSshHost {\n    readonly hostName: string;\n    readonly port: number;\n    readonly user: string;\n    readonly identityFiles: readonly string[];\n    readonly proxyJumps: readonly string[];\n}',
+  },
+  {
     name: 'ResolvedSubagentStartRequest',
     declaration: 'export interface ResolvedSubagentStartRequest extends SubagentStartRequest {\n    readonly descriptor: SubagentDescriptorData;\n}',
   },
@@ -4168,7 +4248,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SessionHeader',
-    declaration: 'export interface SessionHeader {\n    readonly version: number;\n    readonly id: SessionId;\n    readonly createdAt: number;\n    readonly cwd?: string;\n    readonly parentSession?: SessionId;\n    readonly seedLength?: number;\n    readonly origin?: \'subagent\';\n    readonly delegationDepth?: number;\n    readonly agentPreset?: string;\n}',
+    declaration: 'export interface SessionHeader {\n    readonly version: number;\n    readonly id: SessionId;\n    readonly createdAt: number;\n    readonly cwd?: string;\n    readonly world?: string;\n    readonly parentSession?: SessionId;\n    readonly seedLength?: number;\n    readonly origin?: \'subagent\';\n    readonly delegationDepth?: number;\n    readonly agentPreset?: string;\n}',
   },
   {
     name: 'SessionId',
@@ -4363,12 +4443,20 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type SettingsUpdateSource = \'update\' | \'provider\';',
   },
   {
+    name: 'SftpHandle',
+    declaration: 'export interface SftpHandle {\n    readonly [SSH_SFTP_HANDLE]: typeof SSH_SFTP_HANDLE;\n    readonly session: unknown;\n}',
+  },
+  {
     name: 'ShellExecRequest',
-    declaration: 'export interface ShellExecRequest {\n    command: string;\n    workdir?: string | undefined;\n    timeoutMs?: number | undefined;\n    stdoutMaxBytes?: number | undefined;\n    signal?: AbortSignal | undefined;\n    stdin?: string | undefined;\n    env?: Record<string, string> | undefined;\n    dshEnv?: DshEnvironment | undefined;\n    sandboxPolicy?: SandboxExecutionPolicy | undefined;\n}',
+    declaration: 'export interface ShellExecRequest {\n    command: string;\n    workdir?: string | undefined;\n    world?: string | undefined;\n    timeoutMs?: number | undefined;\n    stdoutMaxBytes?: number | undefined;\n    signal?: AbortSignal | undefined;\n    stdin?: string | undefined;\n    env?: Record<string, string> | undefined;\n    dshEnv?: DshEnvironment | undefined;\n    sandboxPolicy?: SandboxExecutionPolicy | undefined;\n}',
   },
   {
     name: 'ShellExecSpec',
-    declaration: 'export interface ShellExecSpec {\n    command: string;\n    workdir: string;\n    timeoutMs: number;\n    stdoutMaxBytes: number;\n    signal?: AbortSignal | undefined;\n    stdin?: string | undefined;\n    env?: Record<string, string> | undefined;\n    dshEnv?: DshEnvironment | undefined;\n    sandboxPolicy: SandboxExecutionPolicy | undefined;\n}',
+    declaration: 'export interface ShellExecSpec {\n    command: string;\n    workdir: string;\n    world?: string | undefined;\n    timeoutMs: number;\n    stdoutMaxBytes: number;\n    signal?: AbortSignal | undefined;\n    stdin?: string | undefined;\n    env?: Record<string, string> | undefined;\n    dshEnv?: DshEnvironment | undefined;\n    sandboxPolicy: SandboxExecutionPolicy | undefined;\n}',
+  },
+  {
+    name: 'ShellExecutor',
+    declaration: 'export abstract class ShellExecutor extends Service {\n    constructor(ctx: Context);\n    get sandboxMode(): SandboxMode | undefined;\n    abstract resolve(request: ShellExecRequest): ShellExecSpec;\n    abstract run(spec: ShellExecSpec): Promise<ShellRunResult>;\n    abstract start(spec: ShellExecSpec): ShellProcess;\n}',
   },
   {
     name: 'ShellProcess',
@@ -4465,6 +4553,42 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SpillSource',
     declaration: 'export interface SpillSource {\n    toolName: string;\n    callId: CallId;\n    label: string;\n}',
+  },
+  {
+    name: 'SshConnectOptions',
+    declaration: 'export interface SshConnectOptions {\n    timeoutMs?: number;\n    strictHostKey?: boolean;\n    signal?: AbortSignal;\n}',
+  },
+  {
+    name: 'SshExecOptions',
+    declaration: 'export interface SshExecOptions {\n    timeoutMs?: number;\n    signal?: AbortSignal;\n    maxOutputBytes?: number;\n    cwd?: string;\n    env?: Readonly<Record<string, string>>;\n    stdin?: string;\n}',
+  },
+  {
+    name: 'SshExecResult',
+    declaration: 'export interface SshExecResult {\n    readonly stdout: string;\n    readonly stderr: string;\n    readonly exitCode: number | null;\n    readonly signal: string | null;\n    readonly timedOut: boolean;\n    readonly aborted: boolean;\n    readonly stdoutTruncated: boolean;\n    readonly stderrTruncated: boolean;\n}',
+  },
+  {
+    name: 'SshPtyHandle',
+    declaration: 'export interface SshPtyHandle {\n    readonly [SSH_PTY_HANDLE]: typeof SSH_PTY_HANDLE;\n    readonly channel: unknown;\n}',
+  },
+  {
+    name: 'SshPtyOptions',
+    declaration: 'export interface SshPtyOptions {\n    rows?: number;\n    cols?: number;\n    env?: Readonly<Record<string, string>>;\n}',
+  },
+  {
+    name: 'SshStatus',
+    declaration: 'export type SshStatus = \'connected\' | \'closed\';',
+  },
+  {
+    name: 'SshTarget',
+    declaration: 'export interface SshTarget {\n    readonly host: string;\n    readonly user?: string;\n    readonly port?: number;\n    readonly path?: string;\n}',
+  },
+  {
+    name: 'SshWorld',
+    declaration: 'export abstract class SshWorld {\n    abstract readonly id: SshWorldId;\n    abstract readonly target: SshTarget;\n    abstract readonly resolved: ResolvedSshHost | null;\n    abstract status(): SshStatus;\n    abstract exec(command: string, options?: SshExecOptions): Promise<SshExecResult>;\n    abstract sftp(): Promise<SftpHandle>;\n    abstract pty(options?: SshPtyOptions): Promise<SshPtyHandle>;\n    abstract dispose(): Promise<void>;\n}',
+  },
+  {
+    name: 'SshWorldId',
+    declaration: 'export type SshWorldId = Branded<\'SshWorldId\'>;',
   },
   {
     name: 'StorageBackend',
@@ -5089,6 +5213,30 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'WorkflowStopReason',
     declaration: 'export type WorkflowStopReason = \'completed\' | \'cancelled\' | \'error\';',
+  },
+  {
+    name: 'WorkspacePlace',
+    declaration: 'export type WorkspacePlace = {\n    readonly kind: \'local\';\n} | {\n    readonly kind: \'ssh\';\n    readonly host: string;\n    readonly user?: string | undefined;\n    readonly port?: number | undefined;\n};',
+  },
+  {
+    name: 'World',
+    declaration: 'export abstract class World {\n    abstract readonly id: WorldId;\n    abstract readonly kind: WorldKind;\n    abstract readonly place: WorkspacePlace;\n    abstract status(): WorldStatus;\n    abstract fs(): FileSystem;\n    abstract shell(): ShellExecutor;\n    ssh?(): SshWorld | undefined;\n    abstract dispose(): Promise<void>;\n}',
+  },
+  {
+    name: 'WorldId',
+    declaration: 'export type WorldId = Branded<\'WorldId\'>;',
+  },
+  {
+    name: 'WorldKind',
+    declaration: 'export type WorldKind = \'local\' | \'ssh\';',
+  },
+  {
+    name: 'WorldsResolveRequest',
+    declaration: 'export interface WorldsResolveRequest {\n    session?: Session;\n    place?: WorkspacePlace;\n    path?: string;\n}',
+  },
+  {
+    name: 'WorldStatus',
+    declaration: 'export type WorldStatus = \'ready\' | \'closed\';',
   },
 ]
 

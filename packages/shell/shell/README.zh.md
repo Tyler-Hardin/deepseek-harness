@@ -31,7 +31,7 @@
 
 ## 词汇
 
-`ShellExecRequest`（command、workdir?、timeoutMs?、stdoutMaxBytes?、signal?、stdin?、env?、dshEnv?、sandboxPolicy?）在执行前解析为 `ShellExecSpec`（command、workdir、timeoutMs、stdoutMaxBytes、signal?、stdin?、env?、dshEnv?、sandboxPolicy）。`stdoutMaxBytes` 是受信任前台运行的捕获预算，用于必须解析完整有界 stdout 的消费方；面向模型的 bash 工具不公开该字段。`sandboxPolicy` 在请求上可选，在已解析 spec 上必填但可为 null：它携带完整的每次调用模式与工作区根目录。沙箱工具路径通过 `ctx.sandboxPolicy` 从调用会话解析它；沙箱执行器的直接调用方回退到部署策略，非沙箱执行器则携带该字段但不作限制。
+`ShellExecRequest`（command、workdir?、world?、timeoutMs?、stdoutMaxBytes?、signal?、stdin?、env?、dshEnv?、sandboxPolicy?）在执行前解析为 `ShellExecSpec`（command、workdir、world?、timeoutMs、stdoutMaxBytes、signal?、stdin?、env?、dshEnv?、sandboxPolicy）。`stdoutMaxBytes` 是受信任前台运行的捕获预算，用于必须解析完整有界 stdout 的消费方；面向模型的 bash 工具不公开该字段。`sandboxPolicy` 在请求上可选，在已解析 spec 上必填但可为 null：它携带完整的每次调用模式与工作区根目录。沙箱工具路径通过 `ctx.sandboxPolicy` 从调用会话解析它；沙箱执行器的直接调用方回退到部署策略，非沙箱执行器则携带该字段但不作限制。
 
 每会话沙箱模式覆盖词汇（`'sandbox/mode'` 事件、`effectiveSandboxMode(events)` fold 以及 `setSandboxMode(session, mode)` 写入路径）不位于此处。它是所有强制执行家族共享的策略状态，属于 [`@deepseek-ai/dsh-sandbox-policy`](../../sandbox/sandbox-policy/)。`run()` 返回 `ShellRunResult`；`start()` 返回 `ShellProcess`，其增量读取与终止方法由 `dsh-tool-bash` 适配为通用任务注册。沙箱执行器会在前台结果与已结算进程句柄上标记 `ShellSandboxInfo`。详见 `src/types.ts` 与 [subsystems/shell.md](../../../docs/subsystems/shell.zh.md)。
 

@@ -21,7 +21,7 @@ A backend subclasses `FileSystem` and implements twelve primitives.
 
 | Member | Semantics |
 |---|---|
-| `resolve(path, opts?)` | Resolve a path into a stable `FsTarget` (opaque `targetKey`, `displayPath`). `opts.cwd` is the base a relative `path` resolves against (a caller supplies its session workspace; absolute paths ignore it; omitted ⇒ the backend default), while `opts.signal` aborts a backend round-trip. Async — a remote backend may need I/O. The same file via different paths must yield the same `targetKey`. |
+| `resolve(path, opts?)` | Resolve a path into a stable `FsTarget` (opaque `targetKey`, `displayPath`). `opts.cwd` is the base a relative `path` resolves against (a caller supplies its session workspace; absolute paths ignore it; omitted ⇒ the backend default), while `opts.signal` aborts a backend round-trip, and `opts.world` is the opaque execution-world identity a router dispatches on (direct backends ignore it). Async — a remote backend may need I/O. The same file via different paths must yield the same `targetKey`. |
 | `processPath(target)` | Return the canonical absolute path that a subprocess in this provider's execution world can open. This is intentionally distinct from opaque `targetKey`. |
 | `fileUrl(target)` | Return the canonical `file:` URI in the execution world's platform syntax. The backend, not the host process, owns encoding. |
 | `contains(parent, child)` | Test canonical identity/descendant containment without exposing or parsing target keys. Both targets come from this provider. |

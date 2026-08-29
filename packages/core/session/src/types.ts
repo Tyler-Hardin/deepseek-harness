@@ -71,6 +71,14 @@ export interface SessionHeader {
   readonly createdAt: number
   /** Absolute working directory the session was created in (if any). */
   readonly cwd?: string
+  /**
+   * Opaque execution-world identity the session was created on, frozen at
+   * creation (the workspace's remote place when the session runs in a remote
+   * world; absent for local workspaces). Durable because the world decides
+   * which transport the session's fs/shell calls route through: a resume that
+   * restored a different world would replay history against the wrong host.
+   */
+  readonly world?: string
   /** The session this one was forked from (seed lineage), if any. */
   readonly parentSession?: SessionId
   /**
@@ -112,6 +120,8 @@ export interface CreateSessionOptions {
    */
   readonly meta?: {
     readonly cwd?: string
+    /** Opaque execution-world identity, frozen into the header at creation. */
+    readonly world?: string
     readonly parentSession?: SessionId
     readonly createdAt?: number
     readonly seedLength?: number

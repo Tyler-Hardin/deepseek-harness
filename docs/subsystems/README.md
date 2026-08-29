@@ -29,6 +29,8 @@ One page per subsystem of the DeepSeek Harness: what it is, the data structures 
 | [approval.md](approval.md) | the one-shot user-approval seam: `ApprovalRequest`, `ApprovalOutcome`, per-session policy, audit events, and answerer contracts |
 | [attachment.md](attachment.md) | durable image identity and metadata, validation inputs, verified reads, and the `AttachmentStore` seam |
 | [shell.md](shell.md) | the bash executor seam: `ShellExecRequest`/`Spec`, `ShellRunResult`, background `ShellProcess` handles |
+| [ssh.md](ssh.md) | the SSH transport seam: `SshTarget`/`ResolvedSshHost`, agent-and-keys auth, known_hosts policy, `SshErrorCode` |
+| [worlds.md](worlds.md) | execution worlds: `WorldId`, `WorldKind`/`WorldStatus`, `WorldsResolveRequest`, the per-world fs/shell composition |
 | [subprocess.md](subprocess.md) | the subprocess seam: fully-explicit `SubprocessSpawnSpec`, offset-based output readers, unclassified `SubprocessOutcome`, and the managed `DSH_*` environment vocabulary |
 | [terminal.md](terminal.md) | persistent terminal ids, backend/session contracts, send readiness, bounded reads, and owner-visible snapshots |
 | [sandbox.md](sandbox.md) | per-session policy resolution and the process-confinement seam: file-effect modes, execution/provider policies, `ConfinedArgv`, enforcement and fail-closed errors |

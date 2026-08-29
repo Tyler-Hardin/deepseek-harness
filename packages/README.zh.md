@@ -16,12 +16,13 @@ npm scope 为 `@deepseek-ai/dsh-*`；Cordis `Service` 子类和函数插件通�
 | [`goal/`](goal/README.zh.md) | 同会话 goal 的持久化与生命周期 | 产品：稳定 API |
 | [`schedule/`](schedule/README.zh.md) | 仅限会话内的定时后续操作 | 产品：稳定 API |
 | [`feedback/`](feedback/README.zh.md) | 人类反馈 | 产品：稳定 API |
-| [`identity/`](identity/README.zh.md) | 共享匿名身份 | 产品：稳定 API |
+| [`identity/`](identity/README.zh.md) | 匿名身份 | 产品：稳定 API |
 | [`llm/`](llm/README.zh.md) | LLM（大语言模型）能力系列：抽象服务 + 提供方适配器 | 产品：稳定 API |
 | [`e2b/`](e2b/README.zh.md) | E2B 提供方 | POC |
 | [`subprocess/`](subprocess/README.zh.md) | 子进程能力系列：Service Definition + 本地进程树提供方 | 产品：稳定 API |
 | [`shell/`](shell/README.zh.md) | Bash 能力系列：执行器 seam、本地实现、面向模型的工具 | 产品：稳定 API |
-| [`terminal/`](terminal/README.zh.md) | 持久 PTY 能力系列：限定所有者范围的会话、本地实现和面向模型的工具 | 产品：稳定 API |
+| [`ssh/`](ssh/README.zh.md) | SSH 传输 | 产品：稳定 API |
+| [`terminal/`](terminal/README.zh.md) | 持久 PTY 能力系列：限定所有者范围的会话、本地与远程实现和面向模型的工具 | 产品：稳定 API |
 | [`code-runtime/`](code-runtime/README.zh.md) | 代码执行能力系列：Service Definition + worker 线程提供方 + Code Mode Consumer | 产品：稳定 API |
 | [`sandbox/`](sandbox/README.zh.md) | 进程限制 seam；bwrap/Landlock/Seatbelt 后端 | 产品：稳定 API |
 | [`fs/`](fs/README.zh.md) | 文件系统能力系列：seam、本地实现、面向模型的文件工具、由 bash 支持的发现工具 | 产品：稳定 API |
@@ -49,6 +50,7 @@ npm scope 为 `@deepseek-ai/dsh-*`；Cordis `Service` 子类和函数插件通�
 | [`credentials/`](credentials/README.zh.md) | 凭据引用/记录 seam + 环境变量优先于 `.env` 的提供方 + 授权 flow | 产品：稳定 API |
 | [`storage/`](storage/README.zh.md) | 非会话存储中枢 + 后端 + 领域形式 | 产品：稳定 API |
 | [`workspace/`](workspace/README.zh.md) | Workspace 实体 | 产品：稳定 API |
+| [`worlds/`](worlds/README.zh.md) | 执行世界 | 产品：稳定 API |
 | [`sdk/`](sdk/README.zh.md) | 进程外运行时 SDK：JSON-RPC 协议、TypeScript 客户端和服务器插件 | 产品：稳定 API |
 | [`acp/`](acp/README.zh.md) | 仅面向自动化的 ACP（Agent Client Protocol）服务器 | 产品：稳定 API |
 | [`interaction/`](interaction/README.zh.md) | 人机协作平面：批准／交互 seam、权限预设、命令、询问用户的工具 | 产品：稳定 API |

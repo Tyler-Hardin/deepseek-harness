@@ -11,7 +11,7 @@
 import type { ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import {
-  Button, IconFolderClose16, IconPlusOutline16, Menu, Modal, type MenuEntry,
+  Button, IconFolderClose16, IconPlusOutline16, Input, Menu, Modal, type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   WorkspaceId, WorkspaceListState, WorkspaceView,
@@ -21,6 +21,7 @@ import type { DirectoryFlowOwnerProps, WorkspacePickerProps } from './contract/s
 import css from './WorkspacePicker.module.css'
 
 const ADD_WORKSPACE = '::add-workspace'
+const ADD_REMOTE = '::add-remote'
 
 /** Core flow props: the owner supplies popover control and pick semantics. */
 export interface WorkspacePickFlowProps {
@@ -33,7 +34,7 @@ export interface WorkspacePickFlowProps {
   /** Selector hook over the workspace list (framework standard hook). */
   useWorkspaces: <S>(selector: (state: WorkspaceListState) => S) => S
   /** Adopt a picked host directory as a real Workspace. */
-  createWorkspace: (input: { path: string }) => Promise<WorkspaceView>
+  createWorkspace: (input: { path: string; place?: { kind: 'local' } | { kind: 'ssh'; host: string; user?: string | undefined; port?: number | undefined } }) => Promise<WorkspaceView>
   /** Bound occupancy selector hook for this surface's directory-flow hole (empty leaves the surface with no add action). */
   useDirectoryFlow: SnapshotSelectorHook<boolean>
   /** Render this surface's directory-flow hole with the owner conversation (the entry's narrowed renderSlot). */
@@ -79,6 +80,12 @@ export function WorkspacePickFlow({
   const [modalError, setModalError] = useState<string | null>(null)
   const [flowOpen, setFlowOpen] = useState(false)
   const [pickingFolder, setPickingFolder] = useState(false)
+  const [remoteOpen, setRemoteOpen] = useState(false)
+  const [remoteHost, setRemoteHost] = useState('')
+  const [remoteUser, setRemoteUser] = useState('')
+  const [remotePort, setRemotePort] = useState('')
+  const [remotePath, setRemotePath] = useState('')
+  const [remoteBusy, setRemoteBusy] = useState(false)
   // One picking interaction at a time: while the flow is open (native chooser
   // pending, browse dialog up) or its pick is being adopted, every other
   // menu action stays disabled — a late outcome must not race a concurrent
@@ -99,7 +106,12 @@ export function WorkspacePickFlow({
     if (flowOpen && !flowAvailable) setFlowOpen(false)
   }, [flowOpen, flowAvailable])
   const addEntries: MenuEntry[] = flowAvailable
-    ? [{ id: ADD_WORKSPACE, label: t('menu.addWorkspace'), icon: <IconPlusOutline16 size={16} />, disabled: flowBusy }]
+    ? [
+      { id: ADD_WORKSPACE, label: t('menu.addWorkspace'), icon: <IconPlusOutline16 size={16} />, disabled: flowBusy },
+      ...workspaces.length > 0
+        ? [{ id: ADD_REMOTE, label: t('menu.addRemote'), icon: <IconPlusOutline16 size={16} />, disabled: remoteBusy } as MenuEntry]
+        : [],
+    ]
     : []
   // With workspaces listed, the add action pins below the scroll region
   // (divider + always visible); otherwise it IS the menu.
@@ -132,6 +144,35 @@ export function WorkspacePickFlow({
       setFlowOpen(false)
       setErrorOpen(true)
     })
+
+  /** Connect a remote workspace; failures land in the folder-error dialog. */
+  const submitRemote = (): void => {
+    const host = remoteHost.trim()
+    const path = remotePath.trim()
+    if (host === '' || path === '') return
+    const port = remotePort.trim() === '' ? undefined : Number(remotePort.trim())
+    const place = {
+      kind: 'ssh' as const,
+      host,
+      ...remoteUser.trim() === '' ? {} : { user: remoteUser.trim() },
+      ...port === undefined || !Number.isInteger(port) || port <= 0 ? {} : { port },
+    }
+    setRemoteBusy(true)
+    createWorkspace({ path, place }).then((workspace) => {
+      setRemoteOpen(false)
+      setRemoteBusy(false)
+      setRemoteHost('')
+      setRemoteUser('')
+      setRemotePort('')
+      setRemotePath('')
+      onPick(workspace.workspaceId)
+    }).catch((reason: unknown) => {
+      setRemoteBusy(false)
+      setModalError(reason instanceof Error ? reason.message : String(reason))
+      setRemoteOpen(false)
+      setErrorOpen(true)
+    })
+  }
 
   const openDirectoryFlow = useCallback((): void => {
     onClose()
@@ -177,6 +218,11 @@ export function WorkspacePickFlow({
       openDirectoryFlow()
       return
     }
+    if (id === ADD_REMOTE) {
+      onClose()
+      setRemoteOpen(true)
+      return
+    }
     onPick(id as WorkspaceId)
   }
 
@@ -196,6 +242,37 @@ export function WorkspacePickFlow({
       />
       {open && !addIsTheOnlyEntry && !menuIsEmpty && workspaceSnapshot.phase === 'pending' && <div className={css.menuStatus} role="status">{t('picker.loading')}</div>}
       {renderDirectoryFlow(flowOwner)}
+      <Modal
+        open={remoteOpen}
+        onClose={() => { if (!remoteBusy) setRemoteOpen(false) }}
+        closeLabel={t('close')}
+        title={t('remote.title')}
+        footer={(
+          <>
+            <Button variant="outline" className={css.modalAction} disabled={remoteBusy} onClick={() => { setRemoteOpen(false) }}>{t('cancel')}</Button>
+            <Button variant="primary" className={css.modalAction} disabled={remoteBusy || remoteHost.trim() === '' || remotePath.trim() === ''} onClick={submitRemote}>{t('remote.add')}</Button>
+          </>
+        )}
+      >
+        <form className={css.remoteForm} onSubmit={(event) => { event.preventDefault(); submitRemote() }}>
+          <label className={css.remoteField}>
+            <span>{t('remote.host')}</span>
+            <Input value={remoteHost} onChange={(event) => { setRemoteHost(event.target.value) }} placeholder={t('remote.hostPlaceholder')} autoFocus />
+          </label>
+          <label className={css.remoteField}>
+            <span>{t('remote.user')}</span>
+            <Input value={remoteUser} onChange={(event) => { setRemoteUser(event.target.value) }} />
+          </label>
+          <label className={css.remoteField}>
+            <span>{t('remote.port')}</span>
+            <Input value={remotePort} onChange={(event) => { setRemotePort(event.target.value) }} />
+          </label>
+          <label className={css.remoteField}>
+            <span>{t('remote.path')}</span>
+            <Input value={remotePath} onChange={(event) => { setRemotePath(event.target.value) }} placeholder={t('remote.pathPlaceholder')} />
+          </label>
+        </form>
+      </Modal>
       <Modal
         open={errorOpen}
         onClose={closeModal}

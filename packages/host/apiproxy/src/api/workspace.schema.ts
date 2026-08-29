@@ -12,9 +12,21 @@ import { sessionIdSchema, workspaceIdSchema, modelSelectionSchema, modelProvider
 
 export { workspaceIdSchema } from './sessions.schema.ts'
 
+/** Durable remote-ness statement: the bare local variant or an ssh target. */
+export const workspacePlaceSchema = z.union([
+  z.object({ kind: z.literal('local') }),
+  z.object({
+    kind: z.literal('ssh'),
+    host: z.string(),
+    user: z.string().optional(),
+    port: z.number().int().positive().optional(),
+  }),
+])
+
 /** WorkspaceView row of every workspace.* response. */
 export const workspaceViewSchema = z.object({
   workspaceId: workspaceIdSchema,
+  place: workspacePlaceSchema.optional(),
   path: z.string(),
   title: z.string(),
   sessionIds: z.array(sessionIdSchema),
@@ -31,9 +43,10 @@ export const workspaceListValueSchema = z.object({
   archivedSessionIds: z.array(sessionIdSchema),
 }) satisfies z.ZodType<Wire<ResponseValue<'workspace.list'>>>
 
-/** workspace.create request payload: the existing directory to adopt. */
+/** workspace.create request payload: an existing local directory to adopt, or an ssh place to connect to. */
 export const workspaceCreateRequestSchema = z.object({
   path: z.string(),
+  place: workspacePlaceSchema.optional(),
 }) satisfies z.ZodType<Wire<RequestPayload<'workspace.create'>>>
 
 /** workspace.create response value. */

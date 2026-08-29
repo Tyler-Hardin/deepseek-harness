@@ -21,7 +21,13 @@ export type WorkspaceId = Branded<'WorkspaceId'>
 /** One workspace row: the record projection every workspace.* value carries. */
 export interface WorkspaceView {
   workspaceId: WorkspaceId
-  /** Canonical directory path (host-side realpath canon). */
+  /**
+   * The durable remote-ness statement: absent means local (the path is the
+   * canonical local directory); an ssh destination carries host/user/port and
+   * the path is the remote absolute working path.
+   */
+  place?: { kind: 'local' } | { kind: 'ssh'; host: string; user?: string | undefined; port?: number | undefined }
+  /** Canonical directory path (host-side realpath canon); remote absolute for an ssh place. */
   path: string
   /** Display title (defaults to the path basename at create). */
   title: string
@@ -54,7 +60,7 @@ export interface WorkspaceApi {
    * distinct canonical paths whose basenames produce the same display title;
    * the registry's basename title default names the new workspace.
    */
-  create(request: RpcRequest<{ path: string }>):
+  create(request: RpcRequest<{ path: string; place?: { kind: 'local' } | { kind: 'ssh'; host: string; user?: string | undefined; port?: number | undefined } }>):
   Promise<RpcResponse<{ workspace: WorkspaceView; created: boolean }>>
 
   /**

@@ -21,7 +21,7 @@
 
 | 成员 | 语义 |
 |---|---|
-| `resolve(path, opts?)` | 把路径解析为稳定的 `FsTarget`（不透明 `targetKey`、`displayPath`）。`opts.cwd` 是相对 `path` 解析所依据的基准（调用方提供其会话工作区；绝对路径忽略该值；省略时使用后端默认值），`opts.signal` 则中止后端往返。该方法是异步的，因为远程后端可能需要 I/O。经不同路径到达的同一文件必须产生相同 `targetKey`。 |
+| `resolve(path, opts?)` | 把路径解析为稳定的 `FsTarget`（不透明 `targetKey`、`displayPath`）。`opts.cwd` 是相对 `path` 解析所依据的基准（调用方提供其会话工作区；绝对路径忽略该值；省略时使用后端默认值），`opts.signal` 则中止后端往返，`opts.world` 是路由分发所依据的不透明执行世界标识（直接后端忽略它）。该方法是异步的，因为远程后端可能需要 I/O。经不同路径到达的同一文件必须产生相同 `targetKey`。 |
 | `processPath(target)` | 返回该提供方执行世界中的子进程可以打开的规范化绝对路径。该路径有意与不透明的 `targetKey` 分离。 |
 | `fileUrl(target)` | 返回采用执行世界平台语法的规范化 `file:` URI。编码由后端而非宿主进程负责。 |
 | `contains(parent, child)` | 在不公开或解析目标 key 的情况下，检查规范化身份相等或后代包含关系。两个目标都来自该提供方。 |

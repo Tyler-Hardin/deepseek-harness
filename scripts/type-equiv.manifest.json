@@ -2004,6 +2004,51 @@
       "doc": "docs/subsystems/voice.md",
       "symbol": "TranscribeResult",
       "source": "packages/voice/voice-context/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/ssh.md",
+      "symbol": "SshTarget",
+      "source": "packages/ssh/ssh/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/ssh.md",
+      "symbol": "ResolvedSshHost",
+      "source": "packages/ssh/ssh/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/ssh.md",
+      "symbol": "SshConnectOptions",
+      "source": "packages/ssh/ssh/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/ssh.md",
+      "symbol": "SshExecOptions",
+      "source": "packages/ssh/ssh/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/ssh.md",
+      "symbol": "SshExecResult",
+      "source": "packages/ssh/ssh/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/worlds.md",
+      "symbol": "WorldId",
+      "source": "packages/worlds/worlds/src/index.ts"
+    },
+    {
+      "doc": "docs/subsystems/worlds.md",
+      "symbol": "WorldKind",
+      "source": "packages/worlds/worlds/src/index.ts"
+    },
+    {
+      "doc": "docs/subsystems/worlds.md",
+      "symbol": "WorldStatus",
+      "source": "packages/worlds/worlds/src/index.ts"
+    },
+    {
+      "doc": "docs/subsystems/worlds.md",
+      "symbol": "WorldsResolveRequest",
+      "source": "packages/worlds/worlds/src/index.ts"
     }
   ]
 }

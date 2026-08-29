@@ -336,7 +336,27 @@ currentSelection(): ModelSelection
  * @returns fulfillment after the optional settings write settles.
  */
 async saveSelection(next: ModelSelection): Promise<void>
+
+/**
+ * Read one workspace's explicit default model override.
+ * @param workspaceId - the owning workspace.
+ * @returns the override, or undefined when the workspace inherits the shared default.
+ */
+workspaceSelection(workspaceId: WorkspaceId): ModelSelection | undefined
+
+/**
+ * Save or clear one workspace's explicit default model override. A null
+ * selection removes the override so the workspace inherits the shared
+ * default again. A deployment without a settings provider keeps the stored
+ * document unchanged.
+ * @param workspaceId - the owning workspace.
+ * @param next - the override, or null to clear it.
+ * @returns fulfillment after the optional settings write settles.
+ */
+async saveWorkspaceSelection(workspaceId: WorkspaceId, next: ModelSelection | null): Promise<void>
 ```
+
+Types: [WorkspaceId](workspace.md)
 
 Source: [`packages/core/agent-default-model/src/index.ts`](../../packages/core/agent-default-model/src/index.ts)
 

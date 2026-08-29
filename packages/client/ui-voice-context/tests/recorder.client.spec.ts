@@ -5,7 +5,7 @@ import {
   FakeAudioContext,
   FakeMediaRecorder,
   fakeAudioBuffer,
-  fakeStream,
+  fakeStream, trackStop,
   installRecorderEnvironment,
 } from './recorder-stubs.ts'
 
@@ -74,7 +74,7 @@ describe('VoiceRecorder', () => {
     const wav = await wavPromise
     expect(wav.type).toBe('audio/wav')
     expect(wav.size).toBeGreaterThan(44)
-    expect(stream.getTracks()[0]?.stop).toHaveBeenCalled()
+    expect(trackStop(stream)).toHaveBeenCalled()
   })
 
   it('falls back through MIME candidates and records without a typed container', async () => {
@@ -103,7 +103,7 @@ describe('VoiceRecorder', () => {
   })
 
   it('throws when isTypeSupported itself throws', async () => {
-    FakeMediaRecorder.isTypeSupported = vi.fn(() => { throw new TypeError('unsupported probe') }) as never
+    vi.spyOn(FakeMediaRecorder, 'isTypeSupported').mockImplementation(() => { throw new TypeError('unsupported probe') })
     vi.stubGlobal('navigator', { mediaDevices: { getUserMedia: vi.fn(async () => fakeStream()) } })
     vi.stubGlobal('MediaRecorder', FakeMediaRecorder)
 
@@ -133,7 +133,7 @@ describe('VoiceRecorder', () => {
     const failing = recorder.stop()
     FakeMediaRecorder.lastInstance?.onstop?.()
     await expect(failing).rejects.toThrow('decode failed')
-    expect(stream.getTracks()[0]?.stop).toHaveBeenCalled()
+    expect(trackStop(stream)).toHaveBeenCalled()
   })
 
   it('abort() during recording stops capture without producing audio', async () => {

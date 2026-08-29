@@ -64,7 +64,7 @@ describe('VoiceSettingsSection', () => {
       })),
     })
     expect(await screen.findByText('Not configured')).toBeDefined()
-    expect((screen.getByPlaceholderText(`value for ${KEY_REF}`) as HTMLInputElement).disabled).toBe(false)
+    expect(screen.getByPlaceholderText<HTMLInputElement>(`value for ${KEY_REF}`).disabled).toBe(false)
   })
 
   it('writes a typed API key through the credentials domain', async () => {
@@ -72,14 +72,14 @@ describe('VoiceSettingsSection', () => {
     const input = screen.getByPlaceholderText(`value for ${KEY_REF}`)
     fireEvent.change(input, { target: { value: 'sk-123' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    await vi.waitFor(() => expect(credentials.set).toHaveBeenCalledWith({ ref: KEY_REF, value: 'sk-123' }))
+    await vi.waitFor(() => { expect(credentials.set).toHaveBeenCalledWith({ ref: KEY_REF, value: 'sk-123' }) })
     expect(await screen.findByText('Saved')).toBeDefined()
   })
 
   it('unsets the credential when the field is cleared', async () => {
     const credentials = credentialsHarness()
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    await vi.waitFor(() => expect(credentials.unset).toHaveBeenCalledWith({ ref: KEY_REF }))
+    await vi.waitFor(() => { expect(credentials.unset).toHaveBeenCalledWith({ ref: KEY_REF }) })
   })
 
   it('reports a failed credential save', async () => {
@@ -96,8 +96,8 @@ describe('VoiceSettingsSection', () => {
       })),
     })
     const input = screen.getByPlaceholderText(`value for ${KEY_REF}`)
-    await vi.waitFor(() => expect((input as HTMLInputElement).disabled).toBe(true))
-    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true)
+    await vi.waitFor(() => { expect((input as HTMLInputElement).disabled).toBe(true) })
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Save' }).disabled).toBe(true)
   })
 
   it('switches backend and model routing and persists the preference', async () => {
@@ -107,7 +107,7 @@ describe('VoiceSettingsSection', () => {
     expect(modelSelect).toHaveProperty('value', 'small')
     fireEvent.change(modelSelect, { target: { value: 'large-v3' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save voice configuration' }))
-    await vi.waitFor(() => expect(screen.getByText('Configured')).toBeDefined())
+    await vi.waitFor(() => { expect(screen.getByText('Configured')).toBeDefined() })
     const stored = window.localStorage.getItem('dsh.voice-context.preference.v1')
     expect(stored).toContain('"backend":"local"')
     expect(stored).toContain('"model":"large-v3"')
@@ -121,13 +121,13 @@ describe('VoiceSettingsSection', () => {
   })
 
   it('uses the Chinese copy for zh browsers', async () => {
-    vi.stubGlobal('navigator', { ...navigator, language: 'zh-CN' })
+    vi.stubGlobal('navigator', { language: 'zh-CN' })
     credentialsHarness()
     expect(await screen.findByText('语音输入（Voice-Context）')).toBeDefined()
     expect(screen.getByLabelText('云端 API')).toBeDefined()
     expect(screen.getByText('未配置')).toBeDefined()
     fireEvent.click(screen.getByRole('button', { name: '保存语音配置' }))
-    await vi.waitFor(() => expect(screen.getByText('语音配置已保存')).toBeDefined())
+    await vi.waitFor(() => { expect(screen.getByText('语音配置已保存')).toBeDefined() })
   })
 
   it('selects the paired model when switching backends', () => {
@@ -139,7 +139,7 @@ describe('VoiceSettingsSection', () => {
   })
 
   it('shows a configured credential in Chinese', async () => {
-    vi.stubGlobal('navigator', { ...navigator, language: 'zh-CN' })
+    vi.stubGlobal('navigator', { language: 'zh-CN' })
     credentialsHarness({
       describe: vi.fn(async () => ({
         result: { ok: true, value: { credentials: { [KEY_REF]: { configured: true, writable: true } } } },
@@ -149,7 +149,7 @@ describe('VoiceSettingsSection', () => {
   })
 
   it('confirms a Chinese credential save', async () => {
-    vi.stubGlobal('navigator', { ...navigator, language: 'zh-CN' })
+    vi.stubGlobal('navigator', { language: 'zh-CN' })
     credentialsHarness()
     fireEvent.change(screen.getByPlaceholderText(`配置 ${KEY_REF} 的值`), { target: { value: 'sk-zh' } })
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
@@ -157,7 +157,7 @@ describe('VoiceSettingsSection', () => {
   })
 
   it('reports a failed Chinese credential save', async () => {
-    vi.stubGlobal('navigator', { ...navigator, language: 'zh-CN' })
+    vi.stubGlobal('navigator', { language: 'zh-CN' })
     credentialsHarness({ set: vi.fn(async () => { throw new Error('denied') }) })
     fireEvent.change(screen.getByPlaceholderText(`配置 ${KEY_REF} 的值`), { target: { value: 'sk-zh' } })
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
@@ -165,7 +165,7 @@ describe('VoiceSettingsSection', () => {
   })
 
   it('shows the unsaved routing status in Chinese', () => {
-    vi.stubGlobal('navigator', { ...navigator, language: 'zh-CN' })
+    vi.stubGlobal('navigator', { language: 'zh-CN' })
     renderUnsaved()
     expect(screen.getByText('尚未保存')).toBeDefined()
   })

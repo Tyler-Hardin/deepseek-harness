@@ -157,6 +157,9 @@ export class LocalBashExecutor extends ShellExecutor {
       workdir: request.workdir ?? this.config.cwd ?? process.cwd(),
       timeoutMs,
       stdoutMaxBytes,
+      // Carry the router's world identity through verbatim — optional, no
+      // config default; this executor always runs in its own (local) world.
+      ...request.world !== undefined ? { world: request.world } : {},
       ...request.signal ? { signal: request.signal } : {},
       // Carry stdin/ordinary env/trusted dshEnv through verbatim — optional,
       // no config default. The subprocess service owns the scrub and merge order.

@@ -242,6 +242,27 @@ describe('WorkspaceBrowser', () => {
     ])
   })
 
+  it('marks a remote workspace row with its ssh host and leaves local rows plain', () => {
+    const remote: WorkspaceView = {
+      ...workspace('alpha', []),
+      place: { kind: 'ssh', host: 'build.example.com' },
+    }
+    const local: WorkspaceView = workspace('beta', [])
+    mount({ useWorkspaces: hook(workspaceState([remote, local])) })
+    expect(screen.getByText('SSH build.example.com')).toBeTruthy()
+    // Exactly one badge: the local row carries none.
+    expect(screen.getAllByText(/SSH/)).toHaveLength(1)
+    // The hover card echoes the host too.
+    vi.useFakeTimers()
+    try {
+      fireEvent.pointerEnter(screen.getByRole('treeitem', { name: /alpha/ }).parentElement as HTMLElement)
+      act(() => { vi.advanceTimersByTime(500) })
+      expect(screen.getAllByText('SSH build.example.com').length).toBeGreaterThan(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('expands a group on click and opens a session row', () => {
     const open = vi.fn()
     mount({
@@ -820,15 +841,16 @@ describe('WorkspaceBrowser', () => {
     }
   })
 
-  it('rail add-workspace raises the directory flow in place, with no menu and no expansion', () => {
+  it('rail add-workspace opens the add menu in place, with no expansion', () => {
     const expandSidebar = vi.fn()
     mount({ wide: false, expandSidebar, useWorkspaces: hook(workspaceState([workspace('alpha', [])])) })
     fireEvent.click(screen.getByRole('button', { name: '添加工作区' }))
     expect(expandSidebar).not.toHaveBeenCalled()
-    // Adding is the header's only action, so the gesture IS that action: no
-    // one-row popover, and existing workspaces stay in the tree below.
-    expect(screen.queryByRole('menu')).toBeNull()
-    expect(screen.queryByRole('menuitem', { name: 'alpha' })).toBeNull()
+    // With a remote-add action available, the header gesture opens the add
+    // menu (local directory flow + remote connection) instead of jumping
+    // straight into the directory flow; existing workspaces stay in the tree.
+    expect(screen.queryByRole('menu')).toBeTruthy()
+    fireEvent.click(screen.getByRole('menuitem', { name: '添加工作区…' }))
     expect(screen.getByTestId('directory-flow')).toBeTruthy()
   })
 

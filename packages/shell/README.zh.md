@@ -9,6 +9,8 @@
 | [`shell/`](shell/README.zh.md) | 定义 Service Provider 与 Consumer 共享的执行器约定。 | `ctx.shell` |
 | [`bash-local/`](bash-local/README.zh.md) | 通过本地 [`subprocess`](../subprocess/README.zh.md) 服务执行命令。 | （注册 `ctx.shell`） |
 | [`bash-sandbox/`](bash-sandbox/README.zh.md) | 在本地执行前应用已配置的 [`sandbox`](../sandbox/README.zh.md) 后端。 | （注册 `ctx.shell`） |
+| [`bash-ssh/`](bash-ssh/README.zh.md) | 通过某个远端 world 的 exec 通道执行命令（前台运行 + 带 pid/状态/输出文件的分离后台进程） | （按 world 实例化；无全局注册） |
+| [`shell-router/`](shell-router/README.zh.md) | 世界分发型 `ShellExecutor` 实现：按调用世界的 id 路由到已解析世界的执行器 | （注册 `ctx.shell`） |
 | [`pwsh-local/`](pwsh-local/README.zh.md) | 采用 Windows 特有的进程行为执行 PowerShell 命令。 | （注册 `ctx.shell`） |
 | [`shell-env/`](shell-env/README.zh.md) | 提供 shell 工具共享的托管 `DSH_*` 环境。 | `ctx.shellEnv` |
 | [`tool-bash/`](tool-bash/README.zh.md) | 向模型公开 Bash 执行和后台任务集成。 | （注册到 `ctx.tools`） |

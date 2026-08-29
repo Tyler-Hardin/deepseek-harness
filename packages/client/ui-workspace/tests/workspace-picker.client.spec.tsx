@@ -198,6 +198,36 @@ describe('WorkspacePicker', () => {
     expect(b.createWorkspace).not.toHaveBeenCalled()
   })
 
+  it('connects a remote workspace from the add menu and selects it', async () => {
+    const created = { ...workspace('remote'), path: '/srv/project', title: 'project' }
+    const createWorkspace = vi.fn(async () => created)
+    const b = mount([workspace('alpha', 'Alpha')], createWorkspace)
+    fireEvent.click(screen.getByRole('menuitem', { name: '添加远程工作区…' }))
+    expect(screen.getByRole('dialog', { name: '连接远程工作区' })).toBeTruthy()
+    fireEvent.change(screen.getByPlaceholderText('例如 build.example.com'), { target: { value: 'build.example.com' } })
+    fireEvent.change(screen.getByPlaceholderText('例如 /srv/project'), { target: { value: '/srv/project' } })
+    fireEvent.click(screen.getByRole('button', { name: '连接' }))
+    await waitFor(() => { expect(b.onPick).toHaveBeenCalledWith(created.workspaceId) })
+    expect(createWorkspace).toHaveBeenCalledWith({
+      path: '/srv/project',
+      place: { kind: 'ssh', host: 'build.example.com' },
+    })
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('refuses to connect a remote workspace with a blank host or path', () => {
+    const createWorkspace = vi.fn()
+    mount([workspace('alpha', 'Alpha')], createWorkspace)
+    fireEvent.click(screen.getByRole('menuitem', { name: '添加远程工作区…' }))
+    const connect = screen.getByRole('button', { name: '连接' }) as HTMLButtonElement
+    expect(connect.disabled).toBe(true)
+    fireEvent.change(screen.getByPlaceholderText('例如 build.example.com'), { target: { value: 'host' } })
+    expect(connect.disabled).toBe(true)
+    fireEvent.change(screen.getByPlaceholderText('例如 /srv/project'), { target: { value: '/x' } })
+    expect(connect.disabled).toBe(false)
+    expect(createWorkspace).not.toHaveBeenCalled()
+  })
+
   it('closes the folder-error surface when the user cancels', () => {
     const b = mount([workspace('alpha', 'Alpha')])
     chooseAdd()

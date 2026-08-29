@@ -180,6 +180,19 @@
   line-height: 20px;
 }
 
+.remoteBadge {
+  flex: none;
+  font-size: 11px;
+  line-height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--dsw-alias-border-l2);
+  color: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .renameInput {
   min-width: 0;
   font-size: 14px;

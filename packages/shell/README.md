@@ -9,6 +9,8 @@ The capability family spans the canonical executor seam, its implementations, th
 | [`shell/`](shell/README.md) | Defines the executor contract shared by Service Providers and Consumers. | `ctx.shell` |
 | [`bash-local/`](bash-local/README.md) | Executes commands through the local [`subprocess`](../subprocess/README.md) service. | (registers `ctx.shell`) |
 | [`bash-sandbox/`](bash-sandbox/README.md) | Applies the configured [`sandbox`](../sandbox/README.md) backend before local execution. | (registers `ctx.shell`) |
+| [`bash-ssh/`](bash-ssh/README.md) | Executes commands through one remote world's exec channel (foreground runs + detached background processes with pid/status/output files) | (per-world instances; no global registration) |
+| [`shell-router/`](shell-router/README.md) | World-dispatching `ShellExecutor` implementation: routes per-call world to the resolved world's executor | (registers `ctx.shell`) |
 | [`pwsh-local/`](pwsh-local/README.md) | Executes PowerShell commands with Windows-specific process behavior. | (registers `ctx.shell`) |
 | [`shell-env/`](shell-env/README.md) | Provides the managed `DSH_*` environment shared by shell tools. | `ctx.shellEnv` |
 | [`tool-bash/`](tool-bash/README.md) | Exposes Bash execution and background-job integration to the model. | (registers on `ctx.tools`) |

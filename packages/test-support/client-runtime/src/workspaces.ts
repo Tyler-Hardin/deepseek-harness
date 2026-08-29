@@ -219,18 +219,18 @@ export class TestWorkspaces implements IWorkspaces {
    * @param workspaceId - target workspace.
    * @returns the Host-shaped default-model view.
    */
-  async defaultModel(workspaceId: WorkspaceId): Promise<Awaited<ReturnType<IWorkspaces['defaultModel']>>> {
+  defaultModel(workspaceId: WorkspaceId): Promise<Awaited<ReturnType<IWorkspaces['defaultModel']>>> {
     this.calls.push({ method: 'defaultModel', args: [workspaceId] })
     const stub = this.stubs.get('defaultModel')
     if (stub !== undefined) {
-      return await (stub(workspaceId) as Awaited<ReturnType<IWorkspaces['defaultModel']>>)
+      return Promise.resolve(stub(workspaceId) as Awaited<ReturnType<IWorkspaces['defaultModel']>>)
     }
-    return {
+    return Promise.resolve({
       selection: null,
       shared: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
       groups: [],
       failures: [],
-    }
+    })
   }
 
   /**

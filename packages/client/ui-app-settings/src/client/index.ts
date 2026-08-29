@@ -48,13 +48,13 @@ export function apply(ctx: ClientContext): void {
   const bridge: DshAppBridge = requireBridge()
   const injected = (): AppSettingsInjected => ({
     getServerUrl: () => bridge.getServerUrl(),
-    setServerUrl: url => bridge.setServerUrl(url),
+    setServerUrl: (url) => { bridge.setServerUrl(url) },
     getCertInfo: () => bridge.getCertInfo(),
-    forgetCertificate: () => bridge.forgetCertificate(),
+    forgetCertificate: () => { bridge.forgetCertificate() },
     getDiagnostics: () => bridge.getDiagnostics(),
-    clearDiagnostics: () => bridge.clearDiagnostics(),
+    clearDiagnostics: () => { bridge.clearDiagnostics() },
     getCrashLog: () => bridge.getCrashLog(),
-    clearCrashLog: () => bridge.clearCrashLog(),
+    clearCrashLog: () => { bridge.clearCrashLog() },
     getAppInfo: () => bridge.getAppInfo(),
   })
 

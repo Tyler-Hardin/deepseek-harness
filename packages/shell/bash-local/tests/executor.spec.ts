@@ -45,6 +45,14 @@ describe('LocalBashExecutor.run', () => {
     expect(result.timeoutMs).toBe(5_000)
   })
 
+  it('carries the router world identity through resolve verbatim', async () => {
+    const { bash } = await setup()
+    const spec = bash.resolve({ command: 'echo hi', world: 'w-abc' })
+    expect(spec.world).toBe('w-abc')
+    const bare = bash.resolve({ command: 'echo hi' })
+    expect(bare.world).toBeUndefined()
+  })
+
   it('uses config cwd, overridable per call', async () => {
     const { bash } = await setup({ cwd: '/tmp' })
     const fromConfig = await bash.run(bash.resolve({ command: 'pwd' }))

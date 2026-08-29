@@ -99,7 +99,7 @@ export function AppSection(props: AppSectionProps): ReactNode {
             <Input
               aria-label={t('serverLabel')}
               value={hostname}
-              onChange={event => setHostname(event.target.value)}
+              onChange={(event) => { setHostname(event.target.value) }}
               placeholder={t('serverPlaceholder')}
             />
           </div>

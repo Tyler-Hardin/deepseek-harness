@@ -9,6 +9,8 @@ The filesystem stack: a provider contract (execution-world paths, bounded text I
 | `fs/` | Service Definition: canonical process paths/file URIs/containment, text IO, and atomic mutation primitives; owns the `fs/*` policy events | `ctx.fs` |
 | `fs-local/` | Local-filesystem `FileSystem` implementation | (registers `ctx.fs`) |
 | [`e2b/fs-e2b`](../e2b/fs-e2b/README.md) | E2B-backed `FileSystem` implementation sharing the remote runtime owned by `ctx.e2b` | (registers `ctx.fs`) |
+| `fs-router/` | World-dispatching `FileSystem` implementation: routes per-call world to the resolved world backend | (registers `ctx.fs`) |
+| `fs-ssh/` | SSH-backed `FileSystem` implementation over one world's SFTP session (atomic staging, version guards, `ln` no-replace creates) | (per-world instances; no global registration) |
 | `fs-sandbox/` | Sandbox-enforcing `FileSystem`: extends `fs-local` and fences write/edit by the per-call mode + workspace root policy (read-only denies, workspace-write contains to the session workspace + temp roots), reads pass through | (registers `ctx.fs`) |
 | `fs-observation-policy/` | Policy gate plugin: observed-state + read-before-edit + version-guarded write/edit, via the `fs/*` event gate | (no service — `fs/*` listeners) |
 | `tool-fs/` | Model-facing `read`/`write`/`edit` tools AND the executor (reads via `ctx.fs`, owns read windowing, dispatches `fs/*`); preserves filesystem semantics for session-cwd-relative paths and advertises sandbox escalation fields when the mounted `ctx.fs` confines | (registers on `ctx.tools`) |

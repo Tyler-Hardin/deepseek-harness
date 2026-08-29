@@ -1,7 +1,9 @@
 /**
- * Public type vocabulary of the workspace entity: the `WorkspaceId` brand and
- * the `Workspace` consumer interface. Types only — the `WorkspaceId` factory
- * lives in `index.ts` (this file carries no runtime code).
+ * Public type vocabulary of the workspace entity: the `WorkspaceId` brand, the
+ * `Workspace` consumer interface, and the workspace `place` that locates it —
+ * remote-ness is a property of the workspace definition. Types only — the
+ * `WorkspaceId` factory lives in `index.ts` (this file carries no runtime
+ * code).
  * @module @deepseek-ai/dsh-workspace/src/types
  */
 
@@ -15,19 +17,44 @@ import type { SessionId } from '@deepseek-ai/dsh-session'
 export type WorkspaceId = Branded<'WorkspaceId'>
 
 /**
- * One workspace: a stable id over an existing directory, a display title, and
- * an ordered candidate account of sessions. Membership requires both an id in
- * that account and a session header whose canonical cwd equals the workspace
- * path. Consumers only see this interface; the implementation stays private.
+ * Where a workspace lives: remote-ness is a property of the workspace
+ * definition. A local place is the working directory; an ssh place names the
+ * remote destination (host, optional user and port). The working path is NOT
+ * part of the place — it lives once in {@link Workspace.path} (a remote
+ * workspace's path is its remote absolute path), so the two facts have one
+ * home each. Consumers switch on `kind` and never assume a local path.
+ */
+export type WorkspacePlace =
+  | { readonly kind: 'local' }
+  | {
+    readonly kind: 'ssh'
+    readonly host: string
+    readonly user?: string | undefined
+    readonly port?: number | undefined
+  }
+
+/**
+ * One workspace: a stable id over a place (an existing directory or a remote
+ * ssh destination), a display title, and an ordered candidate account of
+ * sessions. Membership requires both an id in that account and a session
+ * header whose canonical cwd equals the workspace's working path. Consumers
+ * only see this interface; the implementation stays private.
  */
 export interface Workspace {
   /** Stable record id (generated uuid). */
   readonly id: WorkspaceId
 
   /**
-   * Canonical directory path: the `fs.realpath` of the path given at create
-   * time (trailing slashes, `..`, and symlinks all resolved). Never rewritten
-   * afterwards, even when the directory disappears (see {@link status}).
+   * The workspace's place: the durable statement of where it lives. Local
+   * workspaces carry their canonical directory path; remote workspaces carry
+   * the ssh destination and remote working path.
+   */
+  readonly place: WorkspacePlace
+
+  /**
+   * The working path: the canonical local directory path for a local place,
+   * or the remote absolute path for an ssh place. Never rewritten afterwards,
+   * even when the directory disappears (see {@link status}).
    */
   readonly path: string
 
@@ -95,10 +122,11 @@ export interface Workspace {
   detachSession(sessionId: SessionId): Promise<void>
 
   /**
-   * Live directory check, uncached: whether {@link path} currently exists and
-   * is a directory. A missing directory never mutates the record — the
-   * directory may only be temporarily moved.
-   * @returns `'ok'` when the directory exists, `'missing-dir'` otherwise.
+   * Live place check, uncached: whether the workspace's place is currently
+   * reachable. For a local place this is the existing-directory check; a
+   * remote place's probe is the transport's concern and reports `'missing'`
+   * when unreachable. A missing place never mutates the record.
+   * @returns `'ok'` when the place is reachable, `'missing'` otherwise.
    */
-  status(): Promise<'ok' | 'missing-dir'>
+  status(): Promise<'ok' | 'missing'>
 }

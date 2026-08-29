@@ -40,7 +40,7 @@ describe('VoiceInput', () => {
     renderMic({ draft: '' }, transcribe)
     const button = screen.getByRole('button', { name: 'Voice input' })
     fireEvent.click(button)
-    await vi.waitFor(() => expect(button.getAttribute('aria-pressed')).toBe('true'))
+    await vi.waitFor(() => { expect(button.getAttribute('aria-pressed')).toBe('true') })
     expect(FakeMediaRecorder.lastInstance?.start).toHaveBeenCalled()
   })
 
@@ -50,14 +50,14 @@ describe('VoiceInput', () => {
     const { setDraft } = renderMic({ draft: 'prefix' }, transcribe)
     const button = screen.getByRole('button', { name: 'Voice input' })
     fireEvent.click(button)
-    await vi.waitFor(() => expect(button.getAttribute('aria-pressed')).toBe('true'))
+    await vi.waitFor(() => { expect(button.getAttribute('aria-pressed')).toBe('true') })
     FakeAudioContext.lastInstance?.decodeAudioData.mockResolvedValue(
       fakeAudioBuffer({ sampleRate: 48000, channels: 1, length: 480 }),
     )
     FakeMediaRecorder.lastInstance?.feed(new Blob(['audio']))
     fireEvent.click(button)
     finishStop()
-    await vi.waitFor(() => expect(setDraft).toHaveBeenCalledWith('prefix hello voice'))
+    await vi.waitFor(() => { expect(setDraft).toHaveBeenCalledWith('prefix hello voice') })
     expect(transcribe).toHaveBeenCalledWith(expect.objectContaining({
       mimeType: 'audio/wav',
       backend: 'local',
@@ -71,11 +71,11 @@ describe('VoiceInput', () => {
     const { setDraft } = renderMic({ draft: '' }, transcribe)
     const button = screen.getByRole('button', { name: 'Voice input' })
     fireEvent.click(button)
-    await vi.waitFor(() => expect(button.getAttribute('aria-pressed')).toBe('true'))
+    await vi.waitFor(() => { expect(button.getAttribute('aria-pressed')).toBe('true') })
     FakeMediaRecorder.lastInstance?.feed(new Blob(['audio']))
     fireEvent.click(button)
     finishStop()
-    await vi.waitFor(() => expect(setDraft).toHaveBeenCalledWith('hi'))
+    await vi.waitFor(() => { expect(setDraft).toHaveBeenCalledWith('hi') })
   })
 
   it('keeps the draft unchanged when the transcript is empty', async () => {
@@ -84,11 +84,11 @@ describe('VoiceInput', () => {
     const { setDraft } = renderMic({ draft: 'stay' }, transcribe)
     const button = screen.getByRole('button', { name: 'Voice input' })
     fireEvent.click(button)
-    await vi.waitFor(() => expect(button.getAttribute('aria-pressed')).toBe('true'))
+    await vi.waitFor(() => { expect(button.getAttribute('aria-pressed')).toBe('true') })
     FakeMediaRecorder.lastInstance?.feed(new Blob(['audio']))
     fireEvent.click(button)
     finishStop()
-    await vi.waitFor(() => expect(setDraft).toHaveBeenCalledWith('stay'))
+    await vi.waitFor(() => { expect(setDraft).toHaveBeenCalledWith('stay') })
   })
 
   it('surfaces a transcription failure on the button title', async () => {
@@ -97,11 +97,11 @@ describe('VoiceInput', () => {
     renderMic({ draft: '' }, transcribe)
     const button = screen.getByRole('button', { name: 'Voice input' })
     fireEvent.click(button)
-    await vi.waitFor(() => expect(button.getAttribute('aria-pressed')).toBe('true'))
+    await vi.waitFor(() => { expect(button.getAttribute('aria-pressed')).toBe('true') })
     FakeMediaRecorder.lastInstance?.feed(new Blob(['audio']))
     fireEvent.click(button)
     finishStop()
-    await vi.waitFor(() => expect(button.title).toContain('upstream 500'))
+    await vi.waitFor(() => { expect(button.title).toContain('upstream 500') })
   })
 
   it('surfaces a microphone-start failure on the button title', async () => {
@@ -113,7 +113,7 @@ describe('VoiceInput', () => {
     renderMic({ draft: '' }, transcribe)
     const button = screen.getByRole('button', { name: 'Voice input' })
     fireEvent.click(button)
-    await vi.waitFor(() => expect(button.title).toContain('mic denied'))
+    await vi.waitFor(() => { expect(button.title).toContain('mic denied') })
   })
 
   it('surfaces a non-Error microphone failure as a string', async () => {
@@ -124,7 +124,7 @@ describe('VoiceInput', () => {
     renderMic({ draft: '' }, vi.fn())
     const button = screen.getByRole('button', { name: 'Voice input' })
     fireEvent.click(button)
-    await vi.waitFor(() => expect(button.title).toContain('plain failure'))
+    await vi.waitFor(() => { expect(button.title).toContain('plain failure') })
   })
 
   it('surfaces a non-Error transcription failure as a string', async () => {
@@ -133,16 +133,15 @@ describe('VoiceInput', () => {
     renderMic({ draft: '' }, transcribe)
     const button = screen.getByRole('button', { name: 'Voice input' })
     fireEvent.click(button)
-    await vi.waitFor(() => expect(button.getAttribute('aria-pressed')).toBe('true'))
+    await vi.waitFor(() => { expect(button.getAttribute('aria-pressed')).toBe('true') })
     FakeMediaRecorder.lastInstance?.feed(new Blob(['audio']))
     fireEvent.click(button)
     finishStop()
-    await vi.waitFor(() => expect(button.title).toContain('plain transcript failure'))
+    await vi.waitFor(() => { expect(button.title).toContain('plain transcript failure') })
   })
 
   it('sends the language hint for zh browsers', async () => {
     vi.stubGlobal('navigator', {
-      ...navigator,
       language: 'zh-CN',
       mediaDevices: { getUserMedia: vi.fn(async () => ({ getTracks: () => [] })) },
     })
@@ -152,11 +151,11 @@ describe('VoiceInput', () => {
     const { setDraft } = renderMic({ draft: '' }, transcribe)
     const button = screen.getByRole('button', { name: '语音输入' })
     fireEvent.click(button)
-    await vi.waitFor(() => expect(button.getAttribute('aria-pressed')).toBe('true'))
+    await vi.waitFor(() => { expect(button.getAttribute('aria-pressed')).toBe('true') })
     FakeMediaRecorder.lastInstance?.feed(new Blob(['audio']))
     fireEvent.click(button)
     finishStop()
-    await vi.waitFor(() => expect(setDraft).toHaveBeenCalledWith('你好'))
+    await vi.waitFor(() => { expect(setDraft).toHaveBeenCalledWith('你好') })
     expect(transcribe).toHaveBeenCalledWith(expect.objectContaining({ language: 'zh' }))
   })
 
@@ -167,19 +166,19 @@ describe('VoiceInput', () => {
     renderMic({ draft: '' }, transcribe)
     const button = screen.getByRole('button', { name: 'Voice input' })
     fireEvent.click(button)
-    await vi.waitFor(() => expect(button.getAttribute('aria-pressed')).toBe('true'))
+    await vi.waitFor(() => { expect(button.getAttribute('aria-pressed')).toBe('true') })
     FakeMediaRecorder.lastInstance?.feed(new Blob(['audio']))
     fireEvent.click(button)
-    await vi.waitFor(() => expect(button.getAttribute('data-phase')).toBe('transcribing'))
+    await vi.waitFor(() => { expect(button.getAttribute('data-phase')).toBe('transcribing') })
     finishStop()
-    await vi.waitFor(() => expect(transcribe).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => { expect(transcribe).toHaveBeenCalledTimes(1) })
     fireEvent.click(button)
     release({ ok: true, text: 'done' })
-    await vi.waitFor(() => expect(transcribe).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => { expect(transcribe).toHaveBeenCalledTimes(1) })
   })
 
   it('uses the Chinese label for zh browsers', async () => {
-    vi.stubGlobal('navigator', { ...navigator, language: 'zh-CN', mediaDevices: { getUserMedia: vi.fn(async () => ({ getTracks: () => [] })) } })
+    vi.stubGlobal('navigator', { language: 'zh-CN', mediaDevices: { getUserMedia: vi.fn(async () => ({ getTracks: () => [] })) } })
     const transcribe = vi.fn()
     renderMic({ draft: '' }, transcribe)
     expect(screen.getByRole('button', { name: '语音输入' })).toBeDefined()
@@ -194,7 +193,7 @@ describe('VoiceInput', () => {
     } as unknown as VoiceInputProps)} />)
     const button = screen.getByRole('button', { name: 'Voice input' })
     fireEvent.click(button)
-    await vi.waitFor(() => expect(button.getAttribute('aria-pressed')).toBe('true'))
-    expect(() => unmount()).not.toThrow()
+    await vi.waitFor(() => { expect(button.getAttribute('aria-pressed')).toBe('true') })
+    expect(() => { unmount() }).not.toThrow()
   })
 })

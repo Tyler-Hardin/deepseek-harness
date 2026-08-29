@@ -1278,6 +1278,32 @@ describe('SessionStore', () => {
     })
   })
 
+  it('freezes the execution world from meta into the header', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    const session = ctx.sessions.create(SessionId('remote'), {
+      meta: { cwd: '/srv/remote', world: 'world-abc' },
+    })
+    expect(session.header.world).toBe('world-abc')
+    const plain = ctx.sessions.create(SessionId('local'))
+    expect(plain.header.world).toBeUndefined()
+  })
+
+  it('rejects a non-string world in a restored header', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    const base = {
+      version: SESSION_FORMAT_VERSION,
+      id: 'bad-world',
+      createdAt: 0,
+    }
+    const store = ctx.get('sessions') as unknown as { adopt?(input: unknown): unknown }
+    void store
+    expect(() => (Session as unknown as {
+      create(id: string, seed?: readonly unknown[], header?: unknown): unknown
+    }).create('bad-world', [], { ...base, world: 5 })).toThrow(/header world must be a string/)
+  })
+
   it('attaches subagent origin and delegationDepth from meta to the header', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)

@@ -1,0 +1,29 @@
+/**
+ * Package-owned invariant companion for the SSH transport seam.
+ * @module @deepseek-ai/dsh-ssh/invariant
+ */
+
+import type { Context } from '@deepseek-ai/cordis'
+import type { InvariantInstaller } from '@deepseek-ai/dsh-invariants'
+
+const PACKAGE_NAME = '@deepseek-ai/dsh-ssh'
+
+/** Cordis companion plugin name. */
+export const name = 'ssh-invariant'
+/** Service required before the companion can reserve package ownership. */
+export const inject = ['invariants']
+
+/**
+ * No runtime invariant: this stateless Service Definition owns types and pure
+ * policy functions; the live-world registry is provider-owned state, and the
+ * provider's invariant companion checks it.
+ */
+const install: InvariantInstaller = () => {}
+
+/**
+ * Register the ssh invariant companion.
+ * @param ctx - Cordis context carrying the invariant service.
+ * @returns the installed registration's disposer after setup succeeds.
+ */
+export const apply = (ctx: Context): Promise<() => void> =>
+  Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install))

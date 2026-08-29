@@ -24,19 +24,27 @@ Consumers see only the `Workspace` interface; the implementation stays package-p
 
 ```ts type-equiv
 /**
- * One workspace: a stable id over an existing directory, a display title, and
- * an ordered candidate account of sessions. Membership requires both an id in
- * that account and a session header whose canonical cwd equals the workspace
- * path. Consumers only see this interface; the implementation stays private.
+ * One workspace: a stable id over a place (an existing directory or a remote
+ * ssh destination), a display title, and an ordered candidate account of
+ * sessions. Membership requires both an id in that account and a session
+ * header whose canonical cwd equals the workspace's working path. Consumers
+ * only see this interface; the implementation stays private.
  */
 interface Workspace {
   /** Stable record id (generated uuid). */
   readonly id: WorkspaceId
 
   /**
-   * Canonical directory path: the `fs.realpath` of the path given at create
-   * time (trailing slashes, `..`, and symlinks all resolved). Never rewritten
-   * afterwards, even when the directory disappears (see {@link status}).
+   * The workspace's place: the durable statement of where it lives. Local
+   * workspaces carry their canonical directory path; remote workspaces carry
+   * the ssh destination and remote working path.
+   */
+  readonly place: WorkspacePlace
+
+  /**
+   * The working path: the canonical local directory path for a local place,
+   * or the remote absolute path for an ssh place. Never rewritten afterwards,
+   * even when the directory disappears (see {@link status}).
    */
   readonly path: string
 
@@ -104,12 +112,13 @@ interface Workspace {
   detachSession(sessionId: SessionId): Promise<void>
 
   /**
-   * Live directory check, uncached: whether {@link path} currently exists and
-   * is a directory. A missing directory never mutates the record — the
-   * directory may only be temporarily moved.
-   * @returns `'ok'` when the directory exists, `'missing-dir'` otherwise.
+   * Live place check, uncached: whether the workspace's place is currently
+   * reachable. For a local place this is the existing-directory check; a
+   * remote place's probe is the transport's concern and reports `'missing'`
+   * when unreachable. A missing place never mutates the record.
+   * @returns `'ok'` when the place is reachable, `'missing'` otherwise.
    */
-  status(): Promise<'ok' | 'missing-dir'>
+  status(): Promise<'ok' | 'missing'>
 }
 ```
 
@@ -168,6 +177,22 @@ Durable workspace registry. Startup waits for `sessionPersistence`, builds one c
  * @returns the existing or newly durable workspace.
  */
 async create(path: string, title?: string): Promise<Workspace>
+
+/**
+ * Create or reuse a workspace for a place. A local place behaves exactly
+ * like {@link create}: the path is realpath-canonicalized and must be an
+ * existing directory. An ssh place is stored as given — the working path is
+ * the remote absolute path, and the local filesystem has no authority over
+ * it — so reachability (connect + remote stat) is the calling transport
+ * consumer's job, done before this call. The remote destination is still
+ * normalised (a bare host keeps `/` as its default remote path).
+ * @param place - where the workspace lives (local directory or ssh destination).
+ * @param path - the working path: local absolute for a local place, the
+ *   remote absolute path for an ssh place.
+ * @param title - Display title used only when a new record is created.
+ * @returns the existing or newly durable workspace.
+ */
+async createAtPlace(place: WorkspacePlace, path: string, title?: string): Promise<Workspace>
 
 /**
  * Look up a workspace by id.

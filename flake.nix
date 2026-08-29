@@ -104,7 +104,7 @@
           pnpm = pkgs.pnpm_11;
           # Set to the value reported by `nix build .#dshDeps` with "" on
           # first setup.
-          hash = "sha256-H+HMxfVyOoE2Lom4d4/Tx3Bvmsup3rgHriE+4Aob+p0=";
+          hash = "sha256-05inTFX9qmJrkEJmDevdByPL708ILrER1hkVpgNGVrQ=";
         };
 
       # The dsh app built from this repository: full workspace build (tsc,

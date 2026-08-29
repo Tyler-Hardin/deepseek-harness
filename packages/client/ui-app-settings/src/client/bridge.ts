@@ -43,7 +43,7 @@ declare global {
  */
 export function hasAppBridge(): boolean {
   const bridge = window.DshApp
-  return typeof bridge === 'object' && bridge !== null && typeof bridge.getServerUrl === 'function'
+  return typeof bridge === 'object' && typeof bridge.getServerUrl === 'function'
 }
 
 /**

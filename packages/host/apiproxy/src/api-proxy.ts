@@ -24,7 +24,7 @@ import { SessionQueryError, type SessionSearchCursor } from '@deepseek-ai/dsh-se
 import { SubagentError } from '@deepseek-ai/dsh-subagent'
 import type { SubagentListEntry as CatalogSubagentListEntry } from '@deepseek-ai/dsh-subagent'
 import { isUserInvocable } from '@deepseek-ai/dsh-skill'
-import type { Workspace, WorkspaceRecord } from '@deepseek-ai/dsh-workspace'
+import type { Workspace, WorkspacePlace, WorkspaceRecord } from '@deepseek-ai/dsh-workspace'
 import {
   workspaceDomainState, workspaceRecord, WorkspaceId as brandWorkspaceId,
   WorkspaceMoveInvalidError, WorkspaceOrderInvalidError, WorkspaceUnknownSessionError,
@@ -1028,8 +1028,11 @@ function workspaceNotFound<T>(request: RpcRequest<unknown>, workspaceId: string)
 
 /** Wire projection of one workspace entity (the workspace.* value row). */
 function workspaceView(workspace: Workspace): WorkspaceView {
+  const place = workspace.place.kind === 'local' ? undefined
+    : workspace.place
   return {
     workspaceId: workspace.id,
+    ...place === undefined ? {} : { place },
     path: workspace.path,
     title: workspace.title,
     sessionIds: [...workspace.sessionIds],
@@ -1043,6 +1046,7 @@ function changedWorkspaceView(workspaceId: string, value: unknown): WorkspaceVie
   const record: WorkspaceRecord = workspaceRecord.parse(value)
   return {
     workspaceId: workspaceId as WorkspaceId,
+    ...record.place === undefined ? {} : { place: record.place },
     path: record.path,
     title: record.title,
     sessionIds: [...record.sessionIds],
@@ -1620,6 +1624,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     cwd: string,
     checkPersistedIdentity: boolean,
     presetId?: string,
+    place?: WorkspacePlace,
   ): Promise<Agent> {
     let creation = sessionCreations.get(sessionId)
     if (creation === undefined) {
@@ -1667,11 +1672,16 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           throw new Error(`failed to ensure project directory "${cwd}": ${String(error)}`, { cause: error })
         }
         const composition = await composeAgent(presetId)
+        const worldId = await resolveSessionWorld(place, cwd)
         return (await ctx.agents.create({
           sessionId,
           agentOptions: agentOptions(),
           meta: {
             cwd,
+            // A mounted worlds service freezes the session's execution world
+            // into the header at creation; without one (local-only
+            // compositions) the session is local by default.
+            ...worldId === undefined ? {} : { world: worldId },
             ...composition.agentPreset === undefined ? {} : { agentPreset: composition.agentPreset },
           },
           setup: composition.setup,
@@ -1706,15 +1716,77 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     return agent
   }
 
-  /** Resolve or create one path while holding the Host's workspace-create chain. */
-  function ensureWorkspace(path: string): Promise<{ workspace: Workspace; created: boolean }> {
+  /** Resolve or create one place while holding the Host's workspace-create chain. */
+  function ensureWorkspace(path: string, place?: WorkspacePlace): Promise<{ workspace: Workspace; created: boolean }> {
     const operation = workspaceCreationChain.then(async () => {
-      const existing = await ctx.workspaceRegistry.resolveByPath(path)
+      // Local places reuse through the realpath canon; ssh reuse is decided
+      // inside createAtPlace (host + remote path), since the remote path has
+      // no local realpath to resolve against.
+      const existing = place === undefined || place.kind === 'local'
+        ? await ctx.workspaceRegistry.resolveByPath(path)
+        : undefined
       if (existing !== undefined) return { workspace: existing, created: false }
-      return { workspace: await ctx.workspaceRegistry.create(path), created: true }
+      const workspace = place === undefined || place.kind === 'local'
+        ? await ctx.workspaceRegistry.create(path)
+        : await ctx.workspaceRegistry.createAtPlace(place, path)
+      return { workspace, created: true }
     })
     workspaceCreationChain = operation.then(() => undefined, () => undefined)
     return operation
+  }
+
+  /**
+   * Resolve the execution world a session should run in, when a worlds service
+   * is mounted. Local places and unmounted worlds resolve to `undefined` (the
+   * session stays local); a remote place resolves to the world id frozen into
+   * the session header. A resolution failure degrades to local rather than
+   * failing session creation — remote worlds are an opt-in deployment.
+   * @param place - the workspace's place, when the session has a workspace.
+   * @param cwd - the session's working path (the remote path for ssh places).
+   * @returns the world id, or `undefined` for the local world.
+   */
+  async function resolveSessionWorld(place: WorkspacePlace | undefined, cwd: string): Promise<string | undefined> {
+    if (place === undefined || place.kind === 'local') return undefined
+    // Structural edge to the optional execution-worlds service: apiproxy must
+    // not hard-depend on the worlds group, so only the consumed surface is
+    // typed here (a host without a worlds provider stays local).
+    const worlds = ctx.get('worlds') as { resolve(request: { place: WorkspacePlace; path: string }): Promise<{ id: { toString(): string } }> } | undefined
+    if (worlds === undefined) return undefined
+    try {
+      const world = await worlds.resolve({ place, path: cwd })
+      return String(world.id)
+    } catch {
+      // A failing remote connect must not block session creation; the session
+      // starts local and the failure surfaces on the first routed call.
+      return undefined
+    }
+  }
+
+  /**
+   * Probe an ssh place before creating a workspace over it: connect the
+   * transport (via the optional worlds service) and stat the remote working
+   * path. A missing worlds service, an unreachable host, or a missing/non-
+   * directory remote path all reject — the workspace registry stores only
+   * validated places. Best-effort when no worlds provider is mounted: the
+   * place is then stored unprobed and the failure surfaces on first use.
+   * @param place - the ssh destination to probe.
+   * @param path - the remote working path.
+   */
+  async function probeRemotePlace(place: Extract<WorkspacePlace, { kind: 'ssh' }>, path: string): Promise<void> {
+    const worlds = ctx.get('worlds') as {
+      resolve(request: { place: WorkspacePlace; path: string }): Promise<{
+        fs(): { lstat(remotePath: string): Promise<{ type: string } | undefined> }
+      }>
+    } | undefined
+    if (worlds === undefined) return
+    const world = await worlds.resolve({ place, path })
+    const info = await world.fs().lstat(path)
+    if (info === undefined) {
+      throw new Error(`remote path '${path}' does not exist on '${place.host}'`)
+    }
+    if (info.type !== 'directory') {
+      throw new Error(`remote path '${path}' on '${place.host}' is not a directory`)
+    }
   }
 
   /**
@@ -2151,7 +2223,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         const cwd = workspace?.path ?? request.payload.cwd ?? defaults.cwd
         const requestedPreset = request.payload.agentPreset
         try {
-          await ensureSession(sessionId, cwd, request.payload.sessionId !== undefined, requestedPreset)
+          await ensureSession(sessionId, cwd, request.payload.sessionId !== undefined, requestedPreset, workspace?.place)
         } catch (error: unknown) {
           if (error instanceof AgentPresetConflict) {
             return err(request, {
@@ -2767,14 +2839,18 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
       },
 
       async create(request) {
-        const { path } = request.payload
+        const { path, place } = request.payload
         try {
-          const { workspace, created } = await ensureWorkspace(path)
+          if (place !== undefined && place.kind === 'ssh') {
+            await probeRemotePlace(place, path)
+          }
+          const { workspace, created } = await ensureWorkspace(path, place)
           return ok(request, { workspace: workspaceView(workspace), created })
         } catch (error: unknown) {
-          // The registry rejects a path that does not resolve to an existing
-          // directory (realpath ENOENT / not-a-directory) — the business
-          // error of the typed-path flow, surfaced as a validation failure.
+          // The registry rejects a local path that does not resolve to an
+          // existing directory (realpath ENOENT / not-a-directory); a remote
+          // probe failure names the transport error. Both surface as
+          // workspace-invalid-path.
           return err(request, {
             code: 'workspace-invalid-path',
             message: `cannot create a workspace at "${path}": ${error instanceof Error ? error.message : String(error)}`,

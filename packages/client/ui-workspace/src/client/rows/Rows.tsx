@@ -52,15 +52,17 @@ function createdLabel(createdAt: number, t: RowTranslate): string {
 }
 
 /** Hover-card body: workspace title, display directory path, absolute creation time. */
-function WorkspaceHoverContent({ label, cwd, createdAt, t }: {
+function WorkspaceHoverContent({ label, cwd, place, createdAt, t }: {
   label: string
   cwd: string | undefined
+  place: GroupNode['place']
   createdAt: number
   t: RowTranslate
 }) {
   return (
     <div className={css.hoverContent}>
       <div className={css.hoverTitle}>{label}</div>
+      {place !== undefined && <div className={css.remoteBadge}>{t('remote.ssh', { host: place.host })}</div>}
       <div className={css.hoverPath}>{cwd}</div>
       <div className={css.hoverTime}>{createdLabel(createdAt, t)}</div>
     </div>
@@ -155,6 +157,7 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, drag, home,
       </span>
       <span className={css.projectText}>
         <span className={css.title}>{label}</span>
+        {row.place !== undefined && <span className={css.remoteBadge}>{t('remote.ssh', { host: row.place.host })}</span>}
       </span>
       <span className={css.rowActions}>
         {actions !== undefined && (
@@ -205,6 +208,7 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, drag, home,
       content={<WorkspaceHoverContent
         label={row.label}
         cwd={row.cwd === undefined ? undefined : abbreviateHomePath(row.cwd, home)}
+        place={row.place}
         createdAt={row.createdAt}
         t={t}
       />}

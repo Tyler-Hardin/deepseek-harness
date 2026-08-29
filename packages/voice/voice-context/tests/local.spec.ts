@@ -227,7 +227,7 @@ describe('LocalSttManager.run', () => {
     await started
 
     const result = await manager.run('stop', new AbortController().signal)
-    expect(child.kill).toHaveBeenCalled()
+    expect(childKill(child)).toHaveBeenCalled()
     expect(result).toEqual({ kind: 'success', text: 'Stopped the local server.' })
   })
 
@@ -285,13 +285,10 @@ describe('LocalSttManager.run', () => {
     const started = manager.run('start', new AbortController().signal)
     await vi.advanceTimersByTimeAsync(0)
 
-    expect(spawnMock).toHaveBeenCalledWith(
-      'python',
-      expect.arrayContaining(['-m', 'uvicorn', 'server:app']),
-      expect.objectContaining({
-        env: expect.objectContaining({ STT_MODEL_ROOT: '/tmp/stt-models' }),
-      }),
-    )
+    const spawned = spawnMock.mock.calls[0]
+    expect(spawned?.[0]).toBe('python')
+    expect(spawned?.[1]).toEqual(expect.arrayContaining(['-m', 'uvicorn', 'server:app']))
+    expect(spawned?.[2]).toMatchObject({ env: { STT_MODEL_ROOT: '/tmp/stt-models' } })
     await vi.advanceTimersByTimeAsync(31000)
     await started
   })
@@ -310,4 +307,9 @@ function fakeChild(): ChildProcess {
       for (const callback of handlers.get(event) ?? []) callback(...args)
     },
   } as unknown as ChildProcess
+}
+
+/** The kill() spy of a fake child. */
+function childKill(child: ChildProcess): ReturnType<typeof vi.fn> {
+  return (child as unknown as { kill: ReturnType<typeof vi.fn> }).kill
 }

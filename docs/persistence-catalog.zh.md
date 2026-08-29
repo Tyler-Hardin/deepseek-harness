@@ -669,6 +669,43 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 来源：[`packages/session/session-title-llm/src/index.ts:43`](../packages/session/session-title-llm/src/index.ts)
 
+### `ssh/*`
+
+<a id="sshconnect--log-only"></a>
+
+#### `ssh/connect` — log-only
+
+```ts persistence-catalog
+/**
+ * A session was bound to a remote ssh world: the transport connected and
+ * the session's fs/shell calls now route to `host`. Log-only, no surface
+ * contribution; recorded so a remote tool result is explainable from the
+ * log (which world the turn ran in) without credentials.
+ * @param sessionId - the session that entered the world.
+ * @param worldId - the opaque execution-world identity frozen in the header.
+ * @param host - the ssh host the transport connected to.
+ */
+'ssh/connect': { sessionId: string; worldId: string; host: string }
+```
+
+来源：[`packages/ssh/ssh-worlds/src/index.ts:35`](../packages/ssh/ssh-worlds/src/index.ts)
+
+<a id="sshdisconnect--log-only"></a>
+
+#### `ssh/disconnect` — log-only
+
+```ts persistence-catalog
+/**
+ * A session left a remote ssh world: the transport disconnected and the
+ * session's fs/shell calls no longer route remotely. Log-only.
+ * @param sessionId - the session that left the world.
+ * @param worldId - the execution-world identity that was frozen in the header.
+ */
+'ssh/disconnect': { sessionId: string; worldId: string }
+```
+
+来源：[`packages/ssh/ssh-worlds/src/index.ts:42`](../packages/ssh/ssh-worlds/src/index.ts)
+
 ### `step/*`
 
 <a id="stepend--log-only"></a>

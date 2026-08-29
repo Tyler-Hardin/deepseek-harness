@@ -36,7 +36,7 @@ export interface IWorkspaces {
    * @param input - the Host create payload.
    * @returns the created or idempotently resolved Workspace.
    */
-  create(input: { path: string }): Promise<WorkspaceView>
+  create(input: { path: string; place?: { kind: 'local' } | { kind: 'ssh'; host: string; user?: string | undefined; port?: number | undefined } }): Promise<WorkspaceView>
   /**
    * Open the Host's native directory picker.
    * @returns the selected path, or null when the user cancelled.

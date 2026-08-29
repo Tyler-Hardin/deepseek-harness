@@ -100,7 +100,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/core/agent-default-model/src/index.ts:41`](../packages/core/agent-default-model/src/index.ts)
+Source: [`packages/core/agent-default-model/src/index.ts:59`](../packages/core/agent-default-model/src/index.ts)
 
 <a id="deepseek-aidsh-agent-instructions"></a>
 
@@ -394,6 +394,32 @@ export type Config = LocalConfig
 Depends on: [`LocalConfig`](#deepseek-aidsh-bash-local)
 
 Source: [`packages/shell/bash-sandbox/src/index.ts:35`](../packages/shell/bash-sandbox/src/index.ts)
+
+<a id="deepseek-aidsh-bash-ssh"></a>
+
+## `@deepseek-ai/dsh-bash-ssh`
+
+```ts config-catalog
+/** Configuration for the SSH bash executor. */
+export interface Config {
+  /** Remote base directory for relative paths; defaults to the world target's path, else `/`. */
+  cwd?: string
+  /** Default foreground timeout in milliseconds. */
+  timeoutMs?: number
+  /** Upper bound for per-call timeout overrides. */
+  maxTimeoutMs?: number
+  /** Per-stream in-memory output cap in bytes (foreground capture and background tails). */
+  maxOutputBytes?: number
+  /** Remote directory for background-process files; `~` expands to the remote home. */
+  runtimeRoot?: string
+  /** Poll cadence for background status/output files in milliseconds. */
+  pollMs?: number
+  /** SIGTERM→SIGKILL grace for background kills in milliseconds. */
+  graceMs?: number
+}
+```
+
+Source: [`packages/shell/bash-ssh/src/index.ts:52`](../packages/shell/bash-ssh/src/index.ts)
 
 <a id="deepseek-aidsh-client-connection"></a>
 
@@ -693,6 +719,25 @@ export type Config = LocalConfig
 Depends on: [`LocalConfig`](#deepseek-aidsh-fs-local)
 
 Source: [`packages/fs/fs-sandbox/src/index.ts:49`](../packages/fs/fs-sandbox/src/index.ts)
+
+<a id="deepseek-aidsh-fs-ssh"></a>
+
+## `@deepseek-ai/dsh-fs-ssh`
+
+```ts config-catalog
+/** Configuration for the SSH filesystem backend. */
+export interface Config {
+  /** Remote base directory for relative paths; defaults to the world target's path, else `/`. */
+  cwd?: string
+  /**
+   * Exclusive UTF-8 byte limit on each overwrite-diff side. Defaults to 10 MiB;
+   * a prior file at or above the limit yields `before: null` in write outcomes.
+   */
+  diffBasisMaxBytes?: number
+}
+```
+
+Source: [`packages/fs/fs-ssh/src/index.ts:38`](../packages/fs/fs-ssh/src/index.ts)
 
 <a id="deepseek-aidsh-goal"></a>
 
@@ -2081,6 +2126,48 @@ export interface Config {
 
 Source: [`packages/spill/spill-policy/src/index.ts:60`](../packages/spill/spill-policy/src/index.ts)
 
+<a id="deepseek-aidsh-ssh-client"></a>
+
+## `@deepseek-ai/dsh-ssh-client`
+
+```ts config-catalog
+/** Plugin config (all optional — `static Config` supplies the defaults). */
+export interface Config {
+  /** Known-hosts file path (default `~/.ssh/known_hosts`). */
+  knownHostsPath?: string
+  /** `~/.ssh/config` path (default `~/.ssh/config`). */
+  configPath?: string
+  /** Home directory for defaults (default `os.homedir()`). */
+  homeDir?: string
+  /** Default connect handshake timeout in milliseconds. */
+  timeoutMs?: number
+  /** Default host-key strictness: require a pre-existing known_hosts entry. */
+  strictHostKey?: boolean
+  /** Default combined exec output capture ceiling in bytes. */
+  defaultMaxOutputBytes?: number
+}
+```
+
+Source: [`packages/ssh/ssh-client/src/index.ts:57`](../packages/ssh/ssh-client/src/index.ts)
+
+<a id="deepseek-aidsh-ssh-worlds"></a>
+
+## `@deepseek-ai/dsh-ssh-worlds`
+
+Requires: `ssh`
+
+```ts config-catalog
+/** Plugin config (all optional — `dsh-ssh` supplies the connect defaults). */
+export interface Config {
+  /** Connect timeout in milliseconds, passed to `ctx.ssh.connect`. */
+  connectTimeoutMs?: number
+  /** Strict host-key mode, passed to `ctx.ssh.connect`. */
+  strictHostKey?: boolean
+}
+```
+
+Source: [`packages/ssh/ssh-worlds/src/index.ts:48`](../packages/ssh/ssh-worlds/src/index.ts)
+
 <a id="deepseek-aidsh-storage-domain"></a>
 
 ## `@deepseek-ai/dsh-storage-domain`
@@ -2459,6 +2546,40 @@ export type ShellDialect = 'bash' | 'pwsh'
 ```
 
 Source: [`packages/terminal/terminal-bash/src/config.ts:10`](../packages/terminal/terminal-bash/src/config.ts)
+
+<a id="deepseek-aidsh-terminal-ssh"></a>
+
+## `@deepseek-ai/dsh-terminal-ssh`
+
+Requires: `terminals` · `worlds`
+
+```ts config-catalog
+/** Plugin config: bounded-read and readiness knobs for remote PTY sessions. */
+export interface Config {
+  /** Backend type registered under `ctx.terminals` (default `ssh`). */
+  backendType?: string
+  /** Per-send output bound for the live viewport, in bytes. */
+  maxReadBytes?: number
+  /** Retained scrollback bound, in bytes. */
+  scrollbackMaxBytes?: number
+  /** Retained scrollback line bound. */
+  scrollbackLines?: number
+  /** Terminal rows. */
+  rows?: number
+  /** Terminal columns. */
+  cols?: number
+  /** Remote shell readiness timeout in milliseconds. */
+  startupTimeoutMs?: number
+  /** Per-send settle timeout in milliseconds. */
+  sendTimeoutMs?: number
+  /** Prompt-idle silence threshold in milliseconds. */
+  idleSilenceMs?: number
+  /** Poll cadence for output settlement in milliseconds. */
+  pollIntervalMs?: number
+}
+```
+
+Source: [`packages/terminal/terminal-ssh/src/config.ts:13`](../packages/terminal/terminal-ssh/src/config.ts)
 
 <a id="deepseek-aidsh-time-context"></a>
 
@@ -3038,6 +3159,43 @@ export type ApprovalPolicy = 'ask' | 'never'
 
 Source: [`packages/interaction/user-approval/src/index.ts:177`](../packages/interaction/user-approval/src/index.ts)
 
+<a id="deepseek-aidsh-voice-context"></a>
+
+## `@deepseek-ai/dsh-voice-context`
+
+```ts config-catalog
+/** User-owned Voice-Context service configuration. */
+export interface VoiceContextConfig {
+  /** Literal STT bearer token; prefer {@link apiKeyEnv}. */
+  apiKey?: string
+  /** Credential reference name resolved through the credentials seam each call. */
+  apiKeyEnv?: string
+  /** OpenAI-compatible provider origin, e.g. `https://api.siliconflow.cn`. */
+  baseUrl?: string
+  /** Provider model id, e.g. `FunAudioLLM/SenseVoiceSmall`. */
+  model?: string
+  /** BCP-47 language hint sent upstream. */
+  language?: string
+  /** Hard cap on the accepted audio payload in bytes. */
+  maxBytes?: number
+  /** Upstream request timeout in milliseconds. */
+  timeoutMs?: number
+  /** Port the local STT server (see `/voice-local`) listens on. */
+  localPort?: number
+  /** Python interpreter used to install and launch the local backend. */
+  pythonBin?: string
+  /**
+   * Directory the local server reads faster-whisper weights from. Defaults to
+   * `~/.dsh/voice-context/models` so read-only installs (e.g. the nix store)
+   * keep a writable model root; the server and `download_models.py` both honor
+   * the same `STT_MODEL_ROOT` environment variable.
+   */
+  modelRoot?: string
+}
+```
+
+Source: [`packages/voice/voice-context/src/config.ts:13`](../packages/voice/voice-context/src/config.ts)
+
 <a id="deepseek-aidsh-web"></a>
 
 ## `@deepseek-ai/dsh-web`
@@ -3218,6 +3376,24 @@ export interface Config {
 
 Source: [`packages/workflow/workflow-worker-thread/src/index.ts:32`](../packages/workflow/workflow-worker-thread/src/index.ts)
 
+<a id="deepseek-aidsh-worlds-local"></a>
+
+## `@deepseek-ai/dsh-worlds-local`
+
+```ts config-catalog
+/** Plugin config: backend settings for the local world (all optional — the providers supply their defaults). */
+export interface Config {
+  /** Filesystem backend settings (see `dsh-fs-local`). */
+  fs?: FsLocalConfig
+  /** Shell backend settings (see `dsh-bash-local`). */
+  shell?: BashLocalConfig
+}
+```
+
+Depends on: [`BashLocalConfig`](#deepseek-aidsh-bash-local) · [`FsLocalConfig`](#deepseek-aidsh-fs-local)
+
+Source: [`packages/worlds/worlds-local/src/index.ts:25`](../packages/worlds/worlds-local/src/index.ts)
+
 ## Loadable plugins with no config
 
 These load from a `cordis.yml` entry with no `config:` block; they declare no configuration API.
@@ -3230,6 +3406,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-modules` — requires `webServer` · `loader` ([`packages/client/modules/src/index.ts`](../packages/client/modules/src/index.ts))
 - `@deepseek-ai/dsh-client-runtime` ([`packages/client/runtime/src/index.ts`](../packages/client/runtime/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-agent-preset` ([`packages/client/ui-agent-preset/src/index.ts`](../packages/client/ui-agent-preset/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-app-settings` ([`packages/client/ui-app-settings/src/index.ts`](../packages/client/ui-app-settings/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-attachment` ([`packages/client/ui-attachment/src/index.ts`](../packages/client/ui-attachment/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-brand-official` ([`packages/client/ui-brand-official/src/index.ts`](../packages/client/ui-brand-official/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-commands` ([`packages/client/ui-commands/src/index.ts`](../packages/client/ui-commands/src/index.ts))
@@ -3260,6 +3437,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-tool` ([`packages/client/ui-tool/src/index.ts`](../packages/client/ui-tool/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-trajectory` ([`packages/client/ui-trajectory/src/index.ts`](../packages/client/ui-trajectory/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-user-questions` ([`packages/client/ui-user-questions/src/index.ts`](../packages/client/ui-user-questions/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-voice-context` ([`packages/client/ui-voice-context/src/index.ts`](../packages/client/ui-voice-context/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-workflow-run` ([`packages/client/ui-workflow-run/src/index.ts`](../packages/client/ui-workflow-run/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-workspace` ([`packages/client/ui-workspace/src/index.ts`](../packages/client/ui-workspace/src/index.ts))
 - `@deepseek-ai/dsh-command-compact` — requires `commands` · `compaction` ([`packages/compaction/command-compact/src/index.ts`](../packages/compaction/command-compact/src/index.ts))
@@ -3269,6 +3447,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-cordis-client-runner` ([`packages/extensions/cordis-client-runner/src/index.ts`](../packages/extensions/cordis-client-runner/src/index.ts))
 - `@deepseek-ai/dsh-fs-e2b` — requires `e2b` ([`packages/e2b/fs-e2b/src/index.ts`](../packages/e2b/fs-e2b/src/index.ts))
 - `@deepseek-ai/dsh-fs-observation-policy` ([`packages/fs/fs-observation-policy/src/index.ts`](../packages/fs/fs-observation-policy/src/index.ts))
+- `@deepseek-ai/dsh-fs-router` — requires `worlds` ([`packages/fs/fs-router/src/index.ts`](../packages/fs/fs-router/src/index.ts))
 - `@deepseek-ai/dsh-goal-round-driver` — requires `agents` · `goals` · `sessions` ([`packages/goal/goal-round-driver/src/index.ts`](../packages/goal/goal-round-driver/src/index.ts))
 - `@deepseek-ai/dsh-host-directory-picker-auto` — requires `webServer` · `loader` ([`packages/host/directory-picker-auto/src/index.ts`](../packages/host/directory-picker-auto/src/index.ts))
 - `@deepseek-ai/dsh-host-directory-picker-native` ([`packages/host/directory-picker-native/src/index.ts`](../packages/host/directory-picker-native/src/index.ts))
@@ -3281,6 +3460,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-session-log-export` — requires `commands` ([`packages/session-query/session-log-export/src/index.ts`](../packages/session-query/session-log-export/src/index.ts))
 - `@deepseek-ai/dsh-session-projection` ([`packages/session/session-projection/src/index.ts`](../packages/session/session-projection/src/index.ts))
 - `@deepseek-ai/dsh-session-stats` — requires `sessionProjections` ([`packages/session/session-stats/src/index.ts`](../packages/session/session-stats/src/index.ts))
+- `@deepseek-ai/dsh-shell-router` — requires `worlds` ([`packages/shell/shell-router/src/index.ts`](../packages/shell/shell-router/src/index.ts))
 - `@deepseek-ai/dsh-skill-badge` — requires `skills` ([`packages/skill/skill-badge/src/index.ts`](../packages/skill/skill-badge/src/index.ts))
 - `@deepseek-ai/dsh-storage` ([`packages/storage/storage/src/index.ts`](../packages/storage/storage/src/index.ts))
 - `@deepseek-ai/dsh-subagent` ([`packages/subagent/subagent/src/index.ts`](../packages/subagent/subagent/src/index.ts))
@@ -3313,6 +3493,7 @@ Abstract service classes — a deployment loads a concrete implementation packag
 - `@deepseek-ai/dsh-spill` — abstract `SpillStore` ([`packages/spill/spill/src/index.ts`](../packages/spill/spill/src/index.ts))
 - `@deepseek-ai/dsh-subprocess` — abstract `SubprocessRuntime` ([`packages/subprocess/subprocess/src/index.ts`](../packages/subprocess/subprocess/src/index.ts))
 - `@deepseek-ai/dsh-workflow` — abstract `WorkflowEngine` ([`packages/workflow/workflow/src/index.ts`](../packages/workflow/workflow/src/index.ts))
+- `@deepseek-ai/dsh-worlds` — abstract `Worlds` ([`packages/worlds/worlds/src/index.ts`](../packages/worlds/worlds/src/index.ts))
 
 ## Library packages (no plugin entry)
 
@@ -3345,6 +3526,7 @@ Imported as libraries by other packages; a `cordis.yml` cannot load them.
 - `@deepseek-ai/dsh-sdk-protocol` ([`packages/sdk/protocol/src/index.ts`](../packages/sdk/protocol/src/index.ts))
 - `@deepseek-ai/dsh-session-telemetry` ([`packages/session/session-telemetry/src/index.ts`](../packages/session/session-telemetry/src/index.ts))
 - `@deepseek-ai/dsh-session-title-llm` ([`packages/session/session-title-llm/src/index.ts`](../packages/session/session-title-llm/src/index.ts))
+- `@deepseek-ai/dsh-ssh` ([`packages/ssh/ssh/src/index.ts`](../packages/ssh/ssh/src/index.ts))
 - `@deepseek-ai/dsh-subagent-in-process-driver` ([`packages/subagent/subagent-in-process-driver/src/index.ts`](../packages/subagent/subagent-in-process-driver/src/index.ts))
 - `@deepseek-ai/dsh-timeout` ([`packages/util/timeout/src/index.ts`](../packages/util/timeout/src/index.ts))
 - `@deepseek-ai/dsh-typert-generator` ([`packages/typert/generator/src/index.ts`](../packages/typert/generator/src/index.ts))

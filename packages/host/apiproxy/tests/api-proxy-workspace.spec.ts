@@ -376,6 +376,40 @@ describe('workspace.create', () => {
     expect(expectOk(await api.workspace.list(request({}))).items.map(workspace => workspace.path))
       .toEqual([second, first])
   })
+
+  it('creates an ssh workspace over a probed remote path', async () => {
+    const { api, ctx } = await harness()
+    const lstat = vi.fn(async () => ({ type: 'directory' }))
+    ctx.provide('worlds', {
+      resolve: vi.fn(async () => ({ fs: () => ({ lstat }) })),
+    } as never)
+    const place = { kind: 'ssh' as const, host: 'build.example.com', user: 'ci', port: 2222 }
+    const created = expectOk(await api.workspace.create(request({ path: '/srv/project', place })))
+    expect(created).toMatchObject({
+      created: true,
+      workspace: { path: '/srv/project', place, title: 'project' },
+    })
+    expect(lstat).toHaveBeenCalledWith('/srv/project')
+    // The wire projection carries the place.
+    expect(expectOk(await api.workspace.list(request({}))).items[0]?.place).toEqual(place)
+  })
+
+  it('refuses an ssh workspace whose remote path is missing or not a directory', async () => {
+    const { api, ctx } = await harness()
+    ctx.provide('worlds', {
+      resolve: vi.fn(async () => ({ fs: () => ({ lstat: vi.fn(async () => undefined) }) })),
+    } as never)
+    const place = { kind: 'ssh' as const, host: 'build.example.com' }
+    const missing = await api.workspace.create(request({ path: '/no/such', place }))
+    expect(missing.result).toMatchObject({ ok: false, error: { code: 'workspace-invalid-path' } })
+
+    const second = await harness()
+    second.ctx.provide('worlds', {
+      resolve: vi.fn(async () => ({ fs: () => ({ lstat: vi.fn(async () => ({ type: 'file' })) }) })),
+    } as never)
+    const notDir = await second.api.workspace.create(request({ path: '/etc/hosts', place }))
+    expect(notDir.result).toMatchObject({ ok: false, error: { code: 'workspace-invalid-path' } })
+  })
 })
 
 describe('workspace.insertBefore', () => {

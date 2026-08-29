@@ -8,18 +8,42 @@
 import { z } from 'zod'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
-import type { WorkspaceId } from './types.ts'
+import type { WorkspaceId, WorkspacePlace } from './types.ts'
 
 /** Workspace id schema at the durable boundary; branding has no runtime representation. */
 const workspaceId = z.string().transform(value => value as WorkspaceId)
 
 /**
- * Durable shape of one workspace record. `path` is the `fs.realpath` canon
- * stamped at create; `sessionIds` is the ordered ownership account (array
+ * Durable place schema. Local places predate the field: records without
+ * `place` are local by construction, so the field is optional and defaults to
+ * local at the read boundary. The working path is never stored here — it is
+ * the record's `path` field (the remote absolute path for an ssh place), so
+ * the two facts have one home each.
+ */
+/* jscpd:ignore-start -- the durable place union is re-declared at the wire
+   boundary in dsh-host-apiproxy with stricter port validation; the wire schema
+   will derive from this one in a later phase. */
+const workspacePlace: z.ZodType<WorkspacePlace> = z.union([
+  z.object({ kind: z.literal('local') }),
+  z.object({
+    kind: z.literal('ssh'),
+    host: z.string(),
+    user: z.string().optional(),
+    port: z.number().optional(),
+  }),
+])
+/* jscpd:ignore-end */
+
+/**
+ * Durable shape of one workspace record. `path` is the working path — the
+ * `fs.realpath` canon for a local place, the remote absolute path for an ssh
+ * place — stamped at create; `place` is the durable remote-ness statement
+ * (absent means local); `sessionIds` is the ordered ownership account (array
  * order is display order); timestamps are ISO-8601 strings.
  */
 export const workspaceRecord = z.object({
   path: z.string(),
+  place: workspacePlace.optional(),
   title: z.string(),
   sessionIds: z.array(z.string().transform(SessionId)),
   createdAt: z.string(),

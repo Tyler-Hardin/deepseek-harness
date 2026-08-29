@@ -42,6 +42,8 @@ export interface GroupNode {
   /** Backing Workspace id; absent only for the ungrouped bucket. */
   workspaceId: WorkspaceId | undefined
   cwd: string | undefined
+  /** The workspace's remote-ness statement (absent = local; the ungrouped bucket has none). */
+  place?: { kind: 'ssh'; host: string; user?: string | undefined; port?: number | undefined } | undefined
   /** Workspace creation time (epoch ms); absent only for the ungrouped bucket. */
   createdAt: number | undefined
   label: string
@@ -86,6 +88,7 @@ interface Group {
   key: string
   workspaceId: WorkspaceId | undefined
   cwd: string | undefined
+  place?: { kind: 'ssh'; host: string; user?: string | undefined; port?: number | undefined } | undefined
   createdAt: number | undefined
   label: string
   sessions: SessionSummary[]
@@ -135,6 +138,7 @@ function buildGroup(
   key: string,
   workspaceId: WorkspaceId | undefined,
   cwd: string | undefined,
+  place: { kind: 'ssh'; host: string; user?: string | undefined; port?: number | undefined } | undefined,
   createdAt: number | undefined,
   label: string,
   members: readonly SessionSummary[],
@@ -144,7 +148,7 @@ function buildGroup(
   // Real Workspace order comes from sessionIds. Ungrouped falls back to
   // recency until the browser supplies its persisted local order.
   if (order === 'recency') sessions.sort(byRecency)
-  return { key, workspaceId, cwd, createdAt, label, sessions }
+  return { key, workspaceId, cwd, place, createdAt, label, sessions }
 }
 
 /** Apply a stored Ungrouped order and append newly loose Sessions by recency. */
@@ -190,6 +194,7 @@ function groupByWorkspace(
     }
     groups.push(buildGroup(
       workspace.workspaceId, workspace.workspaceId, workspace.path,
+      workspace.place?.kind === 'ssh' ? workspace.place : undefined,
       Date.parse(workspace.createdAt), workspace.title, members, 'account',
     ))
   }
@@ -200,6 +205,7 @@ function groupByWorkspace(
   if (stray.length > 0) {
     groups.push(buildGroup(
       UNGROUPED_KEY,
+      undefined,
       undefined,
       undefined,
       undefined,
@@ -261,6 +267,7 @@ export function deriveGroups(
       key: g.key,
       workspaceId: g.workspaceId,
       cwd: g.cwd,
+      ...g.place === undefined ? {} : { place: g.place },
       createdAt: g.createdAt,
       label: g.label,
       sessionCount: g.sessions.length,

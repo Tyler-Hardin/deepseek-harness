@@ -8,7 +8,10 @@ import type { ObservableSnapshot } from '../contract/store.ts'
 import { Notifier } from '../sessions/notifier.ts'
 
 /** Host input retained by a local Workspace until materialization succeeds. */
-export type WorkspaceCreateInput = { path: string }
+export type WorkspaceCreateInput = {
+  path: string
+  place?: { kind: 'local' } | { kind: 'ssh'; host: string; user?: string | undefined; port?: number | undefined }
+}
 
 /** Observable state of a client-local Workspace intent. */
 export interface WorkspaceIntentSnapshot {

@@ -8,6 +8,7 @@ English | [中文](README.zh.md)
 |---|---|---|
 | [`pty`](terminal/README.md) (`@deepseek-ai/dsh-terminal`) | Backend registry, branded ids, exact-Agent ownership, session operations, and awaited cleanup | `ctx.terminals` |
 | `terminal-bash` (`@deepseek-ai/dsh-terminal-bash`) | Shell backend over `ctx.subprocess.spawnTerminal`: readiness detection, bounded terminal state, sandbox policy, and session operations | registers on `ctx.terminals` |
+| `terminal-ssh` (`@deepseek-ai/dsh-terminal-ssh`) | Remote shell backend over an ssh world's pty channel: silence-based readiness, control-byte signals, and channel-owned cleanup | registers on `ctx.terminals` |
 | `tool-terminal` (`@deepseek-ai/dsh-tool-terminal`) | Six model-facing tools and generic task integration for background sends | registers on `ctx.tools` |
 
 The design and deferred boundaries live in the [persistent PTY Agent Note](../../.agents/notes/implemented/feature/2026-07-16-persistent-pty-sessions.md).

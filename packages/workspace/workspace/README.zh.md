@@ -8,7 +8,9 @@ DeepSeek Harness 的 Workspace 实体注册表（`ctx.workspaceRegistry`）：�
 
 ## 结构
 
-- `ctx.workspaceRegistry.create(path, title?)`：规范化 `path` 时使用 `fs.realpath`，拒绝不存在或非目录的路径，每个规范路径最多创建一条记录，并将新记录前置到持久 workspace 顺序。对同一路径重复调用会返回现有 workspace，且不改变其标题；不同路径可以共用显示标题。
+- `ctx.workspaceRegistry.create(path, title?)`：规范化 `path` 时使用 `fs.realpath`，拒绝不存在或非目录的路径，每个规范路径最多创建一条记录，并将新记录前置到持久 workspace 顺序。对同一路径重复调用会返回现有 workspace，且不改变其标题；不同路径可以共用显示标题。新建的 workspace 都是本地的（`Workspace.place === { kind: 'local' }`）。
+- `ctx.workspaceRegistry.createAtPlace(place, path, title?)`：按 place 创建或复用 workspace。本地 place 行为与 `create` 完全一致；ssh place 保存目标与远程绝对工作路径，并按主机 + 远程路径键控复用。注册表不探测远程可达性（本地文件系统对远程路径没有权威）——由可感知传输层的消费者（如 API 网关）在调用前连接并远程 stat 该 place。ssh workspace 的 `attachSession` 按精确相等把 header cwd 与远程工作路径匹配。
+- `Workspace.place`：持久的远程性声明：目录 workspace 为 `{ kind: 'local' }`，远程 workspace 为 `{ kind: 'ssh', host, user?, port? }`。在该字段出现之前写入的记录按本地读取。工作路径绝不是 place 的一部分：它只在 `Workspace.path` 中保存一份（ssh place 时为远程绝对路径）。
 - `ctx.workspaceRegistry.get(id)`/`list()`/`resolveByPath(path)`：由缓存提供的查找。`list()` 为同步操作，并遵循持久注册表顺序；`resolveByPath` 为异步操作，因为它采用相同的 `realpath` 规范化方式，并会拒绝缺失路径，而不是创建路径。
 - `ctx.workspaceRegistry.insertBefore(id, before?)`：在持久注册表顺序内移动一个已注册 Workspace，语义类似 DOM 的 insertBefore：插到锚点之前，省略锚点则追加到末尾。来源或锚点不在注册表中时拒绝且不写入；以自身为锚点或移动到当前位置时直接完成且不写入。返回的 id 列表是完整的已提交顺序。
 - `ctx.workspaceRegistry.delete(id)`：只移除 Workspace 注册记录、对应的持久顺序条目及会话归属记录。未知 id 返回 `false`，成功移除记录则返回 `true`。目录、用户文件、活跃会话和持久化会话日志绝不受影响，因此相关会话会进入 Ungrouped。表写入失败时会恢复原顺序和此前发布的实体。
@@ -16,7 +18,7 @@ DeepSeek Harness 的 Workspace 实体注册表（`ctx.workspaceRegistry`）：�
 - `Workspace.insertSessionBefore(id, before?)`：在手动顺序内移动一个已记账的会话，语义类似 DOM 的 insertBefore：插到锚点之前，省略锚点则追加到末尾。会话或锚点不在记账中时拒绝且不写入；移动到当前位置时直接完成且不写入。注册表中的 Workspace 顺序绝不改变。
 - `ctx.workspaceRegistry.archiveSession(id)`/`archivedSessionIds`：覆盖在 workspace 记账之上的注册表级全局归档集合：被归档的会话从各分组视图中消失，但其会话日志和 `sessionIds` 席位保持不变，未来取消归档时可恢复原位置。归档接受任何实时或已持久化的会话（无论已记账还是 Ungrouped），对已归档的 id 直接完成而不写入，并拒绝未知 id。在该字段出现之前写入的状态解析为一个空集合。
 - `Workspace.sessionIds`：按持久候选顺序提供同步 id 加规范 cwd 成员投影。缺失头部、无效 cwd 值和不匹配情况都被过滤；下一次 workspace 变更会剪除它们。如果同一存储介质将一个会话索引到两个 workspace 下、用两条记录声明同一路径，或偏离持久 workspace 顺序，启动会被拒绝。
-- `Workspace.status()`：未缓存的目录检查，返回 `'ok' | 'missing-dir'`；目录缺失绝不会改动记录。
+- `Workspace.status()`：未缓存的 place 检查，返回 `'ok' | 'missing'`。本地 place 是目录检查；远程 place 的可达性属于传输层职责，因此在接入可感知传输层的探测前，该记录级探测返回 `'missing'`。place 缺失绝不会改动记录。
 
 `storageDomain` 和 `sessionPersistence` 是启动必需依赖。任一依赖服务不可用时，插件保持待处理，且不能提交空的已初始化标记。首次成功启动时，注册表调用 `SessionPersistence.list()`，仅使用头部 `id`、`cwd` 和 `createdAt` 对有效历史目录分组并持久化初始顺序；它绝不读取事件正文。已初始化标记最后写入，因此重启后可安全复用引导初始化期间的部分写入。后续仅能通过 cwd 识别的会话仍属于 Ungrouped。
 

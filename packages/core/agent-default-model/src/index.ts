@@ -140,7 +140,7 @@ export class AgentDefaultModelConfig extends Service {
    * @returns the override, or undefined when the workspace inherits the shared default.
    */
   workspaceSelection(workspaceId: WorkspaceId): ModelSelection | undefined {
-    const stored = this.workspaceSource()[workspaceId as string]
+    const stored = this.workspaceSource()[workspaceId]
     return stored === undefined ? undefined : selection(stored)
   }
 
@@ -157,10 +157,10 @@ export class AgentDefaultModelConfig extends Service {
     const settings = this.ctx.get('settings')
     if (settings === undefined) return
     await settings.mutate(WORKSPACE_DEFAULT_MODEL_SETTINGS_NAMESPACE, next === null
-      ? [{ op: 'unset', path: [workspaceId as string] }]
+      ? [{ op: 'unset', path: [workspaceId] }]
       : [{
         op: 'set',
-        path: [workspaceId as string],
+        path: [workspaceId],
         value: {
           provider: next.provider,
           model: next.model,

@@ -61,6 +61,14 @@ interface SessionHeader {
   readonly createdAt: number
   /** Absolute working directory the session was created in (if any). */
   readonly cwd?: string
+  /**
+   * Opaque execution-world identity the session was created on, frozen at
+   * creation (the workspace's remote place when the session runs in a remote
+   * world; absent for local workspaces). Durable because the world decides
+   * which transport the session's fs/shell calls route through: a resume that
+   * restored a different world would replay history against the wrong host.
+   */
+  readonly world?: string
   /** The session this one was forked from (seed lineage), if any. */
   readonly parentSession?: SessionId
   /**
@@ -95,7 +103,7 @@ A backend refuses a log it cannot faithfully interpret with `SessionFormatUnsupp
 
 ## `CreateSessionOptions` — seeding and metadata
 
-Creating a `Session` through the store takes a `seed` (initial replay or fork history) and `meta` (the storage-level fields the store folds into a `SessionHeader`). The store fills in `version`/`id` and defaults `createdAt`; the caller may supply the validated absolute `cwd`, the `parentSession` lineage, the `seedLength` seed boundary, the optional coarse `origin`, the `delegationDepth`, the `agentPreset` the agent was composed from, and an existing `createdAt`. `origin: 'subagent'` lets product navigation hide duplicate child rows; it does not prove that a descriptor is valid or that the child can resume.
+Creating a `Session` through the store takes a `seed` (initial replay or fork history) and `meta` (the storage-level fields the store folds into a `SessionHeader`). The store fills in `version`/`id` and defaults `createdAt`; the caller may supply the validated absolute `cwd`, the opaque `world` the session runs in, the `parentSession` lineage, the `seedLength` seed boundary, the optional coarse `origin`, the `delegationDepth`, the `agentPreset` the agent was composed from, and an existing `createdAt`. `origin: 'subagent'` lets product navigation hide duplicate child rows; it does not prove that a descriptor is valid or that the child can resume.
 
 ```ts type-equiv
 /**
@@ -112,6 +120,8 @@ interface CreateSessionOptions {
    */
   readonly meta?: {
     readonly cwd?: string
+    /** Opaque execution-world identity, frozen into the header at creation. */
+    readonly world?: string
     readonly parentSession?: SessionId
     readonly createdAt?: number
     readonly seedLength?: number

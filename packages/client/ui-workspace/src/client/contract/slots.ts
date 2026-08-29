@@ -137,7 +137,7 @@ export type WorkspaceBrowserInjected = {
    */
   insertSessionBefore: (workspaceId: WorkspaceId, sessionId: SessionId, beforeSessionId?: SessionId) => Promise<void>
   /** Adopt a picked host directory as a real Workspace before targeting a Session. */
-  createWorkspace: (input: { path: string }) => Promise<WorkspaceView>
+  createWorkspace: (input: { path: string; place?: { kind: 'local' } | { kind: 'ssh'; host: string; user?: string | undefined; port?: number | undefined } }) => Promise<WorkspaceView>
   /**
    * Read one Workspace's default-model view: its explicit override (null when
    * the Workspace inherits the shared default), the shared default, and the
@@ -173,7 +173,7 @@ export type WorkspaceBrowserProps =
  */
 export type WorkspacePickerInjected = DirectoryPickingInjected & {
   /** Adopt a picked host directory as a real Workspace before targeting a Session. */
-  createWorkspace: (input: { path: string }) => Promise<WorkspaceView>
+  createWorkspace: (input: { path: string; place?: { kind: 'local' } | { kind: 'ssh'; host: string; user?: string | undefined; port?: number | undefined } }) => Promise<WorkspaceView>
 }
 
 /**

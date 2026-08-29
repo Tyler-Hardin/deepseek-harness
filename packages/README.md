@@ -16,12 +16,13 @@ Groups hold `packages/<group>/<pkg>/`; names stay `@deepseek-ai/dsh-<pkg>`. **Gr
 | [`goal/`](goal/README.md) | Same-session goal persistence and lifecycle | Product — stable API |
 | [`schedule/`](schedule/README.md) | Session-local scheduled follow-ups | Product — stable API |
 | [`feedback/`](feedback/README.md) | Human feedback | Product — stable API |
-| [`identity/`](identity/README.md) | Shared anonymous identity | Product — stable API |
+| [`identity/`](identity/README.md) | Anonymous identity | Product — stable API |
 | [`llm/`](llm/README.md) | LLM capability family: the abstract service + provider adapters | Product — stable API |
 | [`e2b/`](e2b/README.md) | E2B providers | POC |
 | [`subprocess/`](subprocess/README.md) | Subprocess capability family: Service Definition + local process-tree provider | Product — stable API |
 | [`shell/`](shell/README.md) | Bash capability family: executor seam, local impl, model-facing tool | Product — stable API |
-| [`terminal/`](terminal/README.md) | Persistent PTY capability family: owner-scoped sessions, local implementation, and model-facing tools | Product — stable API |
+| [`ssh/`](ssh/README.md) | SSH transport | Product — stable API |
+| [`terminal/`](terminal/README.md) | Persistent PTY capability family: owner-scoped sessions, local/remote implementations, and model-facing tools | Product — stable API |
 | [`code-runtime/`](code-runtime/README.md) | Code-execution capability family: Service Definition + worker-thread provider + Code Mode Consumer | Product — stable API |
 | [`sandbox/`](sandbox/README.md) | Process-confinement seam; bwrap/Landlock/Seatbelt backends | Product — stable API |
 | [`fs/`](fs/README.md) | Filesystem capability family: seam, local impl, model-facing file tools, bash-backed discovery tools | Product — stable API |
@@ -49,6 +50,7 @@ Groups hold `packages/<group>/<pkg>/`; names stay `@deepseek-ai/dsh-<pkg>`. **Gr
 | [`credentials/`](credentials/README.md) | Credential reference/record seam + env-over-`.env` provider + authorization flows | Product — stable API |
 | [`storage/`](storage/README.md) | Non-session storage hub + backends + domain form | Product — stable API |
 | [`workspace/`](workspace/README.md) | Workspace entity | Product — stable API |
+| [`worlds/`](worlds/README.md) | Execution worlds | Product — stable API |
 | [`sdk/`](sdk/README.md) | Out-of-process runtime SDK: JSON-RPC protocol, TypeScript client, and server plugin | Product — stable API |
 | [`acp/`](acp/README.md) | Automation-only Agent Client Protocol server | Product — stable API |
 | [`interaction/`](interaction/README.md) | Human-collaboration plane: approval/interaction seams, permission preset, commands, ask-user tool | Product — stable API |

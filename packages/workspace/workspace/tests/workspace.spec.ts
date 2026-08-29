@@ -369,6 +369,53 @@ describe('WorkspaceRegistry create and lookup', () => {
     expect(await registry.resolveByPath(await makeDir('unowned'))).toBeUndefined()
   })
 
+  it('creates an ssh workspace at a remote place with its remote working path', async () => {
+    const { registry, pool } = await harness()
+    const place = { kind: 'ssh' as const, host: 'build.example.com', user: 'ci' }
+    const workspace = await registry.createAtPlace(place, '/srv/project', 'Remote Project')
+    expect(workspace.place).toEqual(place)
+    expect(workspace.path).toBe('/srv/project')
+    expect(workspace.title).toBe('Remote Project')
+    expect(registry.list()).toEqual([workspace])
+    expect(storedRecord(pool, workspace.id).place).toEqual(place)
+    // Reuse is keyed on host + remote path, without retitling.
+    const reused = await registry.createAtPlace(place, '/srv/project', 'Ignored')
+    expect(reused).toBe(workspace)
+    // A different remote path on the same host is a distinct workspace.
+    const other = await registry.createAtPlace(place, '/var/lib/data')
+    expect(other).not.toBe(workspace)
+    expect(other.path).toBe('/var/lib/data')
+  })
+
+  it('delegates a local place create to the directory-checked path flow', async () => {
+    const dir = await makeDir('local-place')
+    const { registry } = await harness()
+    const workspace = await registry.createAtPlace({ kind: 'local' }, dir)
+    expect(workspace.place).toEqual({ kind: 'local' })
+    expect(workspace.path).toBe(dir)
+    // The same local path via create is the same entity.
+    expect(await registry.create(dir)).toBe(workspace)
+  })
+
+  it('attaches a session to an ssh workspace by exact remote-path match', async () => {
+    const result = await harness()
+    result.setSessions([header('remote-s1', '/srv/project', 1)])
+    const workspace = await result.registry.createAtPlace(
+      { kind: 'ssh', host: 'build.example.com' },
+      '/srv/project',
+    )
+    await workspace.attachSession(SessionId('remote-s1'))
+    expect(workspace.sessionIds).toEqual(['remote-s1'])
+    expect(storedRecord(result.pool, workspace.id).sessionIds).toEqual(['remote-s1'])
+    // A session whose cwd differs from the remote working path is refused.
+    const mismatched = await result.registry.createAtPlace(
+      { kind: 'ssh', host: 'other.example.com' },
+      '/different/path',
+    )
+    await expect(mismatched.attachSession(SessionId('remote-s1')))
+      .rejects.toThrow(/does not match the remote working path/)
+  })
+
   it('serializes concurrent same-path creates into one entity', async () => {
     const dir = await makeDir('concurrent')
     const { registry, pool } = await harness()
@@ -863,12 +910,36 @@ describe('workspace mutation and status', () => {
     const dir = await makeDir('vanishing')
     const { registry } = await harness()
     const workspace = await registry.create(dir)
+    expect(workspace.place).toEqual({ kind: 'local' })
     expect(await workspace.status()).toBe('ok')
     await rm(dir, { recursive: true })
-    expect(await workspace.status()).toBe('missing-dir')
+    expect(await workspace.status()).toBe('missing')
     await writeFile(dir, 'now a file')
-    expect(await workspace.status()).toBe('missing-dir')
+    expect(await workspace.status()).toBe('missing')
     expect(registry.get(workspace.id)).toBe(workspace)
+  })
+
+  it('defaults the place to local for pre-place media and exposes a stored ssh place', async () => {
+    const dir = await makeDir('place-media')
+    const legacyId = WorkspaceId('00000000-0000-4000-8000-00000000000b')
+    const legacy = storedPool(
+      [[legacyId, record(dir, [])]],
+      { initialized: true, workspaceIds: [legacyId] },
+    )
+    const legacyHarness = await harness({ pool: legacy })
+    expect(legacyHarness.registry.get(legacyId)?.place).toEqual({ kind: 'local' })
+    // A remote place is stored verbatim and reported as missing by this
+    // record-level probe (the transport owns the reachability probe).
+    const sshId = WorkspaceId('00000000-0000-4000-8000-00000000000c')
+    const ssh = storedPool(
+      [[sshId, { ...record(dir, []), place: { kind: 'ssh', host: 'remote.example', user: 'dev', port: 2222 } }]],
+      { initialized: true, workspaceIds: [sshId] },
+    )
+    const sshHarness = await harness({ pool: ssh })
+    expect(sshHarness.registry.get(sshId)?.place).toEqual({
+      kind: 'ssh', host: 'remote.example', user: 'dev', port: 2222,
+    })
+    expect(await sshHarness.registry.get(sshId)?.status()).toBe('missing')
   })
 })
 

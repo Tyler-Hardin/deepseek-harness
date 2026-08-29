@@ -38,7 +38,7 @@ describe('voice-context apply wiring', () => {
   it('registers the mic button into the composer tool row', async () => {
     const b = await bench()
     try {
-      const entries = b.runtime.slots.entries('conversation.input.left' as never)
+      const entries = b.runtime.slots.entries('conversation.input.left')
       expect(entries.map(entry => entry.options.id)).toEqual(['voice-context'])
       expect(entries[0]?.options.order).toBe(100)
     } finally {
@@ -94,7 +94,7 @@ describe('voice-context apply wiring', () => {
   })
 
   it('uses the Chinese settings label for zh browsers', async () => {
-    vi.stubGlobal('navigator', { ...navigator, language: 'zh-CN' })
+    vi.stubGlobal('navigator', { language: 'zh-CN' })
     const b = await bench()
     try {
       const entry = b.runtime.slots.entries('settings.section')[0] as { options?: { label?: () => string } }
