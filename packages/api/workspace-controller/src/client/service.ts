@@ -65,6 +65,11 @@ export interface IWorkspaces {
    */
   archiveSession(sessionId: SessionId): Promise<void>
   /**
+   * Restore a Session to the grouping surfaces it was archived from.
+   * @param sessionId - Session to restore.
+   */
+  unarchiveSession(sessionId: SessionId): Promise<void>
+  /**
    * Read one Workspace's explicit default-model override and the shared default.
    * @param workspaceId - owning Workspace.
    * @returns the override (null when inheriting) and the shared default.
@@ -128,6 +133,11 @@ export class WorkspaceController extends Service implements IWorkspaces {
   async archiveSession(sessionId: SessionId): Promise<void> {
     const result = await this.model.archiveSession(sessionId)
     if (!result.ok) throw commandError('session archive', result.error)
+  }
+
+  async unarchiveSession(sessionId: SessionId): Promise<void> {
+    const result = await this.model.unarchiveSession(sessionId)
+    if (!result.ok) throw commandError('session unarchive', result.error)
   }
 
   async defaultModel(workspaceId: WorkspaceId): Promise<WorkspaceDefaultModelValue> {

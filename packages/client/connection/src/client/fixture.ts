@@ -359,6 +359,8 @@ interface WorkspaceInsertSessionBeforeRequest {
 }
 interface WorkspaceArchiveSessionRequest { readonly sessionId: SessionId }
 interface WorkspaceArchiveValue { readonly archivedSessionIds: readonly SessionId[] }
+interface WorkspaceUnarchiveSessionRequest { readonly sessionId: SessionId }
+interface WorkspaceUnarchiveValue { readonly archivedSessionIds: readonly SessionId[] }
 interface WorkspaceDefaultModelRequest { readonly workspaceId: WorkspaceId }
 interface WorkspaceDefaultModelValue {
   readonly override: ModelSelection | null
@@ -390,6 +392,7 @@ interface FixtureWorkspaceApi {
   insertBefore(request: WorkspaceInsertBeforeRequest): Promise<ConnectionRpcResult<WorkspaceOrderValue>>
   insertSessionBefore(request: WorkspaceInsertSessionBeforeRequest): Promise<ConnectionRpcResult<WorkspaceValue>>
   archiveSession(request: WorkspaceArchiveSessionRequest): Promise<ConnectionRpcResult<WorkspaceArchiveValue>>
+  unarchiveSession(request: WorkspaceUnarchiveSessionRequest): Promise<ConnectionRpcResult<WorkspaceUnarchiveValue>>
   defaultModel(request: WorkspaceDefaultModelRequest): Promise<ConnectionRpcResult<WorkspaceDefaultModelValue>>
   setDefaultModel(request: WorkspaceSetDefaultModelRequest): Promise<ConnectionRpcResult<WorkspaceSetDefaultModelValue>>
 }
@@ -3839,6 +3842,21 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
       else workspaceDefaultModels.set(request.workspaceId, { ...selection })
       return sessionOk({ saved: true })
     },
+    unarchiveSession: (request) => {
+      if (summaryOf(request.sessionId) === undefined) {
+        return sessionErr({
+          code: 'session/not-found',
+          message: `no session ${request.sessionId}`,
+          details: { sessionId: request.sessionId },
+        })
+      }
+      const index = archivedSessionIds.indexOf(request.sessionId)
+      if (index !== -1) {
+        archivedSessionIds.splice(index, 1)
+        emitWorkspace({ type: 'archived', archivedSessionIds: [...archivedSessionIds] })
+      }
+      return sessionOk({ archivedSessionIds: [...archivedSessionIds] })
+    },
   }
 
   const rpc: ClientConnectionRpc = {
@@ -4032,6 +4050,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
           request as WorkspaceInsertSessionBeforeRequest,
         )
         case 'workspace/archiveSession': return workspaceApi.archiveSession(request as WorkspaceArchiveSessionRequest)
+        case 'workspace/unarchiveSession': return workspaceApi.unarchiveSession(request as WorkspaceUnarchiveSessionRequest)
         case 'workspace/defaultModel': return workspaceApi.defaultModel(request as WorkspaceDefaultModelRequest)
         case 'workspace/setDefaultModel': return workspaceApi.setDefaultModel(request as WorkspaceSetDefaultModelRequest)
         default:

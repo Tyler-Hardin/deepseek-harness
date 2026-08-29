@@ -49,6 +49,11 @@ export interface UiWorkspace {
    */
   archiveSession(sessionId: SessionId): Promise<void>
   /**
+   * Restore an archived Session from the registry-global set.
+   * @param sessionId - Session to restore.
+   */
+  unarchiveSession(sessionId: SessionId): Promise<void>
+  /**
    * Open the Host-native directory picker.
    * @returns the selected directory, or null when cancelled.
    */
@@ -174,6 +179,10 @@ class UiWorkspaceService extends Service implements UiWorkspace {
 
   async archiveSession(sessionId: SessionId): Promise<void> {
     await this.workspaces.archiveSession(sessionId)
+  }
+
+  async unarchiveSession(sessionId: SessionId): Promise<void> {
+    await this.workspaces.unarchiveSession(sessionId)
   }
 
   async pickDirectory(): Promise<string | null> {

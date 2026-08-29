@@ -139,6 +139,16 @@ export interface WorkspaceInsertSessionBeforeRequest {
 }
 
 /** Session requested for archival from Workspace grouping surfaces. */
+export interface WorkspaceUnarchiveSessionRequest {
+  readonly sessionId: SessionId
+}
+
+/** Restored archive set after a Session leaves the registry-global set. */
+export interface WorkspaceUnarchiveValue {
+  readonly archivedSessionIds: readonly SessionId[]
+}
+
+/** Session removal from the registry-global archive set. */
 export interface WorkspaceArchiveSessionRequest {
   readonly sessionId: SessionId
 }

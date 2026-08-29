@@ -18,6 +18,8 @@ import type {
   WorkspaceRenameRequest,
   WorkspaceSetDefaultModelRequest,
   WorkspaceSetDefaultModelValue,
+  WorkspaceUnarchiveSessionRequest,
+  WorkspaceUnarchiveValue,
   WorkspaceValue,
   WorkspaceId,
   WorkspaceView,
@@ -88,6 +90,10 @@ class FakeWorkspaceRemote implements WorkspaceRemote {
     request: WorkspaceArchiveSessionRequest,
   ) => Promise<RemoteResult<WorkspaceArchiveValue>> = request =>
     Promise.resolve(remoteOk({ archivedSessionIds: [request.sessionId] }))
+  onUnarchiveSession: (
+    request: WorkspaceUnarchiveSessionRequest,
+  ) => Promise<RemoteResult<WorkspaceUnarchiveValue>> = () =>
+    Promise.resolve(remoteOk({ archivedSessionIds: [] }))
   onDefaultModel: (
     request: WorkspaceDefaultModelRequest,
   ) => Promise<RemoteResult<WorkspaceDefaultModelValue>> = () => Promise.resolve(remoteOk({
@@ -122,6 +128,11 @@ class FakeWorkspaceRemote implements WorkspaceRemote {
   insertSessionBefore(request: WorkspaceInsertSessionBeforeRequest): Promise<RemoteResult<WorkspaceValue>> {
     this.record('insertSessionBefore', request)
     return this.onInsertSessionBefore(request)
+  }
+
+  unarchiveSession(request: WorkspaceUnarchiveSessionRequest): Promise<RemoteResult<WorkspaceUnarchiveValue>> {
+    this.record('unarchiveSession', request)
+    return this.onUnarchiveSession(request)
   }
 
   defaultModel(request: WorkspaceDefaultModelRequest): Promise<RemoteResult<WorkspaceDefaultModelValue>> {

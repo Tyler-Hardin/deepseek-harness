@@ -20,6 +20,9 @@ import {
 /** Group key for Sessions outside every Workspace. */
 export const UNGROUPED_KEY = ''
 
+/** Group key for the archived-sessions section appended after Ungrouped. */
+export const ARCHIVED_KEY = '__archived__'
+
 /**
  * Resolve the Workspace browser group that owns one Session.
  * @param workspaces - authoritative Workspace membership.
@@ -246,6 +249,30 @@ function groupByWorkspace(
       ungroupedOrder === undefined ? 'recency' : 'account',
     ))
   }
+  // The archived section is the one surface that shows archived rows: a
+  // restore action lives on each row, and the session returns to its
+  // workspace group (or Ungrouped) once the archive set drops it. Blank
+  // placeholders and subagent children stay out — they have no content to
+  // revive and use their parent's catalog respectively.
+  const archivedMembers = list.ids
+    .map(id => list.byId[id])
+    .filter((s): s is SessionSummary =>
+      s !== undefined && archived.has(s.id) && s.origin !== 'subagent' && !s.blank)
+  if (archivedMembers.length > 0) {
+    archivedMembers.sort(byRecency)
+    groups.push(buildGroup(
+      ARCHIVED_KEY,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      // The rows render the dictionary's archived-section label; this group's
+      // own label stays empty exactly like the ungrouped bucket's.
+      '',
+      archivedMembers,
+      'account',
+    ))
+  }
   return groups
 }
 
@@ -285,8 +312,9 @@ function sessionNode(
  *
  * Every group shows; sessions populate under expanded groups in the selected
  * local order. Blank sessions are excluded except for the selected
- * provisional New Session row; archived sessions are excluded everywhere.
- * Content search lives outside this derivation
+ * provisional New Session row; archived sessions leave their workspace groups
+ * and gather in a trailing archived section (the one surface with a restore
+ * action). Content search lives outside this derivation
  * (see {@link deriveSearchResults}).
  * @param list - sessions list snapshot (`current` feeds containsCurrent).
  * @param workspaces - real workspaces in stable Host order.

@@ -195,6 +195,9 @@ export class FakeApiClient {
   onWorkspaceInsertSessionBefore: (payload: unknown) => Promise<RemoteResult<{ workspace: WorkspaceView }>> =
     () => Promise.resolve(ok({ workspace: fakeWorkspace('fk-ws') }))
 
+  onWorkspaceUnarchiveSession: (payload: unknown) =>
+  Promise<RemoteResult<{ archivedSessionIds: SessionId[] }>> = () =>
+    Promise.resolve(ok({ archivedSessionIds: [] }))
   onWorkspaceDefaultModel: (
     payload: unknown,
   ) => Promise<RemoteResult<WorkspaceDefaultModelValue>> = () => Promise.resolve(ok({
@@ -283,6 +286,11 @@ export class FakeApiClient {
           'workspace.archiveSession',
           payload,
           this.onWorkspaceArchiveSession(payload),
+        ),
+        unarchiveSession: payload => this.record(
+          'workspace.unarchiveSession',
+          payload,
+          this.onWorkspaceUnarchiveSession(payload),
         ),
         defaultModel: payload => this.record(
           'workspace.defaultModel',

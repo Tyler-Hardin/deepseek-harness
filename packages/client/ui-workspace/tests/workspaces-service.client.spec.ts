@@ -140,6 +140,9 @@ class FakeWorkspaces implements IWorkspaces {
   declare readonly delete: IWorkspaces['delete']
   declare readonly insertBefore: IWorkspaces['insertBefore']
   declare readonly insertSessionBefore: IWorkspaces['insertSessionBefore']
+  declare readonly unarchiveSession: IWorkspaces['unarchiveSession']
+  declare readonly defaultModel: IWorkspaces['defaultModel']
+  declare readonly setDefaultModel: IWorkspaces['setDefaultModel']
 
   constructor(initial: WorkspaceSnapshot) {
     this.list = new MutableSource(initial)
@@ -194,7 +197,7 @@ function bench(options: BenchOptions = {}) {
   const ctx = new Context()
   const layout = new LayoutController({
     selectPanel: vi.fn(), retainMainPanels: vi.fn(),
-    setSidebar: vi.fn(), toggleSidebar: vi.fn(), setViewportWidth: vi.fn(),
+    setSidebar: vi.fn(), toggleSidebar: vi.fn(), closeSidebar: vi.fn(), setViewportWidth: vi.fn(),
     setRightbar: vi.fn(), openRightbar: vi.fn(), closeRightbar: vi.fn(),
   }, () => true)
   const selectPanel = vi.spyOn(layout, 'selectPanel')

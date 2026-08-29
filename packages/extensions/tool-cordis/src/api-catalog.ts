@@ -2970,6 +2970,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the complete resulting archive set.',
       },
       {
+        signature: '@Remote(\'unarchiveSession\') unarchiveSession(request: WorkspaceUnarchiveSessionRequest): Promise<WorkspaceUnarchiveValue>',
+        description: 'Restore one archived Session to its grouping surfaces.',
+        parameters: [{ name: 'request', description: 'Session identity to restore.' }],
+        returns: 'the complete resulting archive set.',
+      },
+      {
         signature: '@Remote({ mode: \'stream\' }) follow(signal: AbortSignal): AsyncIterable<WorkspaceFollowFrame>',
         description: 'Stream a complete Workspace baseline followed by ordered increments.',
         parameters: [{ name: 'signal', description: 'generation cancellation.' }],
@@ -3071,6 +3077,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         signature: 'archiveSession(sessionId: SessionId): Promise<void>',
         description: 'Archive one session durably. The session must exist (live or in session persistence); its workspace accounting — or lack of one — is irrelevant. An already archived id resolves without writing.',
         parameters: [{ name: 'sessionId', description: 'The session to archive.' }],
+        returns: 'resolution after durability.',
+      },
+      {
+        signature: 'unarchiveSession(sessionId: SessionId): Promise<void>',
+        description: 'Remove one session from the registry-global archive set durably, so its grouping surface restores the retained accounting position. The session must still exist (live or in session persistence) — same existence rule as archiving, so a typo\'d id fails loud whether or not the set holds it. A session absent from the set resolves without writing.',
+        parameters: [{ name: 'sessionId', description: 'The session to unarchive.' }],
         returns: 'resolution after durability.',
       },
       {
@@ -6694,6 +6706,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'WorkspaceSetDefaultModelValue',
     declaration: 'export interface WorkspaceSetDefaultModelValue {\n    readonly saved: true;\n}',
+  },
+  {
+    name: 'WorkspaceUnarchiveSessionRequest',
+    declaration: 'export interface WorkspaceUnarchiveSessionRequest {\n    readonly sessionId: SessionId;\n}',
+  },
+  {
+    name: 'WorkspaceUnarchiveValue',
+    declaration: 'export interface WorkspaceUnarchiveValue {\n    readonly archivedSessionIds: readonly SessionId[];\n}',
   },
   {
     name: 'WorkspaceValue',

@@ -6,7 +6,7 @@ import type { ScheduleId, ScheduleRecord } from '@deepseek-ai/dsh-schedule/clien
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
   deriveFlat, deriveGroups, deriveSearchResults, owningGroupKey, workspaceLabel,
-  UNGROUPED_KEY,
+  ARCHIVED_KEY, UNGROUPED_KEY,
 } from '../src/client/tree.ts'
 import { createWorkspaceViewStore } from '../src/client/stores.ts'
 
@@ -262,20 +262,39 @@ describe('deriveGroups', () => {
     expect(groups[0]!.sessions.map(node => node.id)).toEqual([sid('present')])
   })
 
-  it('hides archived sessions from workspace groups and Ungrouped', () => {
+  it('moves archived sessions into a trailing Archived group and keeps their accounting', () => {
     const kept = summary('kept', 1, '/projects/first')
     const gone = summary('gone', 2, '/projects/first')
     const looseGone = summary('loose-gone', 3, '/other')
     const sessions = list(kept, gone, looseGone)
     const groups = deriveGroups(
       sessions, [workspace('first', ['kept', 'gone'])], archived('gone', 'loose-gone'),
-      noAttention, view(['first', UNGROUPED_KEY]),
+      noAttention, view(['first', UNGROUPED_KEY, ARCHIVED_KEY]),
     )
-    // The archived member drops from its group AND the archived stray never
-    // surfaces an Ungrouped bucket; counts follow the visible rows.
-    expect(groups.map(group => group.key)).toEqual(['first'])
+    // The archived member leaves its group AND the archived stray never
+    // surfaces an Ungrouped bucket; both gather newest-first in the trailing
+    // archived section.
+    expect(groups.map(group => group.key)).toEqual(['first', ARCHIVED_KEY])
     expect(groups[0]!.sessions.map(node => node.id)).toEqual([kept.id])
     expect(groups[0]!.sessionCount).toBe(1)
+    expect(groups[1]!.sessions.map(node => node.id)).toEqual([sid('loose-gone'), sid('gone')])
+    expect(groups[1]!.sessionCount).toBe(2)
+  })
+
+  it('excludes blank and subagent-origin rows from the archived section and omits it when empty', () => {
+    const blank = { ...summary('blank', 4), blank: true }
+    const subagent = { ...summary('sub', 5), parentId: sid('p'), origin: 'subagent' as const }
+    const real = summary('real', 3)
+    const sessions = list(blank, subagent, real)
+    const groups = deriveGroups(
+      sessions, [], archived('blank', 'sub', 'real'),
+      noAttention, view([UNGROUPED_KEY, ARCHIVED_KEY]),
+    )
+    expect(groups.map(group => group.key)).toEqual([ARCHIVED_KEY])
+    expect(groups[0]!.sessions.map(node => node.id)).toEqual([real.id])
+    // No archived members: no archived section is rendered at all.
+    expect(deriveGroups(list(real), [], noArchive, noAttention, view([ARCHIVED_KEY])).map(group => group.key))
+      .toEqual([UNGROUPED_KEY])
   })
 
   it('marks selected Workspace and Ungrouped sessions without relying on an Intent', () => {
