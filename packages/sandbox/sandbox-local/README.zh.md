@@ -126,6 +126,7 @@ Windows 档为每个工作区保留一个确定性写入 SID 和常驻 ACE，同
 这些限制说明提供方何时不合适，或何时需要特别运维。它们是当前包约束，不是通用平台对比或任务积压。
 
 - **Windows ACL 只能实现部分强制执行**——受限令牌必须保留 Everyone 以完成进程初始化，因此授予 Everyone 写访问的外部对象仍可写；NTFS 硬链接也会使工作区路径与外部路径指向同一个文件对象。提供方报告 `enforcement: 'partial'`，而不会把该边界夸大为完整强制执行。
+- **windows-acl 档只授予工作区与私有临时目录**：配置的额外可写根目录会在 POSIX runner（bwrap/Landlock 绑定挂载、Seatbelt subpath）上获得授权，但不会在 ACL runner 上获得，向额外根目录的写入在那里会被拒绝。fs 围栏派生自同一组根目录，因此在 Windows 上 write 工具可能允许 shell runner 会拒绝的额外根目录；逐根目录 ACE 授权暂缓。
 - **Landlock 可能只实现部分强制执行**——较旧且受支持的内核 ABI 只能限制自身公开的访问类别，因此报告 `enforcement: 'partial'`，不会夸大为完整强制执行。
 - **Seatbelt 依赖已弃用的 `sandbox-exec`**——macOS 仍会提供它，但若 Apple 移除该私有策略引擎，该提供方无法替换或探测。
 - **runner 选择在提供方生命周期内缓存**——安装、移除或修复 runner 后，必须重载插件才能改变选择。

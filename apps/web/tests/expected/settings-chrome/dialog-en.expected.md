@@ -24,6 +24,10 @@
   - button "Workspace Write":
     - text: Workspace Write
     - img
+  - text: Sandbox extra writable roots Host-local directories workspace-write may write beyond the workspace and temp areas No extra writable roots configured
+  - textbox "Sandbox extra writable roots":
+    - /placeholder: Enter an absolute path such as ~/.cache
+  - button "Add" [disabled]
   - text: Language
   - button "English":
     - text: English

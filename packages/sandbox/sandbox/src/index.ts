@@ -42,6 +42,13 @@ export interface SandboxExecutionPolicy {
   /** Absolute root directory `workspace-write` may write under. */
   workspaceRoot: string
   /**
+   * HOST-LOCAL absolute directories `workspace-write` may write under in
+   * addition to the workspace root and platform temp areas. They name paths
+   * on the local host only: remote execution worlds never receive them, so a
+   * local grant cannot authorize a same-named path on another host.
+   */
+  extraWritableRoots?: readonly string[]
+  /**
    * Opaque identity of the calling session (the branded `dsh-session`
    * SessionId). Backends key per-session state off it (e.g. windows-acl gives
    * each live session/workspace pair a random private temp directory and SID,

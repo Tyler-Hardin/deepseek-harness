@@ -24,6 +24,10 @@
   - button "工作区内修改":
     - text: 工作区内修改
     - img
+  - text: 沙箱额外可写根目录 允许 workspace-write 在工作区与临时目录之外写入这些宿主机本地目录 尚未配置额外可写根目录
+  - textbox "沙箱额外可写根目录":
+    - /placeholder: 输入绝对路径，如 ~/.cache
+  - button "添加" [disabled]
   - text: 语言
   - button "中文":
     - text: 中文
