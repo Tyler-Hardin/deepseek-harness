@@ -35,6 +35,8 @@ import type {
   WorkspaceSetDefaultModelRequest,
   WorkspaceSetDefaultModelValue,
   WorkspaceId,
+  WorkspaceUnarchiveSessionRequest,
+  WorkspaceUnarchiveValue,
   WorkspaceValue,
   WorkspaceView,
 } from '../src/types.ts'
@@ -144,6 +146,10 @@ class ScriptedWorkspaceRemote implements WorkspaceRemote {
     throw new Error('unused')
   }
 
+  unarchiveSession(_request: WorkspaceUnarchiveSessionRequest): Promise<RemoteResult<WorkspaceUnarchiveValue>> {
+    throw new Error('unused')
+  }
+
   defaultModel(_request: WorkspaceDefaultModelRequest): Promise<RemoteResult<WorkspaceDefaultModelValue>> {
     throw new Error('unused')
   }
@@ -192,6 +198,10 @@ class CommandWorkspaceRemote implements WorkspaceRemote {
 
   readonly archiveSession = vi.fn<WorkspaceRemote['archiveSession']>(request => Promise.resolve(remoteOk({
     archivedSessionIds: [request.sessionId],
+  })))
+
+  readonly unarchiveSession = vi.fn<WorkspaceRemote['unarchiveSession']>(() => Promise.resolve(remoteOk({
+    archivedSessionIds: [],
   })))
 
   readonly defaultModel = vi.fn<WorkspaceRemote['defaultModel']>(() => Promise.resolve(remoteOk({

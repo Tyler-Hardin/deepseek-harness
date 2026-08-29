@@ -647,6 +647,8 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
   WorkspaceDefaultModelRequest: 'workspace.md',
   WorkspaceSetDefaultModelRequest: 'workspace.md',
   WorkspaceSetDefaultModelValue: 'workspace.md',
+  WorkspaceUnarchiveSessionRequest: 'workspace.md',
+  WorkspaceUnarchiveValue: 'workspace.md',
   World: 'worlds.md',
   WorldId: 'worlds.md',
   WorldKind: 'worlds.md',

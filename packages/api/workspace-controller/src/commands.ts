@@ -28,6 +28,8 @@ import type {
   WorkspaceRenameRequest,
   WorkspaceSetDefaultModelRequest,
   WorkspaceSetDefaultModelValue,
+  WorkspaceUnarchiveSessionRequest,
+  WorkspaceUnarchiveValue,
   WorkspaceValue,
 } from './types.ts'
 import type { ModelSelection as WireModelSelection } from './types.ts'
@@ -181,6 +183,21 @@ export class WorkspaceCommands {
   async archiveSession(request: WorkspaceArchiveSessionRequest): Promise<WorkspaceArchiveValue> {
     try {
       await this.ctx.workspaceRegistry.archiveSession(request.sessionId)
+    } catch (error) {
+      if (!(error instanceof WorkspaceUnknownSessionError)) throw error
+      throw new RemoteError('session/not-found', error.message, { sessionId: request.sessionId }, { cause: error })
+    }
+    return { archivedSessionIds: [...this.ctx.workspaceRegistry.archivedSessionIds] }
+  }
+
+  /**
+   * Restore one Session to the grouping surfaces it was archived from.
+   * @param request - Session identity to restore.
+   * @returns the complete resulting archive set.
+   */
+  async unarchiveSession(request: WorkspaceUnarchiveSessionRequest): Promise<WorkspaceUnarchiveValue> {
+    try {
+      await this.ctx.workspaceRegistry.unarchiveSession(request.sessionId)
     } catch (error) {
       if (!(error instanceof WorkspaceUnknownSessionError)) throw error
       throw new RemoteError('session/not-found', error.message, { sessionId: request.sessionId }, { cause: error })
