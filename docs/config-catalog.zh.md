@@ -1722,12 +1722,20 @@ export interface Config {
    * `process.cwd()`). Normal agent calls use their session cwd instead.
    */
   workspaceRoot?: string
+  /**
+   * HOST-LOCAL absolute directories `workspace-write` may write under in
+   * addition to the session workspace and platform temp areas (for example
+   * `~/.cache`; a leading `~` expands to the user's home). Remote execution
+   * worlds never receive them. The user-layer `sandbox` settings namespace
+   * overlays this deployment default.
+   */
+  extraWritableRoots?: string[]
 }
 ```
 
 依赖：[`SandboxMode`](subsystems/sandbox.zh.md)
 
-来源：[`packages/sandbox/sandbox-policy/src/index.ts:67`](../packages/sandbox/sandbox-policy/src/index.ts)
+来源：[`packages/sandbox/sandbox-policy/src/index.ts:82`](../packages/sandbox/sandbox-policy/src/index.ts)
 
 <a id="deepseek-aidsh-sdk-jsonrpc-server"></a>
 

@@ -27,9 +27,13 @@ let ctx: Context
 let fs: SandboxedFileSystem
 let fiber: Awaited<ReturnType<Context['plugin']>>
 
-async function boot(mode: SandboxMode): Promise<void> {
+async function boot(mode: SandboxMode, extraWritableRoots?: string[]): Promise<void> {
   ctx = new Context()
-  await ctx.plugin(SandboxPolicyService, { mode, workspaceRoot: workspace })
+  await ctx.plugin(SandboxPolicyService, {
+    mode,
+    workspaceRoot: workspace,
+    ...extraWritableRoots === undefined ? {} : { extraWritableRoots },
+  })
   fiber = await ctx.plugin(SandboxedFileSystem, { cwd: workspace })
   fs = ctx.fs as SandboxedFileSystem
 }
@@ -163,6 +167,34 @@ describe('workspace-write containment', () => {
     // isUnder's path-equals-root branch: the fence allows the root, and the
     // write then fails because the root is a directory, not a regular file.
     await expect(fs.writeText(await target(workspace), 'x')).rejects.toMatchObject({ code: 'FS_NOT_REGULAR_FILE' })
+  })
+})
+
+describe('workspace-write with configured extra writable roots', () => {
+  beforeEach(async () => {
+    await boot('workspace-write', [outside])
+  })
+
+  it('a write under a configured extra root lands', async () => {
+    const path = join(outside, 'cached.txt')
+    await fs.writeText(await target(path), 'cached')
+    expect(await readFile(path, 'utf8')).toBe('cached')
+  })
+
+  it('an edit under a configured extra root lands', async () => {
+    const path = join(outside, 'edit.txt')
+    await writeFile(path, 'original')
+    const outcome = await fs.editText(await target(path), { oldString: 'original', newString: 'changed', replaceAll: false })
+    expect(outcome.after).toBe('changed')
+    expect(await readFile(path, 'utf8')).toBe('changed')
+  })
+
+  it('a write to a sibling outside every grant is still denied', async () => {
+    const other = join(base, 'other')
+    await mkdir(other)
+    const path = join(other, 'escape.txt')
+    await expect(fs.writeText(await target(path), 'x')).rejects.toMatchObject({ code: 'FS_SANDBOX_DENIED' })
+    expect(existsSync(path)).toBe(false)
   })
 })
 

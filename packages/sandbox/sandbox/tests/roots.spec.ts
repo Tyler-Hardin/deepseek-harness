@@ -23,8 +23,8 @@ describe('canonicalPath', () => {
 })
 
 describe('writableRoots', () => {
-  it('read-only grants nothing', () => {
-    expect(writableRoots({ mode: 'read-only', workspaceRoot: process.cwd() })).toEqual([])
+  it('read-only grants nothing, even with extra roots configured', () => {
+    expect(writableRoots({ mode: 'read-only', workspaceRoot: process.cwd(), extraWritableRoots: ['/granted'] })).toEqual([])
   })
 
   it('workspace-write grants the workspace root plus the platform temp areas, canonical and deduplicated', () => {
@@ -34,6 +34,20 @@ describe('writableRoots', () => {
     expect(roots).toContain(canonicalPath('/tmp'))
     expect(roots).toContain(realpathSync.native(tmpdir()))
     // Deduplicated after canonicalization (/tmp and os.tmpdir() may coincide).
+    expect(new Set(roots).size).toBe(roots.length)
+  })
+
+  it('workspace-write adds the configured extra roots, canonicalized and deduplicated against the rest', () => {
+    const extra = mkdtempSync(join(tmpdir(), 'dsh-extra-'))
+    const ws = mkdtempSync(join(tmpdir(), 'dsh-ws-'))
+    const roots = writableRoots({
+      mode: 'workspace-write',
+      workspaceRoot: ws,
+      // The second spelling resolves to the same canonical directory as the first.
+      extraWritableRoots: [extra, join(extra, '.')],
+    })
+    expect(roots).toContain(realpathSync.native(extra))
+    expect(roots).toContain(realpathSync.native(ws))
     expect(new Set(roots).size).toBe(roots.length)
   })
 })

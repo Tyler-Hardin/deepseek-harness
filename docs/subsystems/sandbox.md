@@ -40,7 +40,7 @@ type SandboxEnforcement = 'full' | 'partial'
 
 ## Per-call policy
 
-The complete execution policy is resolved and carried per capability call. It includes `danger-full-access` so a consumer can resolve policy once before deciding whether to bypass confinement. Normal tool calls derive `workspaceRoot` from the calling session's immutable cwd; deployment configuration is the agentless fallback. The root is canonicalized with filesystem semantics before lexical normalization, so a cwd containing `symlink/..` identifies the directory where a spawned process actually runs.
+The complete execution policy is resolved and carried per capability call. It includes `danger-full-access` so a consumer can resolve policy once before deciding whether to bypass confinement. Normal tool calls derive `workspaceRoot` from the calling session's immutable cwd; deployment configuration is the agentless fallback. The root is canonicalized with filesystem semantics before lexical normalization, so a cwd containing `symlink/..` identifies the directory where a spawned process actually runs. The optional `extraWritableRoots` list widens `workspace-write`'s grant to host-local absolute directories beyond the workspace and temp areas (for example `~/.cache`); it comes from the deployment `Config` overlaid by the user-layer `sandbox` settings namespace and never reaches remote execution worlds.
 
 ```ts type-equiv
 /**
@@ -53,6 +53,13 @@ interface SandboxExecutionPolicy {
   mode: SandboxMode
   /** Absolute root directory `workspace-write` may write under. */
   workspaceRoot: string
+  /**
+   * HOST-LOCAL absolute directories `workspace-write` may write under in
+   * addition to the workspace root and platform temp areas. They name paths
+   * on the local host only: remote execution worlds never receive them, so a
+   * local grant cannot authorize a same-named path on another host.
+   */
+  extraWritableRoots?: readonly string[]
   /**
    * Opaque identity of the calling session (the branded `dsh-session`
    * SessionId). Backends key per-session state off it (e.g. windows-acl gives
@@ -198,7 +205,9 @@ The sandbox-policy service (`ctx.sandboxPolicy`). Owns the deployment default mo
  * mode outranks the session's last `sandbox/mode` event, which outranks the
  * deployment default. A session cwd is its workspace-write boundary; the
  * configured root is the fallback for agentless calls and sessions without a
- * cwd.
+ * cwd. The effective extra writable roots (user settings over the
+ * deployment base) are canonicalized, deduplicated, and stamped onto the
+ * policy whenever non-empty.
  * @param request - optional session and approved mode override.
  * @returns the fully resolved per-call mode and absolute workspace root.
  */

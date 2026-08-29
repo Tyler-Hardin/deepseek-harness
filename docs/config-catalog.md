@@ -419,7 +419,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/shell/bash-ssh/src/index.ts:52`](../packages/shell/bash-ssh/src/index.ts)
+Source: [`packages/shell/bash-ssh/src/index.ts:56`](../packages/shell/bash-ssh/src/index.ts)
 
 <a id="deepseek-aidsh-client-connection"></a>
 
@@ -737,7 +737,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/fs/fs-ssh/src/index.ts:38`](../packages/fs/fs-ssh/src/index.ts)
+Source: [`packages/fs/fs-ssh/src/index.ts:42`](../packages/fs/fs-ssh/src/index.ts)
 
 <a id="deepseek-aidsh-goal"></a>
 
@@ -1720,12 +1720,20 @@ export interface Config {
    * `process.cwd()`). Normal agent calls use their session cwd instead.
    */
   workspaceRoot?: string
+  /**
+   * HOST-LOCAL absolute directories `workspace-write` may write under in
+   * addition to the session workspace and platform temp areas (for example
+   * `~/.cache`; a leading `~` expands to the user's home). Remote execution
+   * worlds never receive them. The user-layer `sandbox` settings namespace
+   * overlays this deployment default.
+   */
+  extraWritableRoots?: string[]
 }
 ```
 
 Depends on: [`SandboxMode`](subsystems/sandbox.md)
 
-Source: [`packages/sandbox/sandbox-policy/src/index.ts:67`](../packages/sandbox/sandbox-policy/src/index.ts)
+Source: [`packages/sandbox/sandbox-policy/src/index.ts:82`](../packages/sandbox/sandbox-policy/src/index.ts)
 
 <a id="deepseek-aidsh-sdk-jsonrpc-server"></a>
 

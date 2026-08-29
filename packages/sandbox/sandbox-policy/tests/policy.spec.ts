@@ -5,16 +5,17 @@
  */
 
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join, resolve, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
-import SandboxPolicyService, { SANDBOX_MODES, effectiveSandboxMode, setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
+import { FileSettingsProvider } from '@deepseek-ai/dsh-settings-file'
+import SandboxPolicyService, { SANDBOX_MODES, SANDBOX_SETTINGS_NAMESPACE, effectiveSandboxMode, setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
 import SystemPrompt, { renderContextSnapshot, renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 
-async function mounted(config: { mode?: 'read-only' | 'workspace-write' | 'danger-full-access'; workspaceRoot?: string } = {}) {
+async function mounted(config: { mode?: 'read-only' | 'workspace-write' | 'danger-full-access'; workspaceRoot?: string; extraWritableRoots?: string[] } = {}) {
   const ctx = new Context()
   await ctx.plugin(SandboxPolicyService, config)
   return ctx
@@ -118,6 +119,45 @@ describe('SandboxPolicyService', () => {
     })
   })
 
+  it('stamps configured extra writable roots onto every resolved policy', async () => {
+    const extra = mkdtempSync(join(tmpdir(), 'dsh-policy-extra-'))
+    const ctx = await mounted({ mode: 'workspace-write', workspaceRoot: '/fallback', extraWritableRoots: [extra, join(extra, '.')] })
+    const canonical = resolve(realpathSync.native(extra))
+    expect(ctx.sandboxPolicy.resolve()).toEqual({
+      mode: 'workspace-write',
+      workspaceRoot: resolve('/fallback'),
+      // Deduplicated after canonicalization.
+      extraWritableRoots: [canonical],
+    })
+    expect(ctx.sandboxPolicy.resolve({ session: session('sess-extra', '/projects/extra') })).toEqual({
+      mode: 'workspace-write',
+      workspaceRoot: resolve('/projects/extra'),
+      extraWritableRoots: [canonical],
+      sessionId: 'sess-extra',
+    })
+  })
+
+  it('expands a leading ~ in extra writable roots to the user home', async () => {
+    const ctx = await mounted({ extraWritableRoots: ['~', '~/dsh-extra-root-test'] })
+    expect(ctx.sandboxPolicy.resolve().extraWritableRoots).toEqual([
+      resolve(realpathSync.native(homedir())),
+      resolve(join(homedir(), 'dsh-extra-root-test')),
+    ])
+  })
+
+  it('omits extraWritableRoots entirely when none are configured', async () => {
+    const ctx = await mounted({ workspaceRoot: '/fallback' })
+    expect(ctx.sandboxPolicy.resolve()).toEqual({
+      mode: 'read-only',
+      workspaceRoot: resolve('/fallback'),
+    })
+  })
+
+  it('rejects a relative extra writable root at load (schema)', async () => {
+    const ctx = new Context()
+    await expect(ctx.plugin(SandboxPolicyService, { extraWritableRoots: ['relative/cache'] as never })).rejects.toThrow()
+  })
+
   it('uses the configured root when a session has no cwd', async () => {
     const ctx = await mounted({ workspaceRoot: '/fallback' })
     expect(ctx.sandboxPolicy.resolve({ session: session('sess-no-cwd') }).workspaceRoot).toBe(resolve('/fallback'))
@@ -142,7 +182,7 @@ describe('SandboxPolicyService', () => {
 })
 
 describe('sandbox:policy request context', () => {
-  async function promptMounted(config: { mode?: 'read-only' | 'workspace-write' | 'danger-full-access'; workspaceRoot?: string } = {}): Promise<Context> {
+  async function promptMounted(config: { mode?: 'read-only' | 'workspace-write' | 'danger-full-access'; workspaceRoot?: string; extraWritableRoots?: string[] } = {}): Promise<Context> {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(SandboxPolicyService, config)
@@ -159,6 +199,13 @@ describe('sandbox:policy request context', () => {
     } as const
 
     expect(await policyContext(ctx, session(`sess-${mode}`, '/projects/../projects/current'))).toBe(expected[mode])
+  })
+
+  it('appends the configured extra writable roots to the workspace-write context', async () => {
+    const ctx = await promptMounted({ mode: 'workspace-write', workspaceRoot: '/fallback', extraWritableRoots: ['/extra/cache', '/extra/more'] })
+    expect(await policyContext(ctx, session('sess-extra-context', '/projects/current'))).toBe(
+      `Current DSH file policy: workspace-write. Any available operation enforced by the DSH file sandbox may modify files under the session workspace: ${JSON.stringify(resolve('/projects/current'))}. Some platform temporary areas may also be writable. Additional configured writable roots: ${JSON.stringify([resolve('/extra/cache'), resolve('/extra/more')])}.`,
+    )
   })
 
   it('keeps the complete rendered prompt byte-stable across TMPDIR changes', async () => {
@@ -226,5 +273,59 @@ describe('the sandbox/mode session kit', () => {
     const modeEvents = session.events.filter(e => e.type === 'sandbox/mode')
     expect(modeEvents).toHaveLength(1)
     expect(modeEvents[0]?.data).toEqual({ mode: 'danger-full-access' })
+  })
+})
+
+describe('the sandbox settings namespace', () => {
+  interface SettingsHarness {
+    ctx: Context
+    settingsFiber: Awaited<ReturnType<Context['plugin']>>
+    dir: string
+  }
+
+  async function settingsMounted(config: { mode?: 'read-only' | 'workspace-write' | 'danger-full-access'; workspaceRoot?: string; extraWritableRoots?: string[] } = {}): Promise<SettingsHarness> {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-policy-settings-'))
+    const ctx = new Context()
+    const settingsFiber = await ctx.plugin(FileSettingsProvider, { path: join(dir, 'settings.yaml'), watch: false })
+    await ctx.plugin(SandboxPolicyService, config)
+    return { ctx, settingsFiber, dir }
+  }
+
+  async function withSettings(run: (h: SettingsHarness) => Promise<void>): Promise<void> {
+    const h = await settingsMounted()
+    try {
+      await run(h)
+    } finally {
+      await h.ctx.fiber.dispose()
+      rmSync(h.dir, { recursive: true, force: true })
+    }
+  }
+
+  it('lets a stored user change reach the next resolve without restart', async () => {
+    await withSettings(async ({ ctx }) => {
+      expect(ctx.sandboxPolicy.resolve().extraWritableRoots).toBeUndefined()
+      const extra = mkdtempSync(join(tmpdir(), 'dsh-policy-extra-'))
+      await ctx.settings.update(SANDBOX_SETTINGS_NAMESPACE, { extraWritableRoots: [extra] })
+      expect(ctx.sandboxPolicy.resolve().extraWritableRoots).toEqual([resolve(realpathSync.native(extra))])
+    })
+  })
+
+  it('rejects a relative path at write time (schema)', async () => {
+    await withSettings(async ({ ctx }) => {
+      await expect(ctx.settings.update(SANDBOX_SETTINGS_NAMESPACE, { extraWritableRoots: ['relative/cache'] }))
+        .rejects.toThrow()
+    })
+  })
+
+  it('falls back to the composition entry when settings detach', async () => {
+    const { ctx, settingsFiber, dir } = await settingsMounted({ mode: 'workspace-write', extraWritableRoots: ['/deployment-root'] })
+    try {
+      expect(ctx.sandboxPolicy.resolve().extraWritableRoots).toEqual([resolve('/deployment-root')])
+      await settingsFiber.dispose()
+      expect(ctx.sandboxPolicy.resolve().extraWritableRoots).toEqual([resolve('/deployment-root')])
+    } finally {
+      await ctx.fiber.dispose()
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

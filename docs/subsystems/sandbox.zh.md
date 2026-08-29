@@ -40,7 +40,7 @@ type SandboxEnforcement = 'full' | 'partial'
 
 ## 逐调用策略
 
-完整执行策略会按每次能力调用解析并携带。它包括 `danger-full-access`，因此消费方可以只解析一次策略，再决定是否绕过约束。普通工具调用从调用会话的不可变 cwd 派生 `workspaceRoot`；部署配置是没有 agent（智能体）时的回退值。root 会先按文件系统语义规范化，再做词法规范化，因此包含 `symlink/..` 的 cwd 会标识 spawn 出的进程实际运行的目录。
+完整执行策略会按每次能力调用解析并携带。它包括 `danger-full-access`，因此消费方可以只解析一次策略，再决定是否绕过约束。普通工具调用从调用会话的不可变 cwd 派生 `workspaceRoot`；部署配置是没有 agent（智能体）时的回退值。root 会先按文件系统语义规范化，再做词法规范化，因此包含 `symlink/..` 的 cwd 会标识 spawn 出的进程实际运行的目录。可选的 `extraWritableRoots` 列表把 `workspace-write` 的授权扩展到工作区与临时区域之外的宿主机本地绝对目录（例如 `~/.cache`）；它来自部署 `Config` 并由用户层 `sandbox` 设置命名空间覆盖，且永远不会到达远程执行世界。
 
 ```ts type-equiv
 /**
@@ -53,6 +53,13 @@ interface SandboxExecutionPolicy {
   mode: SandboxMode
   /** Absolute root directory `workspace-write` may write under. */
   workspaceRoot: string
+  /**
+   * HOST-LOCAL absolute directories `workspace-write` may write under in
+   * addition to the workspace root and platform temp areas. They name paths
+   * on the local host only: remote execution worlds never receive them, so a
+   * local grant cannot authorize a same-named path on another host.
+   */
+  extraWritableRoots?: readonly string[]
   /**
    * Opaque identity of the calling session (the branded `dsh-session`
    * SessionId). Backends key per-session state off it (e.g. windows-acl gives
@@ -200,7 +207,9 @@ The sandbox-policy service (`ctx.sandboxPolicy`). Owns the deployment default mo
  * mode outranks the session's last `sandbox/mode` event, which outranks the
  * deployment default. A session cwd is its workspace-write boundary; the
  * configured root is the fallback for agentless calls and sessions without a
- * cwd.
+ * cwd. The effective extra writable roots (user settings over the
+ * deployment base) are canonicalized, deduplicated, and stamped onto the
+ * policy whenever non-empty.
  * @param request - optional session and approved mode override.
  * @returns the fully resolved per-call mode and absolute workspace root.
  */
