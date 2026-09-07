@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-25-android-webview-client.md
-2026-08-25-android-webview-client.md: 9f16663de3e35f645702d59af13e311105489055
-2026-08-25-android-webview-client.zh.md: b62594545dea5b5a16c794f02d31526c18c1d36a
+2026-08-25-android-webview-client.md: 52e65b3f86dec1f581c2e9e661633ce0a364f9d4
+2026-08-25-android-webview-client.zh.md: 12e1301cc832a28d9695a5829647dcf2bbd4894a

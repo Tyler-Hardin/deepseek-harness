@@ -12,6 +12,10 @@
     <!-- Native notifications posted by the JS bridge (window.DshAndroid.notify). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Background task-completion monitoring (DshNotificationService). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
     <application
         android:name=".DshApp"
         android:allowBackup="true"
@@ -36,6 +40,15 @@
             android:name=".SettingsActivity"
             android:exported="false"
             android:theme="@style/Theme.Dsh" />
+
+        <service
+            android:name=".DshNotificationService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="task-completion-monitoring" />
+        </service>
 
     </application>
 

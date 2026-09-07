@@ -48,6 +48,20 @@ export function apply(ctx: ClientContext): void {
 
   const t = ctx.locale.bind(NS)
   const bridge: DshAppBridge = requireBridge()
+  // Monitoring controls exist only on native builds that ship them; older
+  // clients hide the toggle instead of failing the whole App page.
+  const monitoringBridge = bridge
+  // The monitoring members are optional: read them off the bridge inside the
+  // wrappers, so nothing here references an unbound method.
+  const monitoring: Pick<AppSettingsInjected, 'getMonitoringEnabled' | 'setMonitoringEnabled'> =
+    bridge.getMonitoringEnabled === undefined || bridge.setMonitoringEnabled === undefined
+      ? {}
+      : {
+        getMonitoringEnabled: () => (monitoringBridge.getMonitoringEnabled as () => boolean)(),
+        setMonitoringEnabled: (enabled: boolean) => {
+          (monitoringBridge.setMonitoringEnabled as (value: boolean) => void)(enabled)
+        },
+      }
   const injected = (): AppSettingsInjected => ({
     getServerUrl: () => bridge.getServerUrl(),
     setServerUrl: (url) => { bridge.setServerUrl(url) },
@@ -58,6 +72,7 @@ export function apply(ctx: ClientContext): void {
     getCrashLog: () => bridge.getCrashLog(),
     clearCrashLog: () => { bridge.clearCrashLog() },
     getAppInfo: () => bridge.getAppInfo(),
+    ...monitoring,
   })
 
   ctx.slots.inject('settings.section', () => ctx.slots.register({

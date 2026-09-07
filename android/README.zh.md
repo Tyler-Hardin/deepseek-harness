@@ -11,6 +11,7 @@ DeepSeek Harness Web UI（`dsh web`）的最小化 Android 包装器。它是一
 - **mTLS**：服务器请求客户端证书时，出现 Android 系统证书选择器；所选证书会被记住。App 设置页显示当前使用的证书，并可忘记它。
 - **语音输入**：Web UI 的语音转文字使用麦克风；应用请求 `RECORD_AUDIO` 并把授权转发给 WebView。
 - **原生通知**：Web UI 可调用 `window.DshApp.notify()` 发送通知，播放 `res/raw/notification_bell.ogg` 中的定时铃声（从 goop 应用复制而来）。
+- **后台任务通知**：`DshNotificationService`——一个运行自己只读下行 WebSocket 的前台服务——在会话运行结束、出错或停下来等待你输入时响铃（只要应用不在前台）。一条低重要性的常驻"dsh 正在监控"通知如实反映连接状态并带"停止监控"操作，因此监控器永远不会无声死亡。可在 Web UI 的 App 设置页关闭。
 - **可见的错误**：连接、TLS 和 HTTP 失败会渲染应用内错误页，显示失败 URL 以及"重试"和"更换服务器"按钮；连接期间显示带状态文字的启动页；控制台消息、WebView 事件和崩溃都记录在 Web UI 的 App 设置页中可读。没有任何错误只存在于 logcat。
 
 ## 环境要求
@@ -54,7 +55,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 - **没有 splash→重定向 hack。** 直接加载真实 URL；WebView 错误回调驱动一个确定的错误页（用自定义 base URL 标识，永远不会与真实导航混淆）。
 - **错误状态随每次导航重置。** 卡住的"已显示错误页"标志（可能在恢复后让应用空白）不可能出现：`onPageStarted` 清除它，只有主框架失败才显示错误页。
 - **KeyChain 查询在线程上运行。** Android 16 拒绝在主线程调用 `KeyChain.getPrivateKey`；记住证书的路径和选择器回调都分发到工作线程。
-- **没有后台 WebSocket 服务。** 通知只在应用进程存活时触发；没有前台服务的静默死亡来掩盖"监控中"的虚假承诺。
+- **后台监控是一个可见的前台服务。** goop 应用的"无声死亡"陷阱在于*隐藏的*后台连接。本应用的监控器是前台服务，带有常驻的低重要性通知，其文字如实反映连接状态（已连接 / 连接中 / 重连中 / 证书错误）并带"停止监控"操作——如果监控器死了，常驻通知就会消失。它打开 dsh 的只读下行流（`/api/events.host`、`/api/events.mux`），这些流不需要任何客户端流量，因此通知投递从不依赖 WebView 页面是否存活；并且只在应用不在前台时响铃（应用内界面已显示运行状态）。
 - **崩溃处理器写入文件并标记下次启动。** 下次启动时显示对话框，而不是让崩溃只存在于 logcat。
 - **一切都会记录到诊断。** WebView 生命周期、TLS、证书、HTTP 和 JavaScript 控制台事件都进入内存环形缓冲（`DshDiagnostics`），可从 Web UI 的 App 设置页读取，连同崩溃日志和应用/Android 版本。
 
@@ -70,6 +71,7 @@ WebView 暴露 `window.DshApp`——Web UI 与原生应用之间的平台无关�
 | `getCrashLog()` / `clearCrashLog()` | 读取/清除磁盘崩溃日志 |
 | `getAppInfo()` | 一行应用/版本/证书状态 |
 | `notify(title, body)` | 发送带定时铃声的原生通知 |
+| `getMonitoringEnabled()` / `setMonitoringEnabled(on)` | 读取/切换后台任务完成监控器（启动/停止 `DshNotificationService`） |
 | `openSettings()` | 打开原生离线回退页面 |
 
 ## 目录结构
@@ -82,8 +84,10 @@ android/
       AndroidManifest.xml
       java/ai/deepseek/dsh/
         DshApp.kt         # preferences, crash handler, URL normalization
-        MainActivity.kt   # WebView, mTLS, error page, splash
+        MainActivity.kt   # WebView, mTLS, error page, splash, monitor lifecycle
         DshJsBridge.kt    # window.DshApp bridge
+        DshDownlink.kt    # one read-only dsh downlink WebSocket (+reconnect)
+        DshNotificationService.kt # foreground monitor: classifier + alerts
         DshErrorPage.kt   # self-contained error page HTML
         DshDiagnostics.kt # event ring buffer surfaced in the web UI
         SettingsActivity.kt  # offline fallback (first run / unreachable)

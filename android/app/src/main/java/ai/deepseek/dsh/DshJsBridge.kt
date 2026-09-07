@@ -27,9 +27,9 @@ import androidx.core.content.ContextCompat
  * `window.DshApp` surface without web-side changes.
  *
  * The web UI can also post a native notification (using the timer bell
- * sound in `res/raw/notification_bell.ogg`). There is no background
- * WebSocket service: notifications can only fire while the app process is
- * alive, which keeps the wrapper minimal.
+ * sound in `res/raw/notification_bell.ogg`) and control the background
+ * task-completion monitor ([DshNotificationService], which runs its own
+ * downlink sockets and is independent of this WebView).
  */
 class DshJsBridge(private val context: Context) {
 
@@ -46,6 +46,13 @@ class DshJsBridge(private val context: Context) {
      * WebView at the new host. Set by [MainActivity].
      */
     var onServerUrlChanged: (() -> Unit)? = null
+
+    /**
+     * Invoked when the web UI enables monitoring but Android 13+ has not
+     * granted POST_NOTIFICATIONS yet; the activity runs its runtime request.
+     * Set by [MainActivity].
+     */
+    var onMonitoringPermissionNeeded: (() -> Unit)? = null
 
     // ── Notifications ──────────────────────────────────────────
 
@@ -74,6 +81,44 @@ class DshJsBridge(private val context: Context) {
             .build()
         NotificationManagerCompat.from(context).notify(NOTIFY_ID, notification)
         DshDiagnostics.record(TAG, "notification posted: $title")
+    }
+
+    // ── Background task-completion monitoring ─────────────────
+
+    /** Read the background task-completion monitoring opt-out pref. */
+    @JavascriptInterface
+    fun getMonitoringEnabled(): Boolean = DshApp.instance.monitoringEnabled
+
+    /**
+     * Enable or disable the background task-completion monitor
+     * ([DshNotificationService]). Disabling stops the foreground service;
+     * enabling starts it once Android has granted POST_NOTIFICATIONS (the
+     * activity asks on behalf of the page when the permission is still
+     * missing, so an enabled toggle is never a silently dead monitor).
+     */
+    @JavascriptInterface
+    fun setMonitoringEnabled(enabled: Boolean) {
+        DshApp.instance.monitoringEnabled = enabled
+        DshDiagnostics.record(TAG, "monitoring enabled=$enabled")
+        val intent = Intent(context, DshNotificationService::class.java)
+        if (enabled) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+            ) {
+                Log.i(TAG, "monitoring enabled without POST_NOTIFICATIONS — asking the activity")
+                DshDiagnostics.record(TAG, "monitoring enabled but POST_NOTIFICATIONS missing — requesting permission")
+                onMonitoringPermissionNeeded?.invoke()
+                return
+            }
+            try {
+                context.startForegroundService(intent)
+            } catch (e: Exception) {
+                Log.w(TAG, "monitor start failed: ${e.message}")
+                DshDiagnostics.record(TAG, "monitor start failed: ${e.message}")
+            }
+        } else {
+            context.stopService(intent)
+        }
     }
 
     // ── Server hostname ────────────────────────────────────────
