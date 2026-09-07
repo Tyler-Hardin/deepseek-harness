@@ -24,6 +24,7 @@ class DshApp : Application() {
         const val KEY_SERVER_URL = "server_url"
         const val KEY_CERT_ALIAS = "client_cert_alias"
         const val KEY_CRASH_PENDING = "crash_pending"
+        const val KEY_MONITORING_ENABLED = "monitoring_enabled"
 
         const val CRASH_LOG_FILE = "crash.log"
         const val TAG = "DshApp"
@@ -44,6 +45,11 @@ class DshApp : Application() {
         set(value) = prefs.edit()
             .let { if (value == null) it.remove(KEY_CERT_ALIAS) else it.putString(KEY_CERT_ALIAS, value) }
             .apply()
+
+    /** Background task-completion monitoring opt-out; on by default. */
+    var monitoringEnabled: Boolean
+        get() = prefs.getBoolean(KEY_MONITORING_ENABLED, true)
+        set(value) = prefs.edit().putBoolean(KEY_MONITORING_ENABLED, value).apply()
 
     override fun onCreate() {
         super.onCreate()

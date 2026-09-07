@@ -40,4 +40,7 @@ dependencies {
     // (AppCompatActivity, AlertDialog). Everything else is platform API.
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
+    // OkHttp: WebSocket downlinks + session.list seed for the background
+    // task-completion monitor (DshNotificationService).
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }

@@ -23,6 +23,10 @@ export interface AppSettingsInjected {
   clearCrashLog(): void
   /** One-line app version/platform/certificate state. */
   getAppInfo(): string
+  /** Read the background task-completion monitoring opt-out; present only on native builds that support monitoring. */
+  getMonitoringEnabled?(): boolean
+  /** Persist the monitoring opt-out; starts/stops the native monitor. */
+  setMonitoringEnabled?(enabled: boolean): void
 }
 
 /**
@@ -41,22 +45,29 @@ interface ViewState {
   diagnostics: string
   crashLog: string
   appInfo: string
+  /** Monitoring opt-out; only meaningful when [monitoringSupported]. */
+  monitoringEnabled: boolean
+  /** Whether this native build exposes the monitoring bridge. */
+  monitoringSupported: boolean
   loadFailed: boolean
 }
 
 /** Read the whole bridge surface once; failures surface as a visible alert. */
 function readAll(deps: AppSettingsInjected): ViewState {
   try {
+    const supported = deps.getMonitoringEnabled !== undefined
     return {
       serverUrl: deps.getServerUrl(),
       cert: deps.getCertInfo(),
       diagnostics: deps.getDiagnostics(),
       crashLog: deps.getCrashLog(),
       appInfo: deps.getAppInfo(),
+      monitoringSupported: supported,
+      monitoringEnabled: deps.getMonitoringEnabled?.() ?? true,
       loadFailed: false,
     }
   } catch {
-    return { serverUrl: '', cert: '', diagnostics: '', crashLog: '', appInfo: '', loadFailed: true }
+    return { serverUrl: '', cert: '', diagnostics: '', crashLog: '', appInfo: '', monitoringEnabled: true, monitoringSupported: false, loadFailed: true }
   }
 }
 
@@ -84,6 +95,13 @@ export function AppSection(props: AppSectionProps): ReactNode {
   const forget = (): void => { deps.forgetCertificate(); refresh() }
   const clearEvents = (): void => { deps.clearDiagnostics(); refresh() }
   const clearCrash = (): void => { deps.clearCrashLog(); refresh() }
+  const toggleMonitoring = (): void => {
+    // Older native builds hide the control entirely; the guard keeps this handler total.
+    /* v8 ignore next -- unreachable on supported builds (control not rendered without the setter). */
+    if (deps.setMonitoringEnabled === undefined) return
+    deps.setMonitoringEnabled(!state.monitoringEnabled)
+    refresh()
+  }
 
   return (
     <div className={css.section}>
@@ -91,6 +109,17 @@ export function AppSection(props: AppSectionProps): ReactNode {
       <p className={css.intro}>{t('intro')}</p>
 
       {state.loadFailed && <p className={css.error} role="alert">{t('loadFailed')}</p>}
+
+      {state.monitoringSupported && (
+        <fieldset className={css.block}>
+          <legend className={css.legend}>{t('monitorLabel')}</legend>
+          <label className={css.row}>
+            <input type="checkbox" checked={state.monitoringEnabled} onChange={toggleMonitoring} />
+            <span>{t('monitorToggle')}</span>
+          </label>
+          <p className={css.hint}>{t('monitorHint')}</p>
+        </fieldset>
+      )}
 
       <fieldset className={css.block}>
         <legend className={css.legend}>{t('serverLabel')}</legend>

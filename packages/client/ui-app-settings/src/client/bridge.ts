@@ -28,6 +28,14 @@ export interface DshAppBridge {
   clearCrashLog(): void
   /** One-line app version/platform/certificate state. */
   getAppInfo(): string
+  /**
+   * Read the background task-completion monitoring opt-out. Optional:
+   * native builds that predate monitoring omit it, and the App page then
+   * hides the control instead of failing the whole section.
+   */
+  getMonitoringEnabled?(): boolean
+  /** Persist the monitoring opt-out; starts/stops the native monitor. */
+  setMonitoringEnabled?(enabled: boolean): void
 }
 
 declare global {

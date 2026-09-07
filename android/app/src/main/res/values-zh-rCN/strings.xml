@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Background task-completion monitoring (DshNotificationService) -->
+    <string name="monitoring_channel_name">dsh 后台监控</string>
+    <string name="monitoring_channel_desc">dsh 监控会话完成情况时的常驻通知</string>
+    <string name="monitoring_title">dsh 正在监控</string>
+    <string name="monitoring_connected">已连接 —— 任务完成时会通知你</string>
+    <string name="monitoring_connecting">正在连接…</string>
+    <string name="monitoring_retrying">连接已断开 —— 正在重连…</string>
+    <string name="monitoring_cert_error">无法使用客户端证书 —— 请打开应用修复</string>
+    <string name="monitoring_stop">停止监控</string>
+    <string name="alerts_channel_name">任务完成</string>
+    <string name="alerts_channel_desc">会话运行结束或需要你输入时的通知</string>
+    <string name="alert_finished_title">任务完成</string>
+    <string name="alert_finished_body">%1$s</string>
+    <string name="alert_error_title">任务出错</string>
+    <string name="alert_error_body">%1$s</string>
+    <string name="alert_needs_input_title">需要你的输入</string>
+    <string name="alert_needs_input_body">%1$s 正在等待你的回答</string>
+    <string name="alert_unknown_session">会话</string>
+</resources>

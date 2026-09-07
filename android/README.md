@@ -25,6 +25,13 @@ making failures visible instead of silent.
 - **Native notifications**: the web UI can call `window.DshApp.notify()`
   to post a notification that plays the timer bell sound in
   `res/raw/notification_bell.ogg` (copied from the goop app).
+- **Background task notifications**: `DshNotificationService` — a foreground
+  service running its own read-only downlink WebSockets to the dsh host —
+  rings when a session run finishes, errors, or pauses waiting for your
+  input, whenever the app is not on screen. A low-importance persistent
+  "dsh is monitoring" notification mirrors the connection state and carries
+  a Stop action, so a dead monitor is never silent. Opt out from the web
+  UI's App settings page.
 - **Visible errors**: connection, TLS, and HTTP failures render an
   in-WebView error page with the failing URL plus Retry and Change server
   buttons; a splash screen with status text covers connection; console
@@ -95,9 +102,16 @@ silent, background, or invisible. This app deliberately avoids each mode:
 - **KeyChain lookups run off the main thread.** Android 16 rejects
   `KeyChain.getPrivateKey` on the main thread; the remembered-certificate
   path and the chooser callback both dispatch to a worker thread.
-- **No background WebSocket service.** Notifications fire only while the app
-  process is alive; there is no foreground service whose silent death hides
-  a broken "monitoring" promise.
+- **Background monitoring is a visible foreground service.** The goop app's
+  silent-death trap was a *hidden* background connection. This app's monitor
+  is a foreground service with a persistent, low-importance notification
+  whose text mirrors the connection state (connected / connecting /
+  retrying / certificate error) and a Stop action — if the monitor dies, the
+  persistent notification disappears. It opens dsh's read-only downlink
+  streams (`/api/events.host`, `/api/events.mux`), which need no client
+  traffic, so delivery never depends on the WebView page being alive, and it
+  rings only while the app is not on screen (the in-app UI already shows
+  run state).
 - **Crash handler writes a file and flags the next launch.** A dialog shows
   the crash on the next start instead of a crash living only in logcat.
 - **Everything records to diagnostics.** WebView lifecycle, TLS, certificate,
@@ -119,6 +133,7 @@ same surface and the web-side App settings page works unchanged:
 | `getCrashLog()` / `clearCrashLog()` | Read/clear the on-disk crash log |
 | `getAppInfo()` | One-line app/version/certificate state |
 | `notify(title, body)` | Post a native notification with the timer bell sound |
+| `getMonitoringEnabled()` / `setMonitoringEnabled(on)` | Read/toggle the background task-completion monitor (starts/stops `DshNotificationService`) |
 | `openSettings()` | Open the native offline fallback screen |
 
 ## Layout
@@ -131,8 +146,10 @@ android/
       AndroidManifest.xml
       java/ai/deepseek/dsh/
         DshApp.kt         # preferences, crash handler, URL normalization
-        MainActivity.kt   # WebView, mTLS, error page, splash
+        MainActivity.kt   # WebView, mTLS, error page, splash, monitor lifecycle
         DshJsBridge.kt    # window.DshApp bridge
+        DshDownlink.kt    # one read-only dsh downlink WebSocket (+reconnect)
+        DshNotificationService.kt # foreground monitor: classifier + alerts
         DshErrorPage.kt   # self-contained error page HTML
         DshDiagnostics.kt # event ring buffer surfaced in the web UI
         SettingsActivity.kt  # offline fallback (first run / unreachable)

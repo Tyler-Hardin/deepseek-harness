@@ -25,4 +25,23 @@
     <string name="crash_alert_title">The app crashed on the previous run</string>
     <string name="crash_alert_body">Details were recorded in the web UI\'s App settings page. Here is the beginning of the log:\n\n%1$s</string>
     <string name="ok">OK</string>
+
+    <!-- Background task-completion monitoring (DshNotificationService) -->
+    <string name="monitoring_channel_name">dsh monitoring</string>
+    <string name="monitoring_channel_desc">Persistent notification while dsh monitors sessions for completion</string>
+    <string name="monitoring_title">dsh is monitoring</string>
+    <string name="monitoring_connected">Connected — you will be notified when a task finishes</string>
+    <string name="monitoring_connecting">Connecting…</string>
+    <string name="monitoring_retrying">Connection lost — reconnecting…</string>
+    <string name="monitoring_cert_error">Client certificate unavailable — open the app to fix it</string>
+    <string name="monitoring_stop">Stop monitoring</string>
+    <string name="alerts_channel_name">Task finished</string>
+    <string name="alerts_channel_desc">Notifications when a session run finishes or needs your input</string>
+    <string name="alert_finished_title">Task finished</string>
+    <string name="alert_finished_body">%1$s</string>
+    <string name="alert_error_title">Task ended with an error</string>
+    <string name="alert_error_body">%1$s</string>
+    <string name="alert_needs_input_title">Needs your input</string>
+    <string name="alert_needs_input_body">%1$s is waiting for an answer</string>
+    <string name="alert_unknown_session">Session</string>
 </resources>

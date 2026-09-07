@@ -91,6 +91,7 @@ class MainActivity : AppCompatActivity() {
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             DshDiagnostics.record(TAG, "POST_NOTIFICATIONS granted=$granted")
+            if (granted) startMonitorIfReady()
         }
 
     private val settingsLauncher =
@@ -117,9 +118,16 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         buildUi()
         // When the web UI's App settings page changes the hostname, reload
-        // the WebView at the new server.
-        jsBridge.onServerUrlChanged = { runOnUiThread { loadServer() } }
+        // the WebView at the new server and point the monitor at it too.
+        jsBridge.onServerUrlChanged = {
+            restartMonitor()
+            runOnUiThread { loadServer() }
+        }
+        // The App page's monitoring toggle asks for POST_NOTIFICATIONS on
+        // Android 13+ through the activity when the permission is missing.
+        jsBridge.onMonitoringPermissionNeeded = { requestNotificationPermission() }
         requestRuntimePermissions()
+        startMonitorIfReady()
         showPendingCrashDialog()
 
         val url = DshApp.instance.serverUrl
@@ -133,11 +141,15 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // In the foreground: the in-app UI shows run states, so the monitor
+        // suppresses its alerts while this is true.
+        DshNotificationService.activityForeground = true
         webView.onResume()
     }
 
     override fun onPause() {
         super.onPause()
+        DshNotificationService.activityForeground = false
         webView.onPause()
     }
 
@@ -231,6 +243,47 @@ class MainActivity : AppCompatActivity() {
         ) {
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+    }
+
+    /** Ask for POST_NOTIFICATIONS on Android 13+ (grant callback starts the monitor). */
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    // ── Background task-completion monitoring ────────────────────
+
+    /**
+     * Start the monitoring foreground service when everything it needs is in
+     * place: enabled (opt-out pref), a configured server URL, and (Android
+     * 13+) the notification permission. Calling again while the service runs
+     * just re-runs its start command, which reconnects at the current URL.
+     */
+    private fun startMonitorIfReady() {
+        val app = DshApp.instance
+        if (!app.monitoringEnabled) return
+        if (app.serverUrl.isNullOrBlank()) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        try {
+            startForegroundService(Intent(this, DshNotificationService::class.java))
+        } catch (e: Exception) {
+            Log.e(TAG, "failed to start monitor: ${e.message}")
+            DshDiagnostics.record(TAG, "monitor start failed: ${e.message}")
+        }
+    }
+
+    /** Re-point the monitor after a server URL change. */
+    private fun restartMonitor() {
+        startMonitorIfReady()
     }
 
     private fun showPendingCrashDialog() {
