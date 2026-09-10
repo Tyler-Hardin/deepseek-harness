@@ -27,6 +27,25 @@ const DOCKKIT_BUNDLE = 'packages/client/ui-dockkit/lib/index.js'
 const DOCKKIT_CSS = join(repositoryRoot, 'packages/client/ui-dockkit/lib/components/dockkit.module.css')
 
 /**
+ * Stylesheets whose load failure the dockkit bundle reports first.
+ *
+ * The bundle's own sheet is the expected one, but the bundle imports
+ * `ui-primitives` (which imports CSS itself) ahead of its relative stylesheet
+ * import, and Node loads dependencies in source order: the dependency's sheet
+ * is what fails first. The tsx loader this gate spawns resolves that dependency
+ * through the workspace `paths` aliases, so the primitives sheet is reported
+ * from the sources; plain Node reports the built copy.
+ */
+const DOCKKIT_FIRST_CSS_FAILURES: ReadonlySet<string> = new Set([
+  DOCKKIT_CSS,
+  join(repositoryRoot, 'packages/client/ui-primitives/src/StateDot.module.css'),
+  join(repositoryRoot, 'packages/client/ui-primitives/lib/StateDot.module.css'),
+])
+
+/** Prefix Node prefixes the resolved URL with in an unknown-extension error. */
+const CSS_EXTENSION_MESSAGE_PREFIX = 'Unknown file extension ".css" for '
+
+/**
  * Files Node's ESM loader cannot import in this repository. None is a finding:
  * each is listed with the reason the import fails, and the run refuses a
  * listed file that imports cleanly so the list stays current in both
@@ -113,7 +132,8 @@ if (files.length === 0) {
     } catch (reason) {
       const expectedDockkitCss = reason instanceof Error
         && 'code' in reason && reason.code === 'ERR_UNKNOWN_FILE_EXTENSION'
-        && reason.message === `Unknown file extension ".css" for ${DOCKKIT_CSS}`
+        && reason.message.startsWith(CSS_EXTENSION_MESSAGE_PREFIX)
+        && DOCKKIT_FIRST_CSS_FAILURES.has(reason.message.slice(CSS_EXTENSION_MESSAGE_PREFIX.length))
       if (exemption === undefined || (key === DOCKKIT_BUNDLE && !expectedDockkitCss)) {
         // A bundle that stopped being importable is a real finding, so it
         // fails rather than joining a tolerated total.
