@@ -7,7 +7,7 @@
  * reachable-export closure.
  */
 
-import { globSync, readFileSync } from 'node:fs'
+import { existsSync, globSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
 import ts from 'typescript'
 
@@ -83,6 +83,25 @@ export interface ScannedFile {
 }
 
 /**
+ * Read one listed path, tolerating the file that the listing promised and the
+ * read no longer finds: specs run concurrently with this scan, and
+ * `scripts/oxlint-contract.spec.ts` writes throwaway probes into package source
+ * directories for the duration of a test, so a listing can name a file that is
+ * already gone. A vanished path was never part of the surface this scan
+ * documents; every other read failure still propagates.
+ * @param abs - absolute path a glob listed.
+ * @returns the file's text, or undefined when the path no longer exists.
+ */
+function readListedFile(abs: string): string | undefined {
+  try {
+    return readFileSync(abs, 'utf8')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT' && !existsSync(abs)) return undefined
+    throw error
+  }
+}
+
+/**
  * Parse every file matching `patterns`, keeping the ones that carry a slot
  * contract merge or a registration call. Files without either are skipped so
  * the scan stays cheap over the whole workspace.
@@ -97,7 +116,8 @@ export function scanSlotFiles(scanRoot: string, patterns: readonly string[]): Sc
     .map(path => path.split(sep).join('/')))].sort()
   for (const rel of rels) {
     const abs = resolve(scanRoot, rel)
-    const text = readFileSync(abs, 'utf8')
+    const text = readListedFile(abs)
+    if (text === undefined) continue
     if (!MERGE_HEAD.test(text) && !REGISTER_HEAD.test(text)) continue
     out.push({
       rel,
@@ -124,7 +144,9 @@ export function indexExportedTypes(scanRoot: string, patterns: readonly string[]
     .map(path => path.split(sep).join('/')))].sort()
   for (const rel of rels) {
     const abs = resolve(scanRoot, rel)
-    const sf = ts.createSourceFile(abs, readFileSync(abs, 'utf8'), ts.ScriptTarget.Latest, true, scriptKindOf(rel))
+    const text = readListedFile(abs)
+    if (text === undefined) continue
+    const sf = ts.createSourceFile(abs, text, ts.ScriptTarget.Latest, true, scriptKindOf(rel))
     for (const statement of sf.statements) {
       if (!ts.isInterfaceDeclaration(statement) && !ts.isTypeAliasDeclaration(statement)) continue
       if (!statement.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)) continue
