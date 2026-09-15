@@ -101,3 +101,11 @@ patchedDependencies:
 # typecheck. Declare the setting so install-time and run-time config agree and
 # the check passes for the right reason.
 enableGlobalVirtualStore: false
+
+# `pnpm run` never has a TTY when a git hook drives it: if the recorded install
+# no longer matches the resolved config — a different store dir, a dependency
+# added on another machine — the automatic install cannot show its
+# modules-purge prompt and the push blocks on it forever. Scripts here run in
+# the dev shell against an install made by hand, so keep the automatic check
+# off and run `pnpm install` yourself after changing dependencies.
+verifyDepsBeforeRun: false
