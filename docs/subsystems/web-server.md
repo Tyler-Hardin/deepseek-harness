@@ -139,19 +139,16 @@ createPeer(options: { readonly principal: Principal; readonly interactions?: 'an
 admitConnection(request: ConnectionTrustRequest): ConnectionAdmission
 
 /**
- * Authenticate one frontend index request, owning a token redirect or 401.
- * The cookie this mints is `Secure` when the mounted Web carrier serves TLS,
- * which only that listener's protocol decides.
- * @param request - root or configured-index HTTP request.
- * @param response - response owned when the result is false.
- * @returns true only when the frontend may serve index.html.
+ * Authorize one frontend index request. Local fork: the Host/Origin fence
+ * already admitted the request and no browser session exists, so it serves.
+ * @returns true when the frontend may serve index.html.
  */
-authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean
+authorizeIndex(): boolean
 
 /**
- * Add the fresh process token to an ordinary Web application URL.
- * @param baseUrl - clean application URL whose authority and mount are preserved.
- * @returns tokenized URL for initial login; a mount proxy strips its prefix before {@link authorizeIndex}.
+ * The clean application URL. Local fork: there is no process token to carry.
+ * @param baseUrl - application URL whose authority and mount are preserved.
+ * @returns the deployment URL without a query or fragment.
  */
 authenticatedUrl(baseUrl: string): string
 ```

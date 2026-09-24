@@ -7,7 +7,6 @@ import { Context } from '@deepseek-ai/cordis'
 import type { Message } from '@deepseek-ai/cordis'
 import type { WebRoute, WebServer, WebUpgradeRoute } from '@deepseek-ai/dsh-host-webserver'
 import { HostConnectionService } from '@deepseek-ai/dsh-client-connection'
-import type { BrowserAuth } from '@deepseek-ai/dsh-client-connection/src/browser-auth.ts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apply, Config, inject, name } from '../src/index.ts'
 import { startInspector, type InspectorHandle } from '../src/host/bridge/controller.ts'
@@ -49,7 +48,7 @@ describe('experimental Inspector Host DevTools routes', () => {
     vi.clearAllMocks()
   })
 
-  async function mount(options: { indexAllowed?: () => boolean; before?: (ctx: Context) => void } = {}) {
+  async function mount(options: { before?: (ctx: Context) => void } = {}) {
     context = new Context()
     vi.spyOn(console, 'log').mockImplementation(() => undefined)
     const routes: WebRoute[] = []
@@ -59,17 +58,7 @@ describe('experimental Inspector Host DevTools routes', () => {
       registerUpgrade: (route) => { upgrades.push(route); return () => {} },
     }
     context.provide('webServer', webServer as WebServer)
-    const auth: Pick<BrowserAuth, 'isAuthenticated' | 'authenticateApi' | 'authorizeIndex'> = {
-      isAuthenticated: () => true,
-      authenticateApi: () => undefined,
-      authorizeIndex: (_request, response) => {
-        if (options.indexAllowed?.() !== false) return true
-        response.writeHead(401)
-        response.end()
-        return false
-      },
-    }
-    new HostConnectionService(context, [], auth as BrowserAuth)
+    new HostConnectionService(context, [])
     const messages: Message[] = []
     context.logger.exporter({ levels: { default: 3 }, export: (message) => { messages.push(message) } })
     options.before?.(context)
@@ -78,8 +67,7 @@ describe('experimental Inspector Host DevTools routes', () => {
   }
 
   it('answers frontend requests by method, index authorization, redirect, and asset outcome', async () => {
-    let indexAllowed = true
-    const { fiber, routes, messages } = await mount({ indexAllowed: () => indexAllowed })
+    const { fiber, routes, messages } = await mount()
     await fiber.await()
     const route = routes.find(row => row.path === '/inspector/devtools')
     if (route === undefined) throw new Error('DevTools route was not registered')
@@ -102,9 +90,6 @@ describe('experimental Inspector Host DevTools routes', () => {
     }
 
     expect((await call('POST', '/inspector/devtools/devtools_app.html')).recorded).toMatchObject({ status: 405, headers: { allow: 'GET, HEAD' }, ended: true })
-    indexAllowed = false
-    expect((await call('GET', '/inspector/devtools/devtools_app.html')).recorded.status).toBe(401)
-    indexAllowed = true
     expect(assets.middleware).not.toHaveBeenCalled()
     expect((await call('GET', '/inspector/devtools?panel=console')).recorded).toMatchObject({
       status: 302, headers: { location: 'devtools/devtools_app.html?panel=console' },

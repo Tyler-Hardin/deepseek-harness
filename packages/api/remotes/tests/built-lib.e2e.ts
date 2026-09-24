@@ -124,7 +124,7 @@ describe.skipIf(!requiredArtifacts)('Goal Remote built LIB chain', () => {
       const apiRoute = apiRoutes[0]
       const server = createServer((request, response) => {
         if ((request.url ?? '/').startsWith('/?')) {
-          if (host.connection.authorizeIndex(request, response)) {
+          if (host.connection.authorizeIndex()) {
             response.writeHead(200, { 'content-type': 'text/html' })
             response.end('<body>shell</body>')
           }
@@ -142,15 +142,11 @@ describe.skipIf(!requiredArtifacts)('Goal Remote built LIB chain', () => {
       const previousFetch = globalThis.fetch
       try {
         globalThis.document = { baseURI: origin + '/' }
-        const login = await fetch(host.connection.authenticatedUrl(origin), { redirect: 'manual' })
-        const setCookie = login.headers.get('set-cookie')
-        if (login.status !== 303 || setCookie === null) throw new Error('browser token exchange failed')
-        const cookie = setCookie.split(';', 1)[0]
-        globalThis.fetch = (input, init = {}) => {
-          const headers = new Headers(init.headers)
-          headers.set('cookie', cookie)
-          return previousFetch(new URL(input, document.baseURI), { ...init, headers })
-        }
+        // Local fork: Connection runs no browser handshake, so no token exchange
+        // and no cookie jar exist; the trust fence is the whole gate.
+        void host.connection.authenticatedUrl(origin)
+        globalThis.fetch = (input, init = {}) =>
+          previousFetch(new URL(input, document.baseURI), init)
 
         const handoffs = new Map()
         globalThis.window = {

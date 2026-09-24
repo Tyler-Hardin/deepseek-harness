@@ -4,7 +4,6 @@ import type { AddressInfo } from 'node:net'
 import { Context } from '@deepseek-ai/cordis'
 import type { IndexInjection, WebServer, WebUpgradeRoute } from '@deepseek-ai/dsh-host-webserver'
 import { HostConnectionService } from '@deepseek-ai/dsh-client-connection'
-import type { BrowserAuth } from '@deepseek-ai/dsh-client-connection/src/browser-auth.ts'
 import open from 'open'
 import WebSocket, { type RawData } from 'ws'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -37,13 +36,8 @@ describe('experimental Inspector Host plugin', () => {
     const releaseUpgrade = vi.fn()
     const registerUpgrade = vi.fn<(_route: WebUpgradeRoute) => () => void>(() => releaseUpgrade)
     const routes: Pick<WebServer, 'register' | 'registerUpgrade'> = { register: registerRoute, registerUpgrade }
-    let authenticated = false
-    const auth: Pick<BrowserAuth, 'isAuthenticated' | 'authenticateApi'> = {
-      isAuthenticated: () => authenticated,
-      authenticateApi: () => undefined,
-    }
     context.provide('webServer', routes as WebServer)
-    const connection = new HostConnectionService(context, [], auth as BrowserAuth)
+    const connection = new HostConnectionService(context, [])
     const fiber = context.plugin(
       { name, inject: [...inject], Config, apply },
       { port: 0, captureFetch: false },
@@ -59,13 +53,14 @@ describe('experimental Inspector Host plugin', () => {
     expect(registerRoute).toHaveBeenCalledWith(expect.objectContaining({ kind: 'prefix', path: '/inspector/devtools' }))
     expect(registerUpgrade).toHaveBeenCalledWith(expect.objectContaining({ path: '/inspector/devtools/cdp' }))
     const upgrade = registerUpgrade.mock.calls[0]![0]
-    for (const [origin, status] of [['http://127.0.0.1', 401], ['http://untrusted.invalid', 403]] as const) {
+    // Local fork: the Host/Origin fence is the whole gate, so only an
+    // untrusted origin is refused and no browser session exists to authorize.
+    {
       const socket = new PassThrough()
-      await upgrade.handler({ headers: { host: '127.0.0.1', origin } } as IncomingMessage, socket, Buffer.alloc(0))
-      expect(String(socket.read())).toContain(`HTTP/1.1 ${status}`)
+      await upgrade.handler({ headers: { host: '127.0.0.1', origin: 'http://untrusted.invalid' } } as IncomingMessage, socket, Buffer.alloc(0))
+      expect(String(socket.read())).toContain('HTTP/1.1 403')
       socket.destroy()
     }
-    authenticated = true
     for (const query of ['clientSourceId=', 'clientSourceId=a&clientSourceId=b']) {
       const socket = new PassThrough()
       await upgrade.handler({ url: `/inspector/devtools/cdp?${query}`, headers: { host: '127.0.0.1', origin: 'http://127.0.0.1' } } as IncomingMessage, socket, Buffer.alloc(0))
@@ -126,7 +121,7 @@ describe('experimental Inspector Host plugin', () => {
     context = new Context()
     const routes: Pick<WebServer, 'register' | 'registerUpgrade'> = { register: () => () => {}, registerUpgrade: () => () => {} }
     context.provide('webServer', routes as WebServer)
-    new HostConnectionService(context, [], {} as BrowserAuth)
+    new HostConnectionService(context, [])
     context.provide('inspector', {
       publish: () => undefined,
       cordis: { getTree: () => Promise.reject(new Error('unused test service')) },
@@ -148,7 +143,7 @@ describe('experimental Inspector Host plugin', () => {
     const routes: Pick<WebServer, 'register' | 'registerUpgrade'> = { register: () => () => {}, registerUpgrade: () => () => {} }
     context.provide('webServer', routes as WebServer)
     context.provide('cmdlineArgs', { get: () => ['--inspect'] })
-    const connection = new HostConnectionService(context, [], {} as BrowserAuth)
+    const connection = new HostConnectionService(context, [])
     vi.mocked(open).mockRejectedValueOnce(new Error('Chrome unavailable'))
     const fiber = context.plugin({ name, inject: [...inject], Config, apply }, { port: 0, captureFetch: false })
     await fiber.await()

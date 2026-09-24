@@ -41,8 +41,11 @@ describe.skipIf(MODE === 'record').each([false, true])('web e2e: native credenti
 
   it('keeps the notice and Models settings without another credential dialog or credential write', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-onboarding-native'))
+    // Local fork: Connection mints no browser-session credential record, so a
+    // fresh harness home may have no credentials document at all. The test
+    // still proves onboarding writes none: the bytes are unchanged either way.
     const credentialPath = join(scaffold.harnessHome, '.credentials.yaml')
-    const credentials = await readFile(credentialPath, 'utf8')
+    const credentials = await readFile(credentialPath, 'utf8').catch(() => '')
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     const welcome = page.getByRole('dialog', { name: WELCOME_NOTICE_COPY.zh.title })
     if (!desktop) {
@@ -92,7 +95,7 @@ describe.skipIf(MODE === 'record').each([false, true])('web e2e: native credenti
       await settings.getByLabel('API 密钥', { exact: true }).waitFor()
       expect(await page.getByRole('dialog', { name: '添加一个 API Key 开始使用' }).count()).toBe(0)
       expect(await welcome.count()).toBe(0)
-      expect(await readFile(credentialPath, 'utf8')).toBe(credentials)
+      expect(await readFile(credentialPath, 'utf8').catch(() => '')).toBe(credentials)
       const aria = await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd)
       await compareOrRefreshGolden(join(SNAPSHOT_DIR, 'models.expected.md'), aria, MODE)
       await page.keyboard.press('Escape')

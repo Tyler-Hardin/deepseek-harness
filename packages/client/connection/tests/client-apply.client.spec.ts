@@ -15,7 +15,7 @@ import {
 } from '../src/client/index.ts'
 
 type Win = {
-  location?: { hostname: string; origin?: string }
+  location?: { hostname: string; origin?: string; search?: string; protocol?: string }
   __DSH_TRANSPORT__?: ClientTransportHooks
 }
 
@@ -130,8 +130,15 @@ describe('connection client apply', () => {
   })
 
   it('reports non-loopback page authority through the connection handle', async () => {
-    ;(globalThis as Win).location = { hostname: '192.0.2.20' }
+    ;(globalThis as Win).location = { hostname: '192.0.2.20', search: '', protocol: 'http:' }
     expect((await mount()).isLoopback).toBe(false)
+  })
+
+  it('trusts an HTTPS page authority (fork: browser-validated certificate)', async () => {
+    ;(globalThis as Win).location = {
+      hostname: 'harness.example', search: '', origin: 'https://harness.example', protocol: 'https:',
+    }
+    expect((await mount()).isLoopback).toBe(true)
   })
 
   it('requires one generation source and ignores a stale source disposer', async () => {

@@ -10,7 +10,6 @@ import Loader from '@deepseek-ai/cordis-plugin-loader'
 import WebServer from '@deepseek-ai/dsh-host-webserver'
 import { HostConnectionService } from '@deepseek-ai/dsh-client-connection'
 import { composeEntries, loadOverlayPatches } from '@deepseek-ai/dsh-app-boot'
-import type { BrowserAuth } from '@deepseek-ai/dsh-client-connection/src/browser-auth.ts'
 import open from 'open'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as Inspector from '../src/index.ts'
@@ -57,7 +56,7 @@ describe('experimental Inspector through a real Loader composition', () => {
     context.loader.builtins.include = Include
     const modules = new Map<string, unknown>([
       ['@deepseek-ai/dsh-host-webserver', WebServer],
-      ['fixture:connection', (ctx: Context) => { new HostConnectionService(ctx, [], {} as BrowserAuth) }],
+      ['fixture:connection', (ctx: Context) => { new HostConnectionService(ctx, []) }],
       ['@deepseek-ai/dsh-experimental-inspector', Inspector],
     ])
     context.loader.internal = {

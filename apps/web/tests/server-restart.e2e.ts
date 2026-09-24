@@ -118,12 +118,13 @@ it.each([false, true])('keeps the same revision, Session and page across a serve
 
   const url = await server.start(0)
   const port = Number(new URL(url).port)
+  // Local fork: Connection runs no browser handshake, so the deployment URL is
+  // served directly and the trust fence admits the Node-side probe.
   const authenticated = await fetch(url, { redirect: 'manual' })
-  const cookie = authenticated.headers.get('set-cookie')?.split(';', 1)[0]
-  if (cookie === undefined) throw new Error('Server did not issue an authentication cookie')
+  if (!authenticated.ok) throw new Error(`Server did not serve its application root: HTTP ${String(authenticated.status)}`)
   const rpc = async <T>(endpoint: string, args: object): Promise<T> => {
     const response = await fetch(new URL('/api/' + endpoint, url), {
-      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ type: 'client-request', rpcId: randomUUID(), method: endpoint, payload: { args } }),
     })
     const result = await response.json() as { result: { ok: boolean; value: T; error?: { message: string } } }

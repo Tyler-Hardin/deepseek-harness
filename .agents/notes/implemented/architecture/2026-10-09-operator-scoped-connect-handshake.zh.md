@@ -44,7 +44,9 @@ Client 仅在 `answer` 模式创建转发事件机制。Host 首先检查 `peer.
 
 ## 验证
 
-Connection 测试覆盖 API 发布、Cookie 校验、闲置保留、连接所有权和不变的浏览器接纳。[Loader 测试](../../../../packages/api/gateway/tests/operator-connect.host.spec.ts)覆盖 HTTP 先于 WebSocket、重复关联、慢清理期间及时移除、unary 取消独立性和事件拒绝／所有权。[Node Client 测试](../../../../packages/api/gateway/tests/authenticated-node.client.spec.ts)覆盖认证传输、延迟建联和不使用被动恢复的原始流。
+Connection 测试覆盖 API 发布、闲置保留、连接所有权和浏览器接纳。[Node Client 测试](../../../../packages/api/gateway/tests/authenticated-node.client.spec.ts)覆盖传输、延迟建联和不使用被动恢复的原始流。
+
+**本地分支：** 已移除需要认证的连接握手。`/connect` 只重定向到应用，不签发 Cookie，也不建立按连接的 Peer；每个通过 fence 的请求共享 owner Peer，为这份决策编写的 Loader 测试也随该流程一并移除。本分支当前的请求信任规则见 [Connection README](../../../../packages/client/connection/README.zh.md#browser-authentication-and-request-trust)。
 
 [录制审批场景](../../../../apps/web/tests/approval-composer.e2e.ts)在回答页面旁增加一个被动调用方。完整回放需要可用命令 sandbox 执行写文件；缺少该后端的本地环境无法验证最后一步。本次不改变 Session 格式或模型可见输入。
 

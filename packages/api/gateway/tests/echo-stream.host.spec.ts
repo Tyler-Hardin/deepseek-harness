@@ -2,13 +2,12 @@ import { once } from 'node:events'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import WebSocket, { type RawData } from 'ws'
 import { Context } from '@deepseek-ai/cordis'
-import { apply as applyConnection, inject as connectionInject } from '@deepseek-ai/dsh-client-connection'
+import { apply as applyConnection } from '@deepseek-ai/dsh-client-connection'
 import WebServer from '@deepseek-ai/dsh-host-webserver'
 import { Remote, TypertRemoteService, type RemoteStream } from '@deepseek-ai/dsh-typert-protocol'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
 import TypertGatewayService from '@deepseek-ai/dsh-api-gateway'
 import RemoteAccessService from '@deepseek-ai/dsh-api-remote-access'
-import { browserCookie, provideBrowserCredentials } from './browser-credentials.ts'
 import { ownerPeer } from './peer.ts'
 
 /** The smallest Remote stream that reads its uplink: every carrier has to serve it alike. */
@@ -47,7 +46,7 @@ describe('the echo stream on each carrier', () => {
   it('echoes uplink frames through the WebSocket carrier', async () => {
     const ctx = await setup(true)
     const socket = new WebSocket(`ws://127.0.0.1:${String(ctx.webServer.port)}/api/remote.mux`, {
-      headers: { cookie: browserCookie(ctx) },
+      headers: {},
     })
     await once(socket, 'open')
     const frames: unknown[] = []
@@ -73,12 +72,11 @@ async function setup(transport: boolean): Promise<Context> {
   roots.push(ctx)
   if (transport) {
     await ctx.plugin(WebServer, { host: '127.0.0.1', port: 0 })
-    provideBrowserCredentials(ctx)
   }
   await ctx.plugin(TypertRegistry)
   await ctx.plugin(RemoteAccessService)
   await ctx.plugin(TypertGatewayService, {})
-  if (transport) await ctx.plugin({ inject: [...connectionInject], apply: applyConnection })
+  if (transport) await ctx.plugin({ apply: applyConnection })
   await ctx.plugin(EchoService)
   return ctx
 }

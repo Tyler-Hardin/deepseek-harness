@@ -806,16 +806,16 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the Peer and idempotent release, or 409 for duplicate API ownership. The carrier releases on socket termination or failed upgrade; release removes API admission synchronously without cancelling independent HTTP calls.',
       },
       {
-        signature: 'authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean',
-        description: 'Authenticate one frontend index request, owning a token redirect or 401. The cookie this mints is `Secure` when the mounted Web carrier serves TLS, which only that listener\'s protocol decides.',
-        parameters: [{ name: 'request', description: 'root or configured-index HTTP request.' }, { name: 'response', description: 'response owned when the result is false.' }],
-        returns: 'true only when the frontend may serve index.html.',
+        signature: 'authorizeIndex(): boolean',
+        description: 'Authorize one frontend index request. Local fork: the Host/Origin fence already admitted the request and no browser session exists, so it serves.',
+        parameters: [],
+        returns: 'true when the frontend may serve index.html.',
       },
       {
         signature: 'authenticatedUrl(baseUrl: string): string',
-        description: 'Add the fresh process token to an ordinary Web application URL.',
-        parameters: [{ name: 'baseUrl', description: 'clean application URL whose authority and mount are preserved.' }],
-        returns: 'tokenized URL for initial login; a mount proxy strips its prefix before {@link authorizeIndex}.',
+        description: 'The clean application URL. Local fork: there is no process token to carry.',
+        parameters: [{ name: 'baseUrl', description: 'application URL whose authority and mount are preserved.' }],
+        returns: 'the deployment URL without a query or fragment.',
       },
     ],
   },
@@ -5132,14 +5132,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ConnectionFetchRoute',
     declaration: 'export interface ConnectionFetchRoute {\n    readonly path: string;\n    readonly methods: readonly ConnectionFetchMethod[];\n    readonly requestBody: ConnectionRequestBodyMode;\n    readonly fetch: (request: Request) => Promise<Response>;\n}',
-  },
-  {
-    name: 'ConnectionIndexRequest',
-    declaration: 'export interface ConnectionIndexRequest extends ConnectionTrustRequest {\n    readonly method?: string | undefined;\n    readonly url?: string | undefined;\n}',
-  },
-  {
-    name: 'ConnectionIndexResponse',
-    declaration: 'export interface ConnectionIndexResponse {\n    writeHead(status: number, headers?: Readonly<Record<string, string>>): unknown;\n    end(body?: string): unknown;\n}',
   },
   {
     name: 'ConnectionRequestBodyMode',

@@ -382,12 +382,6 @@
     "e19d423d382674b8b4611741351c82f91680ea99c1b5423045df49d8be15855c": 1,
     "fdc5fcade0ba1abbc426ccccb07a1ad4998253799b8561815047d95178441cdf": 1
   },
-  "packages/client/connection/tests/browser-auth.host.spec.ts": {
-    "d7dc9c349af8699fefcaffed26377443dd73ef95f1dc985f4de542ec133869f5": 1
-  },
-  "packages/client/connection/tests/browser-credentials.ts": {
-    "df59c4c68576e18a532f9a917fb70176726a28c8600e8909501e42b990e12857": 1
-  },
   "packages/client/connection/tests/http-bridge.host.spec.ts": {
     "0e7046e26d128461a15974d7a6290f49afb4523215d7691910b08aab9dc4c45c": 2,
     "c80c8a70cdf0ad954bb3634bf6528ba6a53011dbc8b75963d51d5c0a11f1b4a8": 1,

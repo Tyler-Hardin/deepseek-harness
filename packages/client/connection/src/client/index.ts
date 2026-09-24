@@ -122,6 +122,8 @@ interface ClientTransportGlobal {
 /** Browser location fields used to classify loopback authority. */
 export interface ConnectionLocation {
   readonly hostname: string
+  /** Page scheme; `https:` marks a certificate-validated page in this fork. */
+  readonly protocol?: string
 }
 
 /** Instance-local inputs for installing a Connection service. */
@@ -144,9 +146,12 @@ export interface ConnectionHandle {
   /** Forwarded-event participation selected at installation. */
   readonly interactions: ConnectionInteractions
   /**
-   * Whether the privileged surface is reachable: the page authority is
-   * loopback, the transport declares the page owns the Host
-   * ({@link ClientTransportHooks.ownsHost}), or the context is not a browser.
+   * Whether the current page may exercise native-capability RPCs (the
+   * configuration plane, native dialogs, path opening). True for a loopback
+   * authority, when the transport declares the page owns the Host
+   * ({@link ClientTransportHooks.ownsHost}), in non-browser contexts, and —
+   * local-fork extension — for any HTTPS page, whose certificate the browser
+   * validated.
    */
   readonly isLoopback: boolean
   /** Current Remote event generation and the Host facts carried by its opening frame. */
@@ -265,7 +270,10 @@ export function installConnection(ctx: Context, options: ConnectionInstallOption
   const handle: ConnectionHandle = {
     interactions,
     openWebSocket: path => openConnectionWebSocket(path, transport?.createWebSocket, transport?.streamBaseUrl),
-    isLoopback: transport?.ownsHost === true || pageLocation === undefined || isLoopbackHostname(pageLocation.hostname),
+    isLoopback: transport?.ownsHost === true
+      || pageLocation === undefined
+      || isLoopbackHostname(pageLocation.hostname)
+      || pageLocation.protocol === 'https:',
     generation: {
       getSnapshot: () => generation,
       subscribe: (listener) => {

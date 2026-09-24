@@ -97,7 +97,7 @@ export async function apply(ctx: Context, config: HostPluginConfig): Promise<voi
             res.writeHead(405, { allow: 'GET, HEAD' }).end()
             return
           }
-          if (!ctx.connection.authorizeIndex(req, res)) return
+          if (!ctx.connection.authorizeIndex()) return
           const url = new URL(req.url ?? '/', 'http://inspector.invalid')
           if (url.pathname === DEVTOOLS_PATH || url.pathname === `${DEVTOOLS_PATH}/`) {
             const location = `${url.pathname === DEVTOOLS_PATH ? 'devtools/' : ''}devtools_app.html${url.search}`

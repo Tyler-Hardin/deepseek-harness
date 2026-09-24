@@ -1,7 +1,6 @@
 import { Context } from '@deepseek-ai/cordis'
 import type { PeerScope, Principal } from '@deepseek-ai/dsh-typert-protocol'
 import { describe, expect, it, vi } from 'vitest'
-import type { BrowserAuth } from '../src/browser-auth.ts'
 import { HostConnectionService } from '../src/rpc-host.ts'
 
 async function mounted(): Promise<{
@@ -10,7 +9,7 @@ async function mounted(): Promise<{
 }> {
   const ctx = new Context()
   const fiber = ctx.plugin((pluginCtx) => {
-    new HostConnectionService(pluginCtx, [], {} as BrowserAuth)
+    new HostConnectionService(pluginCtx, [])
   })
   await fiber.await()
   return {
@@ -147,7 +146,7 @@ describe('Connection in-process Peers', () => {
 
   it('disposes a created Peer with the plugin that read the Connection', async () => {
     const ctx = new Context()
-    const provider = ctx.plugin((pluginCtx) => { new HostConnectionService(pluginCtx, [], {} as BrowserAuth) })
+    const provider = ctx.plugin((pluginCtx) => { new HostConnectionService(pluginCtx, []) })
     await provider.await()
     let created: PeerScope | undefined
     const consumer = ctx.plugin({

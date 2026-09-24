@@ -64,7 +64,7 @@ const STATIC_MISS_CODES: ReadonlySet<string | undefined> = new Set([
  * @param res - the node:http response to write.
  * @param distRoot - absolute dist root directory (resolved by the caller).
  * @param distIndex - absolute path of index.html inside distRoot.
- * @param authorizeIndex - authenticates an index response before its bytes are read.
+ * @param authorizeIndex - authorizes an index response before its bytes are read.
  * @param renderIndex - produces the index.html body (structured injection
  * rendering) for the dist root and configured index path.
  */
@@ -133,7 +133,7 @@ export function apply(ctx: Context, config: Config): void {
       res,
       distRoot,
       distIndex,
-      () => ctx.connection.authorizeIndex(req, res),
+      () => ctx.connection.authorizeIndex(),
       renderIndex,
     )
   }), 'frontend-static: fallback seat')

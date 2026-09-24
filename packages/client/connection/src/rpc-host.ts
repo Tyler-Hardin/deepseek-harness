@@ -13,7 +13,6 @@ import { clientRequestSchema } from './rpc-schema.ts'
 import { bridge } from './http-bridge.ts'
 import { isRemoteAuthority, isTrustedApiRequest } from './api-request-trust.ts'
 import { API_PATH } from './api-path.ts'
-import type { BrowserAuth } from './browser-auth.ts'
 import { Peer } from './peer.ts'
 import type {
   PeerAdmission,
@@ -82,12 +81,10 @@ export class HostConnectionService extends Service implements HostConnectionHand
    * Provide the Host half over the active HTTP server.
    * @param ctx - owning Connection plugin context.
    * @param trustedHosts - deployment authorities accepted by the Host/Origin fence.
-   * @param browserAuth - process token and persistent browser-session owner.
    */
   constructor(
     ctx: Context,
     private readonly trustedHosts: readonly string[],
-    private readonly browserAuth: BrowserAuth,
   ) {
     super(ctx, 'connection')
     this.owner = ctx
@@ -119,21 +116,21 @@ export class HostConnectionService extends Service implements HostConnectionHand
     }
   }
 
-  /** Apply the Host/Origin fence and require an authenticated live Peer. */
+  /**
+   * Apply the Host/Origin fence. Local fork: the fence is the whole gate — the
+   * deployment reaches this Host through a TLS reverse proxy that authenticates
+   * the client, so no browser handshake runs here.
+   */
   requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection {
     const admission = this.admit(request)
     return 'rejection' in admission ? admission.rejection : undefined
   }
 
-  /** Browser requests share an owner Peer; API HTTP does not depend on an attached socket. */
+  /** A fenced request speaks for the owner Peer; API HTTP does not depend on a socket. */
   admit(request: ConnectionTrustRequest): PeerAdmission {
     if (!this.isTrusted(request)) return { rejection: 403 }
     if (this.disposed) return { rejection: 401 }
-    const secure = this.owner.get('webServer')?.protocol === 'https:'
-    if (this.browserAuth.isAuthenticated(request, secure)) return { peer: this.browserPeer }
-    const id = this.browserAuth.authenticateApi(request, secure)
-    const record = id === undefined ? undefined : this.peers.get(id)
-    return record === undefined ? { rejection: 401 } : { peer: record.peer }
+    return { peer: this.browserPeer }
   }
 
   /** Create one in-process Peer owned by the Context that read this service. */
@@ -166,15 +163,11 @@ export class HostConnectionService extends Service implements HostConnectionHand
     return isTrustedApiRequest(request, this.trustedHosts, carrier?.host, carrier?.protocol ?? 'http:')
   }
 
-  private publishPeer(interactions: ConnectionInteractions): PeerId {
-    const peer = new Peer(this.owner, { principal: { kind: 'owner' }, interactions })
-    this.peers.set(peer.id, { peer, ownsSocket: false })
-    return peer.id
-  }
 
   /**
-   * Authenticate and publish a credential before sending the connect redirect.
-   * @param request - launch-token request on /connect.
+   * Send a trusted connect request to the application. Local fork: there is no
+   * handshake to run, so nothing is minted here.
+   * @param request - connect request on /connect.
    * @param response - response owned to completion.
    */
   authorizeConnect(request: ConnectionIndexRequest, response: ConnectionIndexResponse): void {
@@ -183,20 +176,37 @@ export class HostConnectionService extends Service implements HostConnectionHand
       response.end(this.disposed ? 'unauthorized' : 'forbidden')
       return
     }
-    this.browserAuth.authorizeConnect(request, response,
-      this.owner.get('webServer')?.protocol === 'https:', interactions => this.publishPeer(interactions))
+    const target = new URL(request.url ?? '/', 'http://connection.invalid')
+    target.search = ''
+    target.hash = ''
+    // Drop the route segment, keeping a mount proxy's prefix, so a legacy
+    // /connect link lands on the application instead of redirecting to itself.
+    const location = target.pathname.endsWith('/connect')
+      ? `${target.pathname.slice(0, -'/connect'.length)}/`
+      : '/'
+    response.writeHead(302, { location })
+    response.end()
   }
 
   /**
-   * Authenticate an index request; native TLS listeners mint Secure cookies.
+   * Serve the index: the fence already decided the request and no session exists.
+   * @returns true, so the frontend serves index.html for an admitted request.
    */
-  authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean {
-    return this.browserAuth.authorizeIndex(request, response, this.ctx.get('webServer')?.protocol === 'https:')
+  authorizeIndex(): boolean {
+    return true
   }
 
-  /** Add this process's launch token to the clean application URL. */
+  /**
+   * The clean application URL. Local fork: there is no process token to carry,
+   * so the deployment's own authority and mount are returned unchanged.
+   * @param baseUrl - application URL whose authority and mount are preserved.
+   * @returns the deployment URL without a query or fragment.
+   */
   authenticatedUrl(baseUrl: string): string {
-    return this.browserAuth.authenticatedUrl(baseUrl)
+    const url = new URL(baseUrl)
+    url.search = ''
+    url.hash = ''
+    return url.href
   }
 
   /**

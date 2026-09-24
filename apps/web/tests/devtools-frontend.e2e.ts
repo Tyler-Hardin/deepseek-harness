@@ -24,7 +24,9 @@ it('serves the built DevTools frontend under its own path without rebuilding Dev
   resources.browser = browser
   const page = await browser.newPage({ locale: 'zh-CN' })
   const root = new URL('inspector/devtools/', scaffold.authenticatedUrl).href
-  expect((await page.request.get(`${root}devtools_app.html`)).status()).toBe(401)
+  // Local fork: the Host/Origin fence is the only gate, so the inspector route
+  // serves an admitted request instead of demanding a browser session.
+  expect((await page.request.get(`${root}devtools_app.html`)).status()).toBe(200)
   await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
 
   const redirect = await page.request.get(`${root.slice(0, -1)}?probe=retained`, { maxRedirects: 0 })

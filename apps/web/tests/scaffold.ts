@@ -290,7 +290,7 @@ export interface WebScaffold {
   persistenceRoot: string
   /** Isolated harness home the settings/credentials rows write ($DSH_HOME double). */
   harnessHome: string
-  /** Send a browser-equivalent Host request with this scaffold's authenticated cookie. */
+  /** Send a browser-equivalent Host request through the same trust fence the page uses. */
   hostFetch(path: string, init?: RequestInit): Promise<Response>
   /** Await a settled turn end: in-process turn/end, then the agent's idle flip (which follows the persistence flush). */
   whenTurnSettled(timeoutMs?: number): Promise<SessionId>
@@ -734,7 +734,6 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
   let port = 0
   let baseUrl = ''
   let authenticatedUrl = ''
-  let cookieHeader = ''
   let publicProxy: PrefixProxy | undefined
   let replayHandle: ReplayHandle | undefined
   try {
@@ -915,20 +914,9 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
       publicProxy.setTarget(port)
       baseUrl = `http://${publicHost}:${String(publicProxy.port)}${publicPrefix}`
     }
+    // Local fork: Connection runs no browser handshake, so the scaffold needs
+    // no token exchange and carries no cookie. The trust fence is the gate.
     authenticatedUrl = ctx.connection.authenticatedUrl(baseUrl)
-    // Chromium resolves *.localhost itself; Node may not. Both scaffold
-    // listeners bind loopback, including the optional prefix proxy.
-    const loginUrl = new URL(authenticatedUrl)
-    loginUrl.hostname = '127.0.0.1'
-    const login = await fetch(loginUrl, { redirect: 'manual' })
-    const setCookie = login.headers.get('set-cookie')
-    if (login.status !== 303 || login.headers.get('location') !== './' || setCookie === null) {
-      throw new Error('web e2e scaffold: browser token exchange did not return its session cookie')
-    }
-    cookieHeader = setCookie.split(';', 1)[0] ?? ''
-    if (cookieHeader.length === 0) {
-      throw new Error('web e2e scaffold: browser token exchange returned an empty session cookie')
-    }
   } catch (error) {
     if (process.cwd() !== originalCwd) process.chdir(originalCwd)
     const cleanupFailures = await cleanupScaffoldWorld(ctx, workspaceCwd, persistenceRoot)
@@ -954,9 +942,7 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
     workspaceCwd,
     persistenceRoot,
     hostFetch(path: string, init: RequestInit = {}): Promise<Response> {
-      const headers = new Headers(init.headers)
-      headers.set('cookie', cookieHeader)
-      return fetch(new URL(path, baseUrl), { ...init, headers })
+      return fetch(new URL(path, baseUrl), init)
     },
     // Barrier stack: the in-process turn/end identifies the session, its
     // explicit flush makes the transcript durable, and the caller's browser
