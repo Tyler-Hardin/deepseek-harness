@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-08-25-web-hosted-app-settings.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-25-web-hosted-app-settings.md
+/agent-note-app-settings-hosted-in-the-web-ui:
+  en: e8309d08c36e5ab6
+  zh: a1323237f2f55dcb
+/agent-note-app-settings-hosted-in-the-web-ui/problem:
+  en: b176fdf11bf580de
+  zh: 44eeedb1e741c09d
+/agent-note-app-settings-hosted-in-the-web-ui/decision:
+  en: 61fa140537552970
+  zh: 9e995e400fc48734
+/agent-note-app-settings-hosted-in-the-web-ui/alternatives-considered:
+  en: b8b382a9516eb4e0
+  zh: 3cc58245fc315dbe
+/agent-note-app-settings-hosted-in-the-web-ui/consequences:
+  en: 1204195725c179bd
+  zh: d05b7af0b53390c7

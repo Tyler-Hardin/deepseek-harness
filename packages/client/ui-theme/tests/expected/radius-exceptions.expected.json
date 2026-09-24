@@ -1,4 +1,7 @@
 {
+  "ui-app-settings/src/client/AppSection.module.css": [
+    ".pre: border-radius: 6px"
+  ],
   "ui-deliverables/src/client/ChangedFiles.module.css": [
     ".tile: border-radius: 10px"
   ],

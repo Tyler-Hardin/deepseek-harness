@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-08-25-android-webview-client.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-25-android-webview-client.md
+/agent-note-android-webview-client-for-the-dsh-web-ui:
+  en: ad454cbbd855c3d0
+  zh: 7fe4931473509507
+/agent-note-android-webview-client-for-the-dsh-web-ui/problem:
+  en: d43292d53bb65dc7
+  zh: e1a26f84c818715a
+/agent-note-android-webview-client-for-the-dsh-web-ui/decision:
+  en: 64ed2ca7f6663eaf
+  zh: e474349b2f1e8d37
+/agent-note-android-webview-client-for-the-dsh-web-ui/alternatives-considered:
+  en: d7f8419be6579373
+  zh: aba119afd4357054
+/agent-note-android-webview-client-for-the-dsh-web-ui/consequences:
+  en: e6dfcc1ca3c20c49
+  zh: b847dea7e1b6b72b
