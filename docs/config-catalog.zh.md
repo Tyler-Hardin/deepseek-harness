@@ -228,6 +228,31 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-api-job-controller -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-api-push-notify -->
+<a id="deepseek-aidsh-api-push-notify"></a>
+
+## `@deepseek-ai/dsh-api-push-notify`
+
+- `inject`: `webServer`
+- `source`: [`packages/api/push-notify/src/index.ts:23`](../packages/api/push-notify/src/index.ts)
+
+```ts config-catalog
+/** Deployment policy for push delivery. */
+export interface Config {
+  /** Master switch; a deployment without a Firebase project leaves this off. */
+  readonly enabled?: boolean
+  /** Path of the Firebase service-account JSON used to mint OAuth2 tokens. */
+  readonly serviceAccountPath: string
+  /** Path of the registered device token, written by the native client. */
+  readonly tokenPath: string
+  /** OAuth2 token endpoint; overridable for tests. */
+  readonly oauthTokenUrl?: string
+  /** FCM send endpoint template; `{project}` is replaced with the project id. */
+  readonly sendUrlTemplate?: string
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-api-push-notify -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-api-session-controller -->
 <a id="deepseek-aidsh-api-session-controller"></a>
 

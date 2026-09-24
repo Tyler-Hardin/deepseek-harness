@@ -54,5 +54,7 @@ android/.gradle/
 android/.gradle-home/
 android/.nix-cache/
 android/app/build/
+# Firebase client config (project identifiers and client API key)
+android/app/google-services.json
 android/build/
 android/local.properties

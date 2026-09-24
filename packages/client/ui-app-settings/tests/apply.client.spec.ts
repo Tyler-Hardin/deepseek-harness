@@ -6,7 +6,7 @@
  * injected face forwards every read and mutation to the bridge.
  */
 import { Context } from '@deepseek-ai/cordis'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
@@ -22,7 +22,29 @@ function stubBridge(bridge: AppSettingsInjected): void {
   (globalThis as GlobalWithBridge).DshApp = bridge
 }
 
-function makeBridge(): AppSettingsInjected {
+/** One bridge-shaped record of function properties plus its assertions. */
+interface BridgeStub extends AppSettingsInjected {
+  getServerUrl: () => string
+  setServerUrl: Mock<(url: string) => void>
+  getCertInfo: () => string
+  forgetCertificate: Mock<() => void>
+  getDiagnostics: () => string
+  clearDiagnostics: Mock<() => void>
+  getCrashLog: () => string
+  clearCrashLog: Mock<() => void>
+  getAppInfo: () => string
+  getMonitoringEnabled?: () => boolean
+  setMonitoringEnabled?: Mock<(enabled: boolean) => void>
+}
+
+/**
+ * One native bridge stub.
+ * @param monitoring - false omits the optional monitoring pair, as a build
+ * that predates the monitor does.
+ * @returns the bridge stub.
+ */
+function makeBridge(monitoring = true): BridgeStub {
+  let enabled = true
   return {
     getServerUrl: () => 'https://dsh.example.com',
     setServerUrl: vi.fn(),
@@ -33,10 +55,16 @@ function makeBridge(): AppSettingsInjected {
     getCrashLog: () => 'log',
     clearCrashLog: vi.fn(),
     getAppInfo: () => 'dsh 0.1.0',
+    ...monitoring
+      ? {
+        getMonitoringEnabled: () => enabled,
+        setMonitoringEnabled: vi.fn((next: boolean) => { enabled = next }),
+      }
+      : {},
   }
 }
 
-async function bench(withBridge: boolean, bridge?: AppSettingsInjected) {
+async function bench(withBridge: boolean, bridge?: BridgeStub) {
   const ctx = new Context()
   await ctx.plugin(SlotRegistry).await()
   const locale = new LocaleRuntime(ctx)
@@ -100,6 +128,10 @@ describe('ui-app-settings apply', () => {
     expect((face.getDiagnostics as () => string)()).toBe('line')
     expect((face.getCrashLog as () => string)()).toBe('log')
     expect((face.getAppInfo as () => string)()).toBe('dsh 0.1.0')
+    expect((face.getMonitoringEnabled as () => boolean)()).toBe(true)
+    const setMonitoringEnabled = face.setMonitoringEnabled as (enabled: boolean) => void
+    setMonitoringEnabled(false)
+    expect((face.getMonitoringEnabled as () => boolean)()).toBe(false)
     const setServerUrl = face.setServerUrl as (url: string) => void
     const forgetCertificate = face.forgetCertificate as () => void
     const clearDiagnostics = face.clearDiagnostics as () => void
@@ -112,6 +144,17 @@ describe('ui-app-settings apply', () => {
     expect(bridge.forgetCertificate).toHaveBeenCalledTimes(1)
     expect(bridge.clearDiagnostics).toHaveBeenCalledTimes(1)
     expect(bridge.clearCrashLog).toHaveBeenCalledTimes(1)
+    expect(bridge.setMonitoringEnabled).toHaveBeenCalledWith(false)
+  })
+
+  it('omits monitoring from the injected face on native builds that predate it', async () => {
+    const b = await bench(true, makeBridge(false))
+    declare(b.slots)
+    await Promise.resolve()
+    const face = b.slots.entries('settings.section')[0]!.inject!()
+    // Absent, not undefined-valued: the face omits the members entirely.
+    expect(Object.hasOwn(face, 'getMonitoringEnabled')).toBe(false)
+    expect(Object.hasOwn(face, 'setMonitoringEnabled')).toBe(false)
   })
 
   it('keeps the host Loader entry inert', () => {

@@ -3,20 +3,20 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/client/ui-app-settings/README.md
 /:
-  en: 9ec9e0fbe507ef8a
-  zh: 7fc4752fbd6ed2b6
+  en: a904f884b90d38b3
+  zh: f1997c1b46bb68a0
 /deepseek-ai-dsh-client-ui-app-settings:
   en: 38088148a4b57d79
   zh: 239751d82d99337b
 /deepseek-ai-dsh-client-ui-app-settings/summary:
-  en: f3aa9c9f0f310edd
-  zh: 7a06d62b8671ca8b
+  en: 71a55cec5ce209de
+  zh: 79e1d5052eb3da3d
 /deepseek-ai-dsh-client-ui-app-settings/table-of-contents:
   en: d152484eb41ac6b4
   zh: 09388d293f9be9cb
 /deepseek-ai-dsh-client-ui-app-settings/use-this-package:
-  en: 02257d8ff91f4379
-  zh: c118646cfd49c3bb
+  en: 95f69549b1eb16dd
+  zh: 0a925bbd7267fe93
 /deepseek-ai-dsh-client-ui-app-settings/understand-the-implementation:
   en: 1d0f3932443d7ba5
   zh: 7855c6e5db81bc03
@@ -30,8 +30,8 @@
   en: ca75c51c89c2c9b0
   zh: f57cc48a1b5cbfa9
 /deepseek-ai-dsh-client-ui-app-settings/known-limitations-and-deferred-work:
-  en: 085582a3de74091d
-  zh: bd28c09e61c87102
+  en: bbb0e650e9fe7c3b
+  zh: 8d8ffdb1f6fdb374
 /deepseek-ai-dsh-client-ui-app-settings/known-limitations-and-deferred-work/dev-note:
   en: dfd8fde86dc69ca9
   zh: e641b0bf5e08ec3d

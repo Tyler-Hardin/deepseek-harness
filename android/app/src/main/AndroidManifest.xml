@@ -12,6 +12,12 @@
     <!-- Native notifications posted by the JS bridge (window.DshAndroid.notify). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Background task-completion monitoring (DshNotificationService). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- The background monitor holds a partial wake lock while it watches. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <application
         android:name=".DshApp"
         android:allowBackup="true"
@@ -36,6 +42,23 @@
             android:name=".SettingsActivity"
             android:exported="false"
             android:theme="@style/Theme.Dsh" />
+
+        <!-- Firebase transport: Google delivers Host pushes; no socket lives here. -->
+        <service
+            android:name=".DshFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".DshNotificationService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="task-completion-monitoring" />
+        </service>
 
     </application>
 

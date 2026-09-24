@@ -7,7 +7,7 @@
  * whole surface, and a throwing bridge surfaces a visible alert instead of
  * crashing.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { AppSection, type AppSettingsInjected } from '../src/client/AppSection.tsx'
 import { en, type AppSettingsLocaleKey } from '../src/client/locales.ts'
@@ -24,25 +24,68 @@ const t = (key: string, params?: Record<string, unknown>): string => {
 }
 
 interface BridgeHarness {
-  calls: AppSettingsInjected & {
-    getServerUrl: ReturnType<typeof vi.fn>
-    setServerUrl: ReturnType<typeof vi.fn>
-    getCertInfo: ReturnType<typeof vi.fn>
-    forgetCertificate: ReturnType<typeof vi.fn>
-    getDiagnostics: ReturnType<typeof vi.fn>
-    clearDiagnostics: ReturnType<typeof vi.fn>
-    getCrashLog: ReturnType<typeof vi.fn>
-    clearCrashLog: ReturnType<typeof vi.fn>
-    getAppInfo: ReturnType<typeof vi.fn>
+  // Spies stay a plain record of function properties: intersecting them with
+  // the bridge interface would give every member a method signature, and
+  // reading an unbound method off that record is what `unbound-method` refuses.
+  calls: {
+    getServerUrl: Mock<() => string>
+    setServerUrl: Mock<(url: string) => void>
+    getCertInfo: Mock<() => string>
+    forgetCertificate: Mock<() => void>
+    getDiagnostics: Mock<() => string>
+    clearDiagnostics: Mock<() => void>
+    getCrashLog: Mock<() => string>
+    clearCrashLog: Mock<() => void>
+    getAppInfo: Mock<() => string>
+    /** Spies only on native builds that ship the monitoring bridge. */
+    getMonitoringEnabled?: Mock<() => boolean>
+    setMonitoringEnabled?: Mock<(enabled: boolean) => void>
   }
   renderSection: () => ReturnType<typeof render>
 }
 
-/** Mutable bridge stub: getters reflect prior mutations, setters are spies. */
-function makeBridge(): BridgeHarness {
+/**
+ * Project the spy record onto the section's injected face. The monitoring
+ * members are assigned only when present: the face declares them optional, and
+ * assigning an explicit `undefined` would violate exactOptionalPropertyTypes.
+ * @param calls - spy record driving the section.
+ * @returns the injected props for one render.
+ */
+function appSettingsProps(calls: BridgeHarness['calls']): AppSettingsInjected {
+  const { getServerUrl, setServerUrl, getCertInfo, forgetCertificate, getDiagnostics,
+    clearDiagnostics, getCrashLog, clearCrashLog, getAppInfo,
+    getMonitoringEnabled, setMonitoringEnabled } = calls
+  const props: AppSettingsInjected = {
+    getServerUrl: () => getServerUrl(),
+    setServerUrl: (url) => { setServerUrl(url) },
+    getCertInfo: () => getCertInfo(),
+    forgetCertificate: () => { forgetCertificate() },
+    getDiagnostics: () => getDiagnostics(),
+    clearDiagnostics: () => { clearDiagnostics() },
+    getCrashLog: () => getCrashLog(),
+    clearCrashLog: () => { clearCrashLog() },
+    getAppInfo: () => getAppInfo(),
+  }
+  if (getMonitoringEnabled !== undefined) {
+    props.getMonitoringEnabled = () => getMonitoringEnabled()
+  }
+  if (setMonitoringEnabled !== undefined) {
+    props.setMonitoringEnabled = (enabled: boolean) => { setMonitoringEnabled(enabled) }
+  }
+  return props
+}
+
+/**
+ * Mutable bridge stub: getters reflect prior mutations, setters are spies.
+ * @param monitoring - false omits the optional monitoring pair, as a native
+ * build that predates the monitor does.
+ * @returns the bridge harness.
+ */
+function makeBridge(monitoring = true): BridgeHarness {
   let cert = 'user-cert'
   let events = 'line1\nline2'
   let crash = 'crash log'
+  let monitoringEnabled = true
   const calls = {
     getServerUrl: vi.fn(() => 'https://dsh.example.com:3080'),
     setServerUrl: vi.fn(),
@@ -53,10 +96,16 @@ function makeBridge(): BridgeHarness {
     getCrashLog: vi.fn(() => crash),
     clearCrashLog: vi.fn(() => { crash = '' }),
     getAppInfo: vi.fn(() => 'dsh 0.1.0 · Android 36'),
+    ...monitoring
+      ? {
+        getMonitoringEnabled: vi.fn(() => monitoringEnabled),
+        setMonitoringEnabled: vi.fn((enabled: boolean) => { monitoringEnabled = enabled }),
+      }
+      : {},
   }
   return {
     calls,
-    renderSection: () => render(<AppSection {...calls} t={t} />),
+    renderSection: () => render(<AppSection {...appSettingsProps(calls)} t={t} />),
   }
 }
 
@@ -111,13 +160,35 @@ describe('AppSection', () => {
     expect(calls.getCertInfo).toHaveBeenCalledTimes(2)
   })
 
+  it('renders the monitoring toggle on when the bridge enables it', () => {
+    const { calls, renderSection } = makeBridge()
+    renderSection()
+    const toggle = screen.getByRole<HTMLInputElement>('checkbox')
+    expect(toggle.checked).toBe(true)
+    expect(calls.getMonitoringEnabled).toHaveBeenCalledTimes(1)
+  })
+
+  it('toggling monitoring off forwards to the bridge and refreshes the state', () => {
+    const { calls, renderSection } = makeBridge()
+    renderSection()
+    fireEvent.click(screen.getByRole('checkbox'))
+    expect(calls.setMonitoringEnabled).toHaveBeenCalledTimes(1)
+    expect(calls.setMonitoringEnabled).toHaveBeenCalledWith(false)
+    expect(screen.getByRole<HTMLInputElement>('checkbox').checked).toBe(false)
+    expect(calls.getMonitoringEnabled).toHaveBeenCalledTimes(2)
+  })
+
+  it('hides the monitoring controls on native builds that predate monitoring', () => {
+    const { renderSection } = makeBridge(false)
+    renderSection()
+    expect(screen.queryByRole('checkbox')).toBeNull()
+    expect(screen.queryByText('Notify me when a task finishes')).toBeNull()
+  })
+
   it('a throwing bridge surfaces a visible alert instead of crashing', () => {
     const { calls } = makeBridge()
-    const throwing = {
-      ...calls,
-      getServerUrl: vi.fn(() => { throw new Error('bridge down') }),
-    }
-    render(<AppSection {...throwing} t={t} />)
+    const throwing = { ...calls, getServerUrl: vi.fn(() => { throw new Error('bridge down') }) }
+    render(<AppSection {...appSettingsProps(throwing)} t={t} />)
     expect(screen.getByRole('alert').textContent).toBe('Loading app settings failed')
   })
 })

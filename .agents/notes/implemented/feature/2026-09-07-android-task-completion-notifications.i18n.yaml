@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for 2026-09-07-android-task-completion-notifications.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-07-android-task-completion-notifications.md
+/agent-note-android-background-task-completion-notifications:
+  en: e8c0b09f2f419ec7
+  zh: 16d9331a2365f61b
+/agent-note-android-background-task-completion-notifications/problem:
+  en: 559379099b1ece42
+  zh: 9047897e30d59240
+/agent-note-android-background-task-completion-notifications/decision:
+  en: 6d5dd4d592e51af5
+  zh: fbfa88c7ad4dd8ef
+/agent-note-android-background-task-completion-notifications/wire-contract-the-seams-the-monitor-reads:
+  en: f9420624a66de024
+  zh: 127af87a3db39925
+/agent-note-android-background-task-completion-notifications/alternatives-considered:
+  en: bdf1f949169635cf
+  zh: aafacfabef942a26
+/agent-note-android-background-task-completion-notifications/consequences:
+  en: c0866a4cc0c489d6
+  zh: ff044f5e4e047936
+/agent-note-android-background-task-completion-notifications/testing:
+  en: 756fbaae0c9c2e10
+  zh: 5ca945796dec9f89
+/agent-note-android-background-task-completion-notifications/related:
+  en: 01893b30b938dce3
+  zh: 0105773482073d01

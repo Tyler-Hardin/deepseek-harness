@@ -66,6 +66,15 @@
     - id: subagent-model-selection-settings
       name: '@deepseek-ai/dsh-tool-subagent/model-selection-settings'
 
+    # Firebase Cloud Messaging pushes for the native client. The app registers
+    # its device token over /push/register; this row pushes when a run finishes,
+    # fails, or starts waiting for the user, so the phone holds no socket.
+    - id: push-notify
+      name: '@deepseek-ai/dsh-api-push-notify'
+      config:
+        enabled: true
+        serviceAccountPath: !!js dshHomePath('fcm-service-account.json')
+        tokenPath: !!js dshHomePath('push', 'device.json')
     - id: message-feedback
       name: '@deepseek-ai/dsh-message-feedback'
       config:
