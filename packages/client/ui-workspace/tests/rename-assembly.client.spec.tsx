@@ -64,7 +64,7 @@ type FrameProps = PropsRenderSlots<'sidebar.workspaces' | 'shell.overlay'>
 function SidebarFrame({ renderSlot }: FrameProps) {
   return (
     <>
-      {renderSlot('sidebar.workspaces', { wide: true, expandSidebar: () => {} })}
+      {renderSlot('sidebar.workspaces', { wide: true, expandSidebar: () => {}, closeSidebar: () => {} })}
       {renderSlot('shell.overlay', {})}
     </>
   )

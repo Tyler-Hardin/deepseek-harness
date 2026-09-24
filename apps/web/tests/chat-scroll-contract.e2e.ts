@@ -1700,9 +1700,11 @@ describe('web e2e: long Chat scroll contract', () => {
       await world.page.getByRole('tab', { name: 'Trajectory', exact: true }).click()
       await world.page.getByLabel('Trajectory timeline').waitFor({ timeout: 30_000 })
       await world.page.setViewportSize({ width: 700, height: 900 })
-      // The narrow breakpoint auto-collapses the sidebar. Re-open it because
-      // this scenario switches sessions while pinning the narrow Chat scroll owner.
+      // The narrow breakpoint auto-collapses the sidebar. Open the drawer once
+      // to pin its narrow geometry, then dismiss it with the scrim: the drawer
+      // is modal, so the Chat tab and later header actions need it closed.
       await world.page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+      await world.page.locator('[class*="scrim"]').click()
       await world.page.getByRole('tab', { name: 'Chat', exact: true }).click()
       await nextPaint(world.page)
       await expectSameFlowTop(world.page, sessionAnchor, RESPONSIVE_REFLOW_TOLERANCE)

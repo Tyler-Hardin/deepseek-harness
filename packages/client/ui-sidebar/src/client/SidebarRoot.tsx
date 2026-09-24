@@ -50,13 +50,13 @@ function localBuildVersion(): string | undefined {
 
 type PanelRowProps =
   Pick<SidebarPanelMetadata, 'id' | 'label'>
-  & Pick<SidebarSectionOwnerProps, 'wide'>
+  & Pick<SidebarSectionOwnerProps, 'wide' | 'closeSidebar'>
   & Pick<PropsRuntime<'sidebar'>, 'usePanelInfo'>
   & Pick<InjectFace<SidebarRootInjected>, 'selectPanel'>
   & PropsRenderSlots<'sidebar.panellist'>
 
 /** Each panel row subscribes only to its own selection state. */
-function PanelRow({ id, label, wide, usePanelInfo, selectPanel, renderSlot }: PanelRowProps) {
+function PanelRow({ id, label, wide, usePanelInfo, selectPanel, closeSidebar, renderSlot }: PanelRowProps) {
   const active = usePanelInfo(info => info.activePanelId === id)
   return (
     <Tooltip label={label} delayMs={500} disabled={wide}>
@@ -65,7 +65,7 @@ function PanelRow({ id, label, wide, usePanelInfo, selectPanel, renderSlot }: Pa
         className={clsx(css.panelRow, active && css.panelActive)}
         aria-label={label}
         aria-current={active ? 'page' : undefined}
-        onClick={() => { selectPanel(id) }}
+        onClick={() => { closeSidebar(); selectPanel(id) }}
       >
         <span className={css.panelGlyph} aria-hidden="true">
           {renderSlot('sidebar.panellist', { size: wide ? 16 : 18, active }, { only: id })}
@@ -88,6 +88,7 @@ function PanelRow({ id, label, wide, usePanelInfo, selectPanel, renderSlot }: Pa
 export function SidebarRoot({
   collapsed,
   width,
+  closeSidebar,
   startSession,
   toggleSidebar,
   selectPanel,
@@ -246,7 +247,7 @@ export function SidebarRoot({
                 className={clsx(css.brand, css.wide)}
                 aria-label={t('session.new.label')}
                 aria-keyshortcuts={newShortcut?.aria}
-                onClick={() => { startSession() }}
+                onClick={() => { closeSidebar(); startSession() }}
               >
                 {identity}
               </button>
@@ -262,7 +263,7 @@ export function SidebarRoot({
           className={css.newSession}
           aria-label={t('session.new.label')}
           aria-keyshortcuts={newShortcut?.aria}
-          onClick={() => { startSession() }}
+          onClick={() => { closeSidebar(); startSession() }}
         >
           <span className={css.newSessionLabelMask}><span className={css.newSessionContent}>
             {wide
@@ -286,6 +287,7 @@ export function SidebarRoot({
               wide={wide}
               usePanelInfo={usePanelInfo}
               selectPanel={selectPanel}
+              closeSidebar={closeSidebar}
               renderSlot={renderSlot}
             />
           ))}
@@ -298,6 +300,9 @@ export function SidebarRoot({
         {renderSlot('sidebar.workspaces', {
           wide,
           expandSidebar: () => { if (collapsed) toggleSidebar() },
+          // Drawer-mode close after a selection; the frame gates the request
+          // to narrow viewports (wide keeps the persistent column).
+          closeSidebar,
         })}
       </div>
 

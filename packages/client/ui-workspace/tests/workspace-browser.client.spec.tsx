@@ -118,6 +118,7 @@ function mount(overrides: Partial<WorkspaceBrowserProps> = {}) {
     requestSessionRename: controls.rename,
     wide: true,
     expandSidebar: vi.fn(),
+    closeSidebar: vi.fn(),
     useSessions: hook(sessionState([])),
     useSessionStatus: hook(noPendingInteraction),
     useSessionRetainInfo: () => undefined,

@@ -75,8 +75,12 @@ it('keeps the automation title intact before moving New to another line', async 
                   ? 'beside' as const
                   : buttonRect.top >= titleRect.bottom - 1 ? 'below' as const : 'overlapping' as const,
               }
-            })).toEqual({ titleSingleLine: true, placement: 'below' })
-            facts.push('en 509px with sidebar expanded: title single-line; New moves below the title')
+            })).toEqual({
+              // Local fork: expanding the sidebar opens the overlay drawer, so
+              // the page column keeps its width and New stays beside the title.
+              titleSingleLine: true, placement: 'beside',
+            })
+            facts.push('en 509px with the drawer expanded: title single-line; New beside it (the drawer overlays)')
           }
           expect(consoleWatch.pageErrors).toEqual([])
         } finally {

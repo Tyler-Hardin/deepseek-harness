@@ -925,6 +925,7 @@ export function WorkspaceBrowser({
   wide,
   usePanelInfo,
   expandSidebar,
+  closeSidebar,
   useSessions,
   useSessionStatus,
   useWorkspaces,
@@ -996,6 +997,10 @@ export function WorkspaceBrowser({
     open(sessionId)
   }
   const leaveArchivedOnly = (): void => { actions.setArchivedFilter('default') }
+  // Navigation dismisses the sidebar on narrow viewports (drawer mode); the
+  // frame gates the request, so wide viewports keep the persistent column.
+  const selectSession = (sessionId: SessionId): void => { closeSidebar(); guardedOpen(sessionId) }
+  const startSessionAndClose = (workspaceId?: WorkspaceId): void => { closeSidebar(); startSession(workspaceId) }
   const workspaceReady = workspacePhase === 'ready' && workspaceStreamState !== 'loading'
   const mainSessionId = Object.values(list.byId)
     .find(session => (session.retainedBy.mainView ?? 0) > 0)?.id
@@ -1126,7 +1131,7 @@ export function WorkspaceBrowser({
     setRevealSessionId(sessionId)
     setQuery('')
     setSearchExpanded(false)
-    open(sessionId)
+    selectSession(sessionId)
   }
   const acknowledgeSessionReveal = (sessionId: SessionId): void => {
     setRevealSessionId(current => current === sessionId ? undefined : current)
@@ -1478,6 +1483,7 @@ export function WorkspaceBrowser({
           side="right"
           onPick={(workspaceId) => {
             closeAddWorkspace()
+            closeSidebar()
             startSession(workspaceId, { clearPreviousDraft: false })
           }}
           onClose={() => { closeAddWorkspace() }}
@@ -1532,7 +1538,7 @@ export function WorkspaceBrowser({
                 workspaceReady={workspaceReady}
                 animationResetKey={`${groupBy}/${orderBy}/${archivedFilter}`}
                 useSessionStatus={useSessionStatus}
-                open={guardedOpen}
+                open={selectSession}
                 onSessionRenameRequest={requestSessionRename}
                 renderSlot={renderSlot}
                 setSessionOrder={saveSessionOrder}
@@ -1559,8 +1565,8 @@ export function WorkspaceBrowser({
                 setSessionOrder={saveSessionOrder}
                 rowState={rowState}
                 onLeaveArchivedOnly={leaveArchivedOnly}
-                startSession={startSession}
-                open={guardedOpen}
+                startSession={startSessionAndClose}
+                open={selectSession}
                 insertWorkspaceBefore={insertWorkspaceBefore}
                 revealSessionId={revealSessionId}
                 onSessionRevealed={acknowledgeSessionReveal}

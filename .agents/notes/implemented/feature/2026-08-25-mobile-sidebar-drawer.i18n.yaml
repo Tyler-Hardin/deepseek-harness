@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-08-25-mobile-sidebar-drawer.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-25-mobile-sidebar-drawer.md
+/agent-note-mobile-sidebar-drawer-swipe-gestures-and-selection-auto-close:
+  en: 97925f7d10b23f6e
+  zh: 6e4d5913569cf58b
+/agent-note-mobile-sidebar-drawer-swipe-gestures-and-selection-auto-close/problem:
+  en: bb1feac2db990309
+  zh: f72008fb417cb610
+/agent-note-mobile-sidebar-drawer-swipe-gestures-and-selection-auto-close/decision:
+  en: eba5225d24334b4e
+  zh: af10efcc153a6555
+/agent-note-mobile-sidebar-drawer-swipe-gestures-and-selection-auto-close/consequences:
+  en: ee100b4a2eb9dca0
+  zh: c223d231cba37225
+/agent-note-mobile-sidebar-drawer-swipe-gestures-and-selection-auto-close/alternatives-considered:
+  en: 621409aac2b552f2
+  zh: eb0d934b9c0adc60

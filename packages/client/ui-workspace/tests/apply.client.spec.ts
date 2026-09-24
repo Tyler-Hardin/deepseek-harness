@@ -195,7 +195,7 @@ function declare(slots: SlotRegistry, ...names: HoleName[]): () => void {
 
 /** Own the sidebar declaration independently of the frame-wide overlay in lifecycle tests. */
 function SidebarDeclarationOwner({ renderSlot }: PropsRenderSlots<'sidebar.workspaces'>) {
-  return renderSlot('sidebar.workspaces', { wide: true, expandSidebar: () => {} })
+  return renderSlot('sidebar.workspaces', { wide: true, expandSidebar: () => {}, closeSidebar: () => {} })
 }
 
 /** The one entry registered under `id` in a list. */
