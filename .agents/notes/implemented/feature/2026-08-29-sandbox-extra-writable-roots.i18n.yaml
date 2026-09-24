@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-08-29-sandbox-extra-writable-roots.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-29-sandbox-extra-writable-roots.md
+/agent-note-global-extra-writable-roots-for-the-sandbox:
+  en: 9e1beb5b77e4faf6
+  zh: e163b67fc4143f73
+/agent-note-global-extra-writable-roots-for-the-sandbox/problem:
+  en: f9408d82d2e20983
+  zh: eda1af17f3c5d65a
+/agent-note-global-extra-writable-roots-for-the-sandbox/decision:
+  en: 380207c323eb39a1
+  zh: c0b1e6888bdcca76
+/agent-note-global-extra-writable-roots-for-the-sandbox/alternatives-considered:
+  en: 0107716d3b0c0525
+  zh: 8fa5bb6b258af8b4
+/agent-note-global-extra-writable-roots-for-the-sandbox/consequences:
+  en: 17da60090be093b2
+  zh: 236d342ce6461539
+/agent-note-global-extra-writable-roots-for-the-sandbox/testing:
+  en: 302413cdf9d29033
+  zh: 589791cddf57a619

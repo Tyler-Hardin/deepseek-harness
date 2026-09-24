@@ -128,6 +128,7 @@ No direct invalidation; the named consumers own any request-prefix changes.
 
 These limits define when the provider is a poor fit or needs special operational care. They are current package constraints, not a general platform comparison or a task backlog.
 
+- **The windows-acl rung grants workspace and private temp only** — configured extra writable roots get ACEs on the POSIX runners (bwrap/Landlock binds, Seatbelt subpaths) but not on the ACL runner, where a write to an extra root is denied. The fs fence derives from the same roots, so on Windows the write tool may permit an extra root the shell runner denies; per-root ACE grants are deferred.
 - **Windows ACL enforcement is partial** — NTFS hard links alias one file object across workspace and external paths, reads stay unconfined, and a tree another AppContainer tool has ACL'd with a package SID is unreadable to the Low-integrity child. The provider reports `enforcement: 'partial'` rather than overstating that boundary as full.
 - **Landlock may be partial** — older supported kernel ABIs confine only the access classes they expose, reported as `enforcement: 'partial'` rather than overstated as full.
 - **Seatbelt depends on deprecated `sandbox-exec`** — macOS still ships it, but this provider cannot replace or probe that private policy engine if Apple removes it.

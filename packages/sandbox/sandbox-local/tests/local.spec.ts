@@ -24,6 +24,7 @@ import { bwrapProfileArgs, landlockProfileArgs, seatbeltProfileArgs } from '../s
 
 const RO: SandboxPolicy = { mode: 'read-only', workspaceRoot: '/ws' }
 const WW: SandboxPolicy = { mode: 'workspace-write', workspaceRoot: '/ws' }
+const WW_EXTRA: SandboxPolicy = { mode: 'workspace-write', workspaceRoot: '/ws', extraWritableRoots: ['/cache', '/extra'] }
 
 /** Every temp dir created by this file (fake launchers and runner entries), removed after each test. */
 const tempDirs: string[] = []
@@ -84,6 +85,13 @@ describe('profile dialects', () => {
     ])
   })
 
+  it('bwrap workspace-write: binds each configured extra root', () => {
+    expect(bwrapProfileArgs(WW_EXTRA)).toEqual([
+      '--ro-bind', '/', '/', '--dev', '/dev', '--unshare-pid', '--proc', '/proc', '--die-with-parent',
+      '--tmpfs', '/tmp', '--bind', '/ws', '/ws', '--bind', '/cache', '/cache', '--bind', '/extra', '/extra',
+    ])
+  })
+
   it('landlock read-only: readable tree plus a writable /dev/null, nothing else', () => {
     // /dev/null specifically, NOT /dev: a whole-/dev grant would let confined
     // commands write real host paths beneath it (/dev/shm) under read-only.
@@ -92,6 +100,11 @@ describe('profile dialects', () => {
 
   it('landlock workspace-write: adds the host /tmp and the workspace root', () => {
     expect(landlockProfileArgs(WW)).toEqual(['--ro', '/', '--rw', '/dev/null', '--rw', '/tmp', '--rw', '/ws'])
+  })
+
+  it('landlock workspace-write: adds each configured extra root', () => {
+    expect(landlockProfileArgs(WW_EXTRA))
+      .toEqual(['--ro', '/', '--rw', '/dev/null', '--rw', '/tmp', '--rw', '/ws', '--rw', '/cache', '--rw', '/extra'])
   })
 
   it('seatbelt read-only: allow-default with every file write denied except the /dev/null literal', () => {

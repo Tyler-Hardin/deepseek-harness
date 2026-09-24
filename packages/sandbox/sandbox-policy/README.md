@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Use this package to apply one file-effect policy to every confined bash, filesystem, and terminal call. Deployments choose a default mode and fallback workspace root, while each session can switch modes independently. Session choices survive restart, and all enforcing capabilities use the same mode and workspace for a call. Before each model request, the model receives the effective policy and workspace without an inventory of mounted capabilities.
+Use this package to apply one file-effect policy to every confined bash, filesystem, and terminal call. Deployments choose a default mode, a fallback workspace root, and optional host-local extra writable roots, while each session can switch modes independently. Session choices survive restart, and all enforcing capabilities use the same mode and workspace for a call. Before each model request, the model receives the effective policy and workspace without an inventory of mounted capabilities.
 
 ## Table of Contents
 
@@ -46,8 +46,13 @@ Load the package with a default mode; the fail-safe default is `read-only`, and 
 |---|---|---|
 | `mode` | `read-only` | The deployment default mode a session starts from, validated at load |
 | `workspaceRoot` | `process.cwd()` | Absolute fallback root for agentless calls or sessions without a cwd; relative values fail at load. Normal agent calls use the session's immutable cwd |
+| `extraWritableRoots` | `[]` | Host-local absolute directories `workspace-write` may write under in addition to the session workspace and platform temp areas (for example `~/.cache`; a leading `~` expands to the user's home, and non-absolute spellings are rejected at load). Remote execution worlds never receive them |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-sandbox-policy) is the exhaustive source for every accepted field and its JSDoc.
+
+### Configuring extra writable roots
+
+`extraWritableRoots` grants standing write access beyond the session workspace and the platform temp areas, for host-local directories a workflow genuinely needs (a build cache, a shared checkout). Leave it empty when the session workspace should be the whole writable surface. A profile edit backed by `configEditor` overlays the deployment default for the next capability call, so the list changes without a restart.
 
 ### Switching a session's mode
 
@@ -69,7 +74,7 @@ This section explains policy resolution, the per-session store, and the model-vi
 
 ### Resolution precedence
 
-`resolve({ session, mode })` returns one complete per-call policy: an approved explicit mode outranks the session's last `sandbox/mode` event, which outranks the deployment default. The session's immutable `cwd` supplies the workspace root; otherwise the configured fallback applies. Absolute execution-world spelling is preserved. Enforcing providers canonicalize the root on their own filesystem, so remote `symlink/..` paths are never resolved on the Harness host.
+`resolve({ session, mode })` returns one complete per-call policy: an approved explicit mode outranks the session's last `sandbox/mode` event, which outranks the deployment default. The session's immutable `cwd` supplies the workspace root; otherwise the configured fallback applies. Effective extra writable roots are expanded (`~`), validated, deduplicated, and carried on the policy only when the list is non-empty. Absolute execution-world spelling is preserved. Enforcing providers canonicalize the root on their own filesystem, so remote `symlink/..` paths are never resolved on the Harness host.
 
 ### The per-session store
 

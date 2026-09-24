@@ -2711,7 +2711,7 @@ export interface Config {
 
 - `inject`: `sessionProjections`
 - `refs`: [`SandboxMode`](subsystems/sandbox.zh.md)
-- `source`: [`packages/sandbox/sandbox-policy/src/index.ts:71`](../packages/sandbox/sandbox-policy/src/index.ts)
+- `source`: [`packages/sandbox/sandbox-policy/src/index.ts:85`](../packages/sandbox/sandbox-policy/src/index.ts)
 
 ```ts config-catalog
 /**
@@ -2729,6 +2729,14 @@ export interface Config {
    * `process.cwd()`). Normal agent calls use their session cwd instead.
    */
   workspaceRoot?: string
+  /**
+   * HOST-LOCAL directories `workspace-write` may write under in addition to
+   * the session workspace and platform temp areas (for example `~/.cache`; a
+   * leading `~` expands to the user's home). Remote execution worlds never
+   * receive them. A profile edit backed by `configEditor` overlays this
+   * deployment default for the next capability call.
+   */
+  extraWritableRoots?: string[]
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-sandbox-policy -->
