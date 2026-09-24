@@ -33,6 +33,7 @@ import {
   hasApiSessionSubagentOwner,
   inspectApiSession,
   type ApiSessionCreated,
+  sessionWorkspaceId,
 } from './agent.ts'
 import type {
   SessionAttachmentRequest,
@@ -145,6 +146,13 @@ export class SessionCommandController {
           { sessionId, workspaceId: workspace.id },
         )
       }
+      // A Workspace carrying an explicit default hands it to every Session
+      // created in it. The Session log records the intent, because the Client
+      // reads a Session's model from its `modelSelection` projection: an empty
+      // projection leaves the composer showing the shared default even though
+      // prompt assembly already resolves the workspace tier.
+      const override = this.ctx.agentDefaultModel.workspaceSelection(workspace.id)
+      if (override !== undefined) this.agents.selectForNextRequest(created.agent, override)
     }
     return { sessionId, ...(created.agentPreset === undefined ? {} : { agentPreset: created.agentPreset }) }
   }
@@ -174,7 +182,17 @@ export class SessionCommandController {
             : { reasoningEffort: resolved.reasoningEffort }),
         }
         this.agents.selectForNextRequest(agent, selected)
-        void this.ctx.agentDefaultModel.saveSelection(selected).catch((error: unknown) => {
+        // A Session whose Workspace carries an explicit override updates that
+        // override — the workspace default is the model the workspace starts
+        // from — while every other switch updates the shared default. The write
+        // stays in the background: the Session-local selection is already
+        // installed.
+        const workspaceId = sessionWorkspaceId(this.ctx, agent.session.id)
+        const saving = workspaceId !== undefined
+          && this.ctx.agentDefaultModel.workspaceSelection(workspaceId) !== undefined
+          ? this.ctx.agentDefaultModel.saveWorkspaceSelection(workspaceId, selected)
+          : this.ctx.agentDefaultModel.saveSelection(selected)
+        void saving.catch((error: unknown) => {
           this.ctx.logger.warn(
             `session-controller: model selection changed for the Session but the default was not saved: ${String(error)}`,
           )

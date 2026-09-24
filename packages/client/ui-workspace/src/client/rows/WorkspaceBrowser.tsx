@@ -18,11 +18,15 @@ import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useStat
 import clsx from 'clsx'
 import {
   Button, HoverCardGroup, IconArchiveCheckOutlineRegular, IconArchiveOffOutlineRegular, IconArchiveOutlineRegular,
+  IconCheckOutlineRegular,
   IconChevronsUpDownOutlineRegular, IconClockOutlineRegular, IconCloseFillRegular,
   IconFlatListOutlineRegular, IconFolderCloseRegular, IconProjectAddOutlineRegular,
   IconQueueOutlineRegular, IconSearchOutlineRegular, IconSlidersTwoOutlineRegular,
   IconWorkspaceTreeOutlineRegular, Menu, Modal, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
+import type {
+  ModelCatalogFailure, ModelProviderGroup, ModelSelection,
+} from '@deepseek-ai/dsh-api-session-controller/types'
 import type {
   SessionListState, SessionSearchResultItem,
 } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -289,6 +293,8 @@ type SessionTreeProps = Pick<
   onRenameRequest: (workspaceId: WorkspaceId, currentTitle: string) => void
   /** Open the browser-owned delete-confirmation dialog for a real Workspace group. */
   onDeleteRequest: (workspaceId: WorkspaceId, currentTitle: string) => void
+  /** Open the browser-owned default-model dialog for a real Workspace group. */
+  onDefaultModelRequest: (workspaceId: WorkspaceId, currentTitle: string) => void
   /** Open the rename dialog from a row title double-click. */
   onSessionRenameRequest: (sessionId: SessionNode['id'], currentTitle: string) => void
   /** One Session chosen from search that must be exposed and scrolled into view. */
@@ -313,12 +319,30 @@ function EmptySessions({ rowState, onLeaveArchivedOnly, t }: Pick<SessionTreePro
   )
 }
 
+/**
+ * Display name of one model selection from the advisory catalog. Catalog
+ * membership is advisory, so an absent row falls back to the raw
+ * provider/model ids rather than synthesizing a label.
+ * @param groups - advisory provider groups from the Host catalog.
+ * @param selection - provider/model route to label.
+ * @returns the model's display name, or `provider/model`.
+ */
+function modelLabel(groups: readonly ModelProviderGroup[], selection: ModelSelection): string {
+  for (const group of groups) {
+    if (group.id !== selection.provider) continue
+    for (const model of group.models) {
+      if (model.id === selection.model) return model.name
+    }
+  }
+  return `${selection.provider}/${selection.model}`
+}
+
 /** The scrolling session tree; unmounting drops the sessions subscription and the session watermarks. */
 function SessionTree({
   list, useSessionStatus, startSession, open, workspaces, ungroupedSessionIds,
   rowState, onLeaveArchivedOnly,
   workspaceReady, animationResetKey, usePanelInfo,
-  onRenameRequest, onDeleteRequest, onSessionRenameRequest,
+  onRenameRequest, onDeleteRequest, onDefaultModelRequest, onSessionRenameRequest,
   renderSlot,
   insertWorkspaceBefore,
   nestWorkspaces, groupExpansion, setGroupExpanded,
@@ -577,6 +601,10 @@ function SessionTree({
               rename: () => {
               /* v8 ignore next -- narrowing guard: the actions object exists only for real-workspace groups. */
                 if (group.workspaceId !== undefined) onRenameRequest(group.workspaceId, group.label)
+              },
+              defaultModel: () => {
+              /* v8 ignore next -- narrowing guard: the actions object exists only for real-workspace groups. */
+                if (group.workspaceId !== undefined) onDefaultModelRequest(group.workspaceId, group.label)
               },
               delete: () => {
               /* v8 ignore next -- narrowing guard: the actions object exists only for real-workspace groups. */
@@ -908,6 +936,8 @@ export function WorkspaceBrowser({
   notifyArchivedNotOpenable,
   renameWorkspace,
   deleteWorkspace,
+  defaultModel,
+  setDefaultModel,
   insertWorkspaceBefore,
   unarchiveSession,
   createWorkspace,
@@ -1230,6 +1260,80 @@ export function WorkspaceBrowser({
 
   // Delete dialog is separate from the row so a successful removal can
   // unmount that row without tearing down the in-flight confirmation state.
+  // Default-model dialog (browser-owned like rename/delete). The catalog and
+  // the current override both come from the Host on open, so this dialog owns
+  // no session and renders entirely from the load response. The generation
+  // counter drops an in-flight load after close or a newer retry.
+  const [defaultModelTarget, setDefaultModelTarget] = useState<{ workspaceId: WorkspaceId; title: string } | null>(null)
+  const [defaultModelView, setDefaultModelView] = useState<{
+    status: 'loading' | 'ready' | 'error'
+    selection: ModelSelection | null
+    shared: ModelSelection | null
+    groups: readonly ModelProviderGroup[]
+    failures: readonly ModelCatalogFailure[]
+    error: string | null
+  } | null>(null)
+  const [defaultModelSaving, setDefaultModelSaving] = useState(false)
+  const [defaultModelError, setDefaultModelError] = useState<string | null>(null)
+  const defaultModelLoadSeq = useRef(0)
+  const loadDefaultModel = (workspaceId: WorkspaceId): void => {
+    const seq = ++defaultModelLoadSeq.current
+    setDefaultModelView(current => current === null
+      ? { status: 'loading', selection: null, shared: null, groups: [], failures: [], error: null }
+      : { ...current, status: 'loading', error: null })
+    defaultModel(workspaceId).then((view) => {
+      if (seq !== defaultModelLoadSeq.current) return
+      setDefaultModelView({
+        status: 'ready',
+        selection: view.selection,
+        shared: view.shared,
+        groups: view.groups,
+        failures: view.failures,
+        error: null,
+      })
+    }).catch((reason: unknown) => {
+      if (seq !== defaultModelLoadSeq.current) return
+      const message = reason instanceof Error ? reason.message : String(reason)
+      setDefaultModelView(current => current === null
+        ? { status: 'error', selection: null, shared: null, groups: [], failures: [], error: message }
+        : { ...current, status: 'error', error: message })
+    })
+  }
+  const openDefaultModel = (workspaceId: WorkspaceId, title: string): void => {
+    setDefaultModelTarget({ workspaceId, title })
+    setDefaultModelView(null)
+    setDefaultModelSaving(false)
+    setDefaultModelError(null)
+    loadDefaultModel(workspaceId)
+  }
+  const closeDefaultModel = (): void => {
+    /* v8 ignore next -- the Modal's close paths are disabled while a save is in flight. */
+    if (defaultModelSaving) return
+    defaultModelLoadSeq.current++
+    setDefaultModelTarget(null)
+    setDefaultModelView(null)
+    setDefaultModelError(null)
+  }
+  const pickDefaultModel = (selection: ModelSelection | null): void => {
+    setDefaultModelView(current => current === null ? current : { ...current, selection })
+  }
+  const confirmDefaultModel = (): void => {
+    /* v8 ignore next -- the Modal is absent without a target; its button is disabled while saving or loading. */
+    if (defaultModelSaving || defaultModelTarget === null
+      || defaultModelView === null || defaultModelView.status !== 'ready') return
+    setDefaultModelSaving(true)
+    setDefaultModelError(null)
+    setDefaultModel(defaultModelTarget.workspaceId, defaultModelView.selection).then(() => {
+      defaultModelLoadSeq.current++
+      setDefaultModelSaving(false)
+      setDefaultModelTarget(null)
+      setDefaultModelView(null)
+    }).catch((reason: unknown) => {
+      setDefaultModelSaving(false)
+      setDefaultModelError(reason instanceof Error ? reason.message : String(reason))
+    })
+  }
+
   const [deleteTarget, setDeleteTarget] = useState<{ workspaceId: WorkspaceId; title: string } | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteCommittedId, setDeleteCommittedId] = useState<WorkspaceId | null>(null)
@@ -1474,6 +1578,7 @@ export function WorkspaceBrowser({
                   setDeleteTarget({ workspaceId, title })
                   setDeleteError(null)
                 }}
+                onDefaultModelRequest={openDefaultModel}
               />
             ))}
       </div>
@@ -1511,6 +1616,97 @@ export function WorkspaceBrowser({
           <div className={css.renameError} role="alert">{t('conflict.named', { name: renameTrimmed })}</div>
         )}
         {renameError !== null && <div className={css.renameError} role="alert">{renameError}</div>}
+      </Modal>
+
+      <Modal
+        open={defaultModelTarget !== null}
+        onClose={closeDefaultModel}
+        closeLabel={t('close')}
+        title={t('defaultModel.title', { name: defaultModelTarget?.title ?? '' })}
+        footer={(
+          <>
+            <Button variant="outline" disabled={defaultModelSaving} onClick={closeDefaultModel}>{t('cancel')}</Button>
+            <Button
+              variant="primary"
+              disabled={defaultModelSaving || defaultModelView?.status !== 'ready'}
+              onClick={confirmDefaultModel}
+            >
+              {t('save')}
+            </Button>
+          </>
+        )}
+      >
+        {defaultModelTarget !== null && defaultModelView !== null && (defaultModelView.status === 'loading'
+          ? <div className={css.modelStatus} role="status">{t('defaultModel.loading')}</div>
+          : defaultModelView.status === 'error'
+            ? (
+              <>
+                <div className={css.renameError} role="alert">{defaultModelView.error}</div>
+                <Button variant="outline" onClick={() => { loadDefaultModel(defaultModelTarget.workspaceId) }}>
+                  {t('retry')}
+                </Button>
+              </>
+            )
+            : (
+              <>
+                <div className={css.modelHint}>{t('defaultModel.hint')}</div>
+                <div className={clsx(css.modelPicker, 'scrollable')} role="radiogroup" aria-label={t('defaultModel.pickerAria')}>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={defaultModelView.selection === null}
+                    className={clsx(css.modelOption, defaultModelView.selection === null && css.modelOptionSelected)}
+                    onClick={() => { pickDefaultModel(null) }}
+                  >
+                    <span className={css.modelOptionCopy}>
+                      <span className={css.modelName}>{t('defaultModel.global')}</span>
+                      {defaultModelView.shared !== null && (
+                        <span className={css.modelDescription}>
+                          {modelLabel(defaultModelView.groups, defaultModelView.shared)}
+                        </span>
+                      )}
+                    </span>
+                    <span className={css.modelCheck}>
+                      {defaultModelView.selection === null && <IconCheckOutlineRegular size={14} />}
+                    </span>
+                  </button>
+                  {defaultModelView.groups.length === 0 && (
+                    <div className={css.modelEmpty}>{t('defaultModel.empty')}</div>
+                  )}
+                  {defaultModelView.groups.map(group => (
+                    <div key={group.id}>
+                      <div className={css.modelGroupTitle}>{group.name}</div>
+                      {group.models.map((model) => {
+                        const selected = defaultModelView.selection !== null
+                          && defaultModelView.selection.provider === group.id
+                          && defaultModelView.selection.model === model.id
+                        return (
+                          <button
+                            type="button"
+                            role="radio"
+                            aria-checked={selected}
+                            className={clsx(css.modelOption, selected && css.modelOptionSelected)}
+                            key={model.id}
+                            onClick={() => { pickDefaultModel({ provider: group.id, model: model.id }) }}
+                          >
+                            <span className={css.modelOptionCopy}>
+                              <span className={css.modelName}>{model.name}</span>
+                              {model.description !== undefined && (
+                                <span className={css.modelDescription}>{model.description}</span>
+                              )}
+                            </span>
+                            <span className={css.modelCheck}>
+                              {selected && <IconCheckOutlineRegular size={14} />}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </>
+            ))}
+        {defaultModelError !== null && <div className={css.renameError} role="alert">{defaultModelError}</div>}
       </Modal>
 
       <Modal

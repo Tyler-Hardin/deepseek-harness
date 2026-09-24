@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Give newly created agents a shared default provider and model when their sessions do not specify one. Provider, model, and reasoning effort are live Config fields. Saved selections update the active profile patch and apply to subsequent reads; per-session selection remains owned by the entry point.
+Give newly created agents a shared default provider and model when their sessions do not specify one. Provider, model, and reasoning effort are live Config fields. Saved selections update the active profile patch and apply to subsequent reads; each workspace may also carry an explicit override, and per-session selection remains owned by the entry point.
 
 ## Table of Contents
 
@@ -42,6 +42,7 @@ The composition requires a provider and model. Consumers read the live reference
 |---|---|---|
 | `provider` | required | Registered provider route for fresh agents |
 | `model` | required | Provider-owned model id for fresh agents |
+| `workspaceDefaults` | `{}` | Per-workspace overrides, keyed by workspace id: `{ provider, model, reasoningEffort? }` |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-agent-default-model) lists every accepted field. `reasoningEffort` is optional; saving a selection without it removes that field from the profile’s complete config override.
 
@@ -54,7 +55,9 @@ const selection = ctx.agentDefaultModel.currentSelection()
 await ctx.agentDefaultModel.saveSelection({ provider, model, reasoningEffort: 'high' })
 ```
 
-Without a configuration editor, `saveSelection()` is a no-op. The service does not validate catalog membership; the consumer opening a model request owns availability diagnostics.
+A workspace may carry its own explicit override beside the shared selection: `workspaceSelection(workspaceId)` reads it and `saveWorkspaceSelection(workspaceId, selection | null)` stores or clears it, with `null` returning the workspace to the shared selection. Both write the same profile entry, so saving the shared selection keeps every workspace override.
+
+Without a configuration editor, `saveSelection()` and `saveWorkspaceSelection()` are no-ops. The service does not validate catalog membership; the consumer opening a model request owns availability diagnostics.
 
 -----
 
@@ -68,13 +71,14 @@ This section explains how the service realizes the behavior above; the observabl
 
 ### Design concept
 
-The service retains its validated Config references and samples them in `currentSelection()`. `saveSelection()` captures the submitted values and serializes profile writes in submission order, including overlapping callers. Each caller observes its own write failure; a rejected write does not prevent later saves. Session-specific selection takes precedence in the consumer.
+The service retains its validated Config references and samples them in `currentSelection()`. `saveSelection()` and `saveWorkspaceSelection()` derive the entry's next config from the current one and serialize profile writes in submission order, including overlapping callers; the shared call keeps the workspace overrides it does not change. Each caller observes its own write failure; a rejected write does not prevent later saves. Session-specific selection takes precedence in the consumer, above the workspace override.
 
 ### Source map
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Live default selection and profile-backed writes |
+| [`src/index.ts`](src/index.ts) | Live default selection, workspace overrides, and profile-backed writes |
+| — | No invariant companion is published because Config references are the only owned values. |
 
 ### Behavior notes
 
@@ -112,8 +116,8 @@ Changing the default affects only agents that subsequently resolve from it. An e
 
 These limits define the service's scope. They are current package constraints, not a task backlog.
 
-- **One process-wide default** — the service owns a single default; per-session model selection remains the entry point's responsibility.
-- **Persistence requires a profile configuration editor** — without it, saving a default does not retain the selection.
+- **One shared selection plus per-workspace overrides** — the service owns the shared default and at most one explicit override per workspace; per-session model selection remains the entry point's responsibility.
+- **Persistence requires a profile configuration editor** — without it, saving a default or a workspace override does not retain the selection.
 
 <a id="dev-note"></a>
 ### Dev Note

@@ -43,7 +43,7 @@ function publishedSession(ctx: Context, sessionId: SessionId) {
   }
 }
 
-async function baseContext(): Promise<Context> {
+async function baseContext(defaultModel: object = {}): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(TypertRegistry)
   await ctx.plugin(SessionStore)
@@ -52,8 +52,29 @@ async function baseContext(): Promise<Context> {
   ctx.provide('agentDefaultModel', {
     currentSelection: () => ({ provider: 'fixture', model: 'fixture-model' }),
     saveSelection: () => Promise.resolve(),
+    workspaceSelection: () => undefined,
+    saveWorkspaceSelection: () => Promise.resolve(),
+    ...defaultModel,
   } as never)
   return ctx
+}
+
+/** Structural Workspace double; only the members a case exercises carry spies. */
+function workspaceFixture(overrides: Partial<Workspace> = {}): Workspace {
+  return {
+    id: 'workspace-1' as WorkspaceId,
+    path: '/workspace',
+    title: 'workspace',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    sessionIds: [],
+    setTitle: () => Promise.resolve(),
+    attachSession: () => Promise.resolve(),
+    insertSessionBefore: () => Promise.resolve(),
+    detachSession: () => Promise.resolve(),
+    status: () => Promise.resolve('ok'),
+    ...overrides,
+  }
 }
 
 describe('Session creation failures', () => {
@@ -87,11 +108,9 @@ describe('Session creation failures', () => {
     await missing.fiber.dispose()
 
     const failed = await baseContext()
-    const workspace = {
-      id: 'workspace-1' as WorkspaceId,
-      path: '/workspace',
+    const workspace = workspaceFixture({
       attachSession: () => Promise.reject(new Error('read-only workspace')),
-    } as unknown as Workspace
+    })
     failed.provide('workspaceRegistry', {
       get: () => workspace,
       list: () => [workspace],
@@ -141,6 +160,40 @@ describe('Session creation failures', () => {
     await expectFailure(controller.create({
       sessionId: SessionId('failed-create'), cwd: '/requested',
     }), code)
+    await ctx.fiber.dispose()
+  })
+
+  it('starts a Session created in a Workspace from that Workspace default', async () => {
+    const override = { provider: 'acme-gateway', model: 'acme-large' }
+    const ctx = await baseContext({ workspaceSelection: () => override })
+    const workspace = workspaceFixture()
+    ctx.provide('workspaceRegistry', { get: () => workspace, list: () => [workspace] } as never)
+    const sessionId = SessionId('workspace-default')
+    const agents = controllerAgents(ctx, { createSession: publishedSession(ctx, sessionId) })
+    const selectForNextRequest = vi.spyOn(agents, 'selectForNextRequest').mockImplementation(() => {})
+    const controller = new SessionCommandController(ctx, agents, '/default')
+
+    await controller.create({ sessionId, workspaceId: workspace.id })
+
+    expect(selectForNextRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ id: sessionId }),
+      override,
+    )
+    await ctx.fiber.dispose()
+  })
+
+  it('leaves a Session on the shared default when its Workspace has no override', async () => {
+    const ctx = await baseContext()
+    const workspace = workspaceFixture()
+    ctx.provide('workspaceRegistry', { get: () => workspace, list: () => [workspace] } as never)
+    const sessionId = SessionId('workspace-shared')
+    const agents = controllerAgents(ctx, { createSession: publishedSession(ctx, sessionId) })
+    const selectForNextRequest = vi.spyOn(agents, 'selectForNextRequest').mockImplementation(() => {})
+    const controller = new SessionCommandController(ctx, agents, '/default')
+
+    await controller.create({ sessionId, workspaceId: workspace.id })
+
+    expect(selectForNextRequest).not.toHaveBeenCalled()
     await ctx.fiber.dispose()
   })
 
@@ -255,11 +308,10 @@ describe('Session fork failures', () => {
   it('omits absent cwd and preset metadata before reporting Workspace attachment failure', async () => {
     const ctx = await baseContext()
     const source = completedSession(ctx, 'workspace-source')
-    const workspace = {
-      id: 'workspace-1' as WorkspaceId,
+    const workspace = workspaceFixture({
       sessionIds: [source.id],
       attachSession: () => Promise.reject(new Error('workspace write failed')),
-    } as unknown as Workspace
+    })
     ctx.provide('workspaceRegistry', { list: () => [workspace] } as never)
     const create = vi.spyOn(ctx.agents, 'create').mockImplementation(
       (options: CreateAgentOptions) => Promise.resolve(resolvedHandle(ctx, options.sessionId)),

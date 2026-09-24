@@ -125,6 +125,13 @@ export const zh = {
   'time.months': '{n}个月',
   'time.years': '{n}年',
   'time.ago': '{t}前',
+  'menu.defaultModel': '默认模型',
+  'defaultModel.title': '“{name}”的默认模型',
+  'defaultModel.hint': '该工作区的新会话将默认使用所选模型；未设置时沿用全局默认。',
+  'defaultModel.global': '使用全局默认',
+  'defaultModel.pickerAria': '默认模型',
+  'defaultModel.loading': '正在加载模型…',
+  'defaultModel.empty': '暂无可用模型',
 } satisfies Record<string, string>
 
 /** The workspace namespace key union. */
@@ -251,4 +258,11 @@ export const en = {
   'time.months': '{n}mo',
   'time.years': '{n}y',
   'time.ago': '{t} ago',
+  'menu.defaultModel': 'Default model',
+  'defaultModel.title': 'Default model for {name}',
+  'defaultModel.hint': 'New sessions in this workspace start from the selected model; unset, they use the global default.',
+  'defaultModel.global': 'Use global default',
+  'defaultModel.pickerAria': 'Default model',
+  'defaultModel.loading': 'Loading models…',
+  'defaultModel.empty': 'No models available',
 } satisfies Record<WorkspaceKey, string>

@@ -1,7 +1,7 @@
 /** Test-owned workspaces face: the renderer standard-kit observable plus recorded actions. */
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type {
-  IWorkspaces, WorkspaceId, WorkspaceSnapshot, WorkspaceView,
+  IWorkspaces, ModelSelection, WorkspaceDefaultModelValue, WorkspaceId, WorkspaceSnapshot, WorkspaceView,
 } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -189,6 +189,37 @@ export class TestWorkspaces implements IWorkspaces {
         ...draft.pinnedSessionIds.filter(id => id !== sessionId),
       ]
     })
+  }
+
+  /**
+   * Read one Workspace's default-model view (recorded). The default serves an
+   * empty view inheriting the shared default.
+   * @param workspaceId - target workspace.
+   * @returns the Host-shaped default-model view.
+   */
+  async defaultModel(workspaceId: WorkspaceId): Promise<WorkspaceDefaultModelValue> {
+    this.calls.push({ method: 'defaultModel', args: [workspaceId] })
+    const stub = this.stubs.get('defaultModel')
+    if (stub !== undefined) return await (stub(workspaceId) as Promise<WorkspaceDefaultModelValue>)
+    return await Promise.resolve({
+      override: null,
+      shared: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+    })
+  }
+
+  /**
+   * Save or clear one Workspace's default-model override (recorded). The
+   * default is inert: the fixture stores no overrides.
+   * @param workspaceId - target workspace.
+   * @param selection - override to save, or null to clear.
+   */
+  async setDefaultModel(workspaceId: WorkspaceId, selection: ModelSelection | null): Promise<void> {
+    this.calls.push({ method: 'setDefaultModel', args: [workspaceId, selection] })
+    const stub = this.stubs.get('setDefaultModel')
+    if (stub !== undefined) {
+      await (stub(workspaceId, selection) as Promise<void>)
+      return
+    }
   }
 
   /**

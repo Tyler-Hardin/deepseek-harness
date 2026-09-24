@@ -20,6 +20,7 @@
     { "path": "../../core/session" },
     { "path": "../../host/directory-picker" },
     { "path": "../../typert/protocol" },
-    { "path": "../../workspace/workspace" }
+    { "path": "../../workspace/workspace" },
+    { "path": "../session-controller/tsconfig.client.json" }
   ]
 }

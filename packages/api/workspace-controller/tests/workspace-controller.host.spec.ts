@@ -137,6 +137,274 @@ describe('WorkspaceController commands', () => {
     })
   })
 
+  it('serves a Workspace default-model view and routes switches to the stored override', async () => {
+    const { controller, ctx, root } = await harness()
+    const created = await controller.create({ path: stageDir(root, 'defaults') })
+    const workspaceId = created.workspace.workspaceId
+
+    await expect(controller.defaultModel({ workspaceId }))
+      .rejects.toMatchObject({ code: 'workspace/default-model-unavailable' })
+
+    const overrides = new Map<string, { provider: string; model: string; reasoningEffort?: string }>()
+    const saveWorkspaceSelection = vi.fn((id: string, next: { provider: string; model: string; reasoningEffort?: string } | null) => {
+      if (next === null) overrides.delete(id)
+      else overrides.set(id, { ...next })
+      return Promise.resolve()
+    })
+    ctx.provide('agentDefaultModel', {
+      currentSelection: () => ({ provider: 'shared-gateway', model: 'shared-large' }),
+      workspaceSelection: (id: string) => overrides.get(id),
+      saveWorkspaceSelection,
+    } as never)
+    ctx.provide('llm', {
+      resolveCallConfig: () => Promise.resolve({ provider: 'acme-gateway', model: 'acme-large' }),
+    } as never)
+
+    await expect(controller.defaultModel({ workspaceId })).resolves.toEqual({
+      override: null,
+      shared: { provider: 'shared-gateway', model: 'shared-large' },
+    })
+
+    await expect(controller.setDefaultModel({
+      workspaceId,
+      selection: { provider: 'acme-gateway', model: 'acme-large' },
+    })).resolves.toEqual({ saved: true })
+    expect(saveWorkspaceSelection).toHaveBeenCalledWith(workspaceId, { provider: 'acme-gateway', model: 'acme-large' })
+    await expect(controller.defaultModel({ workspaceId })).resolves.toEqual({
+      override: { provider: 'acme-gateway', model: 'acme-large' },
+      shared: { provider: 'shared-gateway', model: 'shared-large' },
+    })
+
+    await expect(controller.setDefaultModel({ workspaceId, selection: null })).resolves.toEqual({ saved: true })
+    await expect(controller.defaultModel({ workspaceId })).resolves.toEqual({
+      override: null,
+      shared: { provider: 'shared-gateway', model: 'shared-large' },
+    })
+  })
+
+  it('refuses a route no adapter serves, before anything is stored', async () => {
+    const { controller, ctx, root } = await harness()
+    const created = await controller.create({ path: stageDir(root, 'defaults-invalid') })
+    const saveWorkspaceSelection = vi.fn(() => Promise.resolve())
+    ctx.provide('agentDefaultModel', {
+      currentSelection: () => ({ provider: 'shared-gateway', model: 'shared-large' }),
+      workspaceSelection: () => undefined,
+      saveWorkspaceSelection,
+    } as never)
+
+    await expect(controller.setDefaultModel({
+      workspaceId: created.workspace.workspaceId,
+      selection: { provider: 'acme-gateway', model: 'acme-large' },
+    })).rejects.toMatchObject({ code: 'workspace/model-unavailable' })
+    expect(saveWorkspaceSelection).not.toHaveBeenCalled()
+
+    ctx.provide('llm', {
+      resolveCallConfig: () => Promise.reject(new Error('no such route')),
+    } as never)
+    await expect(controller.setDefaultModel({
+      workspaceId: created.workspace.workspaceId,
+      selection: { provider: 'acme-gateway', model: 'acme-large' },
+    })).rejects.toMatchObject({ code: 'workspace/model-unavailable' })
+    expect(saveWorkspaceSelection).not.toHaveBeenCalled()
+  })
+
+  it('points blank Workspace Sessions at a saved default and clears the override on delete', async () => {
+    const { controller, ctx, root } = await harness()
+    const created = await controller.create({ path: stageDir(root, 'defaults-adopt') })
+    const workspaceId = created.workspace.workspaceId
+    const workspace = ctx.workspaceRegistry.get(workspaceId)
+    if (workspace === undefined) throw new Error('fixture Workspace disappeared')
+    const blank = ctx.sessions.create(SessionId('blank-session'), { meta: { cwd: created.workspace.path } })
+    const chosen = ctx.sessions.create(SessionId('chosen-session'), { meta: { cwd: created.workspace.path } })
+    await workspace.attachSession(blank.id)
+    await workspace.attachSession(chosen.id)
+
+    const overrides = new Map<string, { provider: string; model: string }>()
+    const saveWorkspaceSelection = vi.fn((id: string, next: { provider: string; model: string } | null) => {
+      if (next === null) overrides.delete(id)
+      else overrides.set(id, { ...next })
+      return Promise.resolve()
+    })
+    ctx.provide('agentDefaultModel', {
+      currentSelection: () => ({ provider: 'shared-gateway', model: 'shared-large' }),
+      workspaceSelection: (id: string) => overrides.get(id),
+      saveWorkspaceSelection,
+    } as never)
+    ctx.provide('llm', {
+      resolveCallConfig: () => Promise.resolve({ provider: 'acme-gateway', model: 'acme-large' }),
+    } as never)
+    ctx.provide('sessionProjections', {
+      snapshot: (session: { id: string }) => ({
+        values: {
+          modelSelection: session.id === 'chosen-session'
+            ? { lastUsed: { provider: 'own-gateway', model: 'own-large' }, next: { provider: 'own-gateway', model: 'own-large' } }
+            : { lastUsed: null, next: null },
+        },
+      }),
+    } as never)
+    const selectModel = vi.fn(() => Promise.resolve({ selected: { provider: 'acme-gateway', model: 'acme-large' } }))
+    ctx.provide('sessionController', { selectModel } as never)
+
+    await controller.setDefaultModel({
+      workspaceId,
+      selection: { provider: 'acme-gateway', model: 'acme-large' },
+    })
+
+    expect(selectModel).toHaveBeenCalledTimes(1)
+    expect(selectModel).toHaveBeenCalledWith({
+      sessionId: blank.id, provider: 'acme-gateway', model: 'acme-large',
+    })
+
+    await expect(controller.delete({ workspaceId })).resolves.toEqual({ deleted: true })
+    expect(saveWorkspaceSelection).toHaveBeenCalledWith(workspaceId, null)
+  })
+
+  it('carries a reasoning effort through the stored override and rejects without a model service', async () => {
+    const { controller, ctx, root } = await harness()
+    const created = await controller.create({ path: stageDir(root, 'defaults-effort') })
+    const workspaceId = created.workspace.workspaceId
+
+    await expect(controller.setDefaultModel({
+      workspaceId,
+      selection: { provider: 'acme-gateway', model: 'acme-large' },
+    })).rejects.toMatchObject({ code: 'workspace/default-model-unavailable' })
+
+    const saved: Array<{ provider: string; model: string; reasoningEffort?: string }> = []
+    ctx.provide('agentDefaultModel', {
+      currentSelection: () => ({ provider: 'shared-gateway', model: 'shared-large', reasoningEffort: 'low' }),
+      workspaceSelection: () => ({ provider: 'acme-gateway', model: 'acme-large', reasoningEffort: 'high' }),
+      saveWorkspaceSelection: (_id: string, next: { provider: string; model: string; reasoningEffort?: string }) => {
+        saved.push(next)
+        return Promise.resolve()
+      },
+    } as never)
+    const resolveCallConfig = vi.fn(() => Promise.resolve({ provider: 'acme-gateway', model: 'acme-large' }))
+    ctx.provide('llm', { resolveCallConfig } as never)
+
+    await expect(controller.defaultModel({ workspaceId })).resolves.toEqual({
+      override: { provider: 'acme-gateway', model: 'acme-large', reasoningEffort: 'high' },
+      shared: { provider: 'shared-gateway', model: 'shared-large', reasoningEffort: 'low' },
+    })
+    await expect(controller.setDefaultModel({
+      workspaceId,
+      selection: { provider: 'acme-gateway', model: 'acme-large', reasoningEffort: 'high' },
+    })).resolves.toEqual({ saved: true })
+    expect(resolveCallConfig).toHaveBeenCalledWith({
+      provider: 'acme-gateway', model: 'acme-large', reasoningEffort: 'high',
+    })
+    expect(saved).toEqual([{ provider: 'acme-gateway', model: 'acme-large', reasoningEffort: 'high' }])
+  })
+
+  it('propagates the model service\'s own refusal unchanged', async () => {
+    const { controller, ctx, root } = await harness()
+    const created = await controller.create({ path: stageDir(root, 'defaults-refusal') })
+    ctx.provide('agentDefaultModel', {
+      currentSelection: () => ({ provider: 'shared-gateway', model: 'shared-large' }),
+      workspaceSelection: () => undefined,
+      saveWorkspaceSelection: () => Promise.resolve(),
+    } as never)
+    ctx.provide('llm', {
+      resolveCallConfig: () => Promise.reject(new RemoteError('fixture/failure', 'fixture rejected', {})),
+    } as never)
+
+    await expect(controller.setDefaultModel({
+      workspaceId: created.workspace.workspaceId,
+      selection: { provider: 'acme-gateway', model: 'acme-large' },
+    })).rejects.toMatchObject({ code: 'fixture/failure' })
+  })
+
+  it('skips adoption without a consumer, for cold Sessions, and for a missing projection', async () => {
+    const { controller, ctx, root } = await harness()
+    const created = await controller.create({ path: stageDir(root, 'defaults-skip') })
+    const workspaceId = created.workspace.workspaceId
+    const workspace = ctx.workspaceRegistry.get(workspaceId)
+    if (workspace === undefined) throw new Error('fixture Workspace disappeared')
+    const session = ctx.sessions.create(SessionId('skipped-session'), { meta: { cwd: created.workspace.path } })
+    await workspace.attachSession(session.id)
+    ctx.provide('agentDefaultModel', {
+      currentSelection: () => ({ provider: 'shared-gateway', model: 'shared-large' }),
+      workspaceSelection: () => undefined,
+      saveWorkspaceSelection: () => Promise.resolve(),
+    } as never)
+    ctx.provide('llm', {
+      resolveCallConfig: () => Promise.resolve({ provider: 'acme-gateway', model: 'acme-large' }),
+    } as never)
+    const selectModel = vi.fn(() => Promise.resolve({ selected: { provider: 'acme-gateway', model: 'acme-large' } }))
+
+    // No Session Controller is mounted yet: the override is stored on its own.
+    await expect(controller.setDefaultModel({
+      workspaceId,
+      selection: { provider: 'acme-gateway', model: 'acme-large' },
+    })).resolves.toEqual({ saved: true })
+    expect(selectModel).not.toHaveBeenCalled()
+
+    // A projection registry without the Session's row adopts it, and a Session
+    // the store no longer serves is skipped.
+    ctx.provide('sessionProjections', { snapshot: () => ({ values: {} }) } as never)
+    ctx.provide('sessionController', { selectModel } as never)
+    await expect(controller.setDefaultModel({
+      workspaceId,
+      selection: { provider: 'acme-gateway', model: 'acme-large' },
+    })).resolves.toEqual({ saved: true })
+    expect(selectModel).toHaveBeenCalledWith({
+      sessionId: session.id, provider: 'acme-gateway', model: 'acme-large',
+    })
+
+    selectModel.mockClear()
+    vi.spyOn(ctx.sessions, 'get').mockReturnValue(undefined)
+    await expect(controller.setDefaultModel({
+      workspaceId,
+      selection: { provider: 'acme-gateway', model: 'acme-large' },
+    })).resolves.toEqual({ saved: true })
+    expect(selectModel).not.toHaveBeenCalled()
+  })
+
+  it('keeps the saved default when one Session refuses to adopt it', async () => {
+    const { controller, ctx, root } = await harness()
+    const created = await controller.create({ path: stageDir(root, 'defaults-refused') })
+    const workspace = ctx.workspaceRegistry.get(created.workspace.workspaceId)
+    if (workspace === undefined) throw new Error('fixture Workspace disappeared')
+    const session = ctx.sessions.create(SessionId('refusing-session'), { meta: { cwd: created.workspace.path } })
+    await workspace.attachSession(session.id)
+    ctx.provide('agentDefaultModel', {
+      currentSelection: () => ({ provider: 'shared-gateway', model: 'shared-large' }),
+      workspaceSelection: () => undefined,
+      saveWorkspaceSelection: () => Promise.resolve(),
+    } as never)
+    ctx.provide('llm', {
+      resolveCallConfig: () => Promise.resolve({ provider: 'acme-gateway', model: 'acme-large' }),
+    } as never)
+    ctx.provide('sessionProjections', {
+      snapshot: () => ({ values: { modelSelection: { lastUsed: null, next: null } } }),
+    } as never)
+    ctx.provide('sessionController', {
+      selectModel: () => Promise.reject(new Error('session is gone')),
+    } as never)
+    const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
+
+    await expect(controller.setDefaultModel({
+      workspaceId: created.workspace.workspaceId,
+      selection: { provider: 'acme-gateway', model: 'acme-large' },
+    })).resolves.toEqual({ saved: true })
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('did not adopt the workspace default'))
+  })
+
+  it('keeps the deletion when the override cleanup fails', async () => {
+    const { controller, ctx, root } = await harness()
+    const created = await controller.create({ path: stageDir(root, 'defaults-delete-fail') })
+    ctx.provide('agentDefaultModel', {
+      currentSelection: () => ({ provider: 'shared-gateway', model: 'shared-large' }),
+      workspaceSelection: () => undefined,
+      saveWorkspaceSelection: () => Promise.reject(new Error('storage offline')),
+    } as never)
+    const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
+
+    await expect(controller.delete({ workspaceId: created.workspace.workspaceId }))
+      .resolves.toEqual({ deleted: true })
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('left a default-model override'))
+  })
+
   it('maps invalid paths, blank names, conflicts, and unknown ids to stable failures', async () => {
     const { controller, root } = await harness()
     const first = await controller.create({ path: stageDir(root, 'first') })

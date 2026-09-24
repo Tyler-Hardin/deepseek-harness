@@ -8,7 +8,12 @@ import type {
 import { SessionCreateError } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
 import type {
-  IWorkspaces, WorkspaceId, WorkspaceSnapshot, WorkspaceView,
+  IWorkspaces,
+  ModelSelection,
+  WorkspaceDefaultModelValue,
+  WorkspaceId,
+  WorkspaceSnapshot,
+  WorkspaceView,
 } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { ClientRemote, DirectoryListing } from '@deepseek-ai/dsh-api-remotes/client'
 import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
@@ -233,6 +238,25 @@ class FakeWorkspaces implements IWorkspaces {
       ...state,
       pinnedSessionIds: state.pinnedSessionIds.filter(id => id !== sessionId),
     }))
+  }
+
+  /** Per-workspace overrides this double stores; an absent key inherits. */
+  readonly defaultModels = new Map<string, ModelSelection>()
+  readonly defaultModelCalls: string[] = []
+
+  defaultModel(workspaceId: WorkspaceId): Promise<WorkspaceDefaultModelValue> {
+    this.defaultModelCalls.push(String(workspaceId))
+    const override = this.defaultModels.get(String(workspaceId))
+    return Promise.resolve({
+      override: override === undefined ? null : { ...override },
+      shared: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+    })
+  }
+
+  setDefaultModel(workspaceId: WorkspaceId, selection: ModelSelection | null): Promise<void> {
+    if (selection === null) this.defaultModels.delete(String(workspaceId))
+    else this.defaultModels.set(String(workspaceId), { ...selection })
+    return Promise.resolve()
   }
 }
 

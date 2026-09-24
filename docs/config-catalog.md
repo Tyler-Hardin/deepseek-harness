@@ -39,7 +39,7 @@ export interface AcpConfig {
 ## `@deepseek-ai/dsh-agent-default-model`
 
 - `refs`: `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/core/agent-default-model/src/index.ts:24`](../packages/core/agent-default-model/src/index.ts)
+- `source`: [`packages/core/agent-default-model/src/index.ts:49`](../packages/core/agent-default-model/src/index.ts)
 
 ```ts config-catalog
 /** Default model selection supplied by plugin configuration. */
@@ -50,6 +50,18 @@ export interface Config {
   model: Volatile<string>
   /** Adapter-owned reasoning effort; omission follows the provider default. */
   reasoningEffort: Volatile<string | undefined>
+  /** Explicit per-workspace overrides, keyed by workspace id. */
+  workspaceDefaults: Volatile<Record<string, StoredSelection>>
+}
+
+/** One stored default-model selection: the shared default and each workspace override. */
+export interface StoredSelection {
+  /** Registered provider route. */
+  provider: string
+  /** Provider-owned model id. */
+  model: string
+  /** Adapter-owned reasoning effort; omission follows the provider default. */
+  reasoningEffort?: string
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-agent-default-model -->
@@ -301,7 +313,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-api-workspace-controller`
 
 - `inject`: `remoteAccess` · `typert` · `workspaceRegistry`
-- `source`: [`packages/api/workspace-controller/src/index.ts:37`](../packages/api/workspace-controller/src/index.ts)
+- `source`: [`packages/api/workspace-controller/src/index.ts:41`](../packages/api/workspace-controller/src/index.ts)
 
 ```ts config-catalog
 /** First-use directory policy for the Host account. */

@@ -127,6 +127,7 @@
     "tests/public-mount.e2e.ts",
     "tests/workspace-new-session-folding.e2e.ts",
     "tests/workspace-management.e2e.ts",
+    "tests/workspace-default-model.e2e.ts",
     "tests/workspace-recency.e2e.ts",
     "tests/session-unarchive.e2e.ts",
     "tests/session-archive-active.e2e.ts",

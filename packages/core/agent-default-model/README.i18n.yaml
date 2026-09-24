@@ -9,8 +9,8 @@
   en: 87e9d106cedbbe08
   zh: 5eb47e4bd7f5b51d
 /deepseek-ai-dsh-agent-default-model/summary:
-  en: bf59a0974610ef81
-  zh: 451b967a5d2be7f1
+  en: b0c90d95110fca9f
+  zh: bd4172a38af8bc14
 /deepseek-ai-dsh-agent-default-model/table-of-contents:
   en: d152484eb41ac6b4
   zh: 09388d293f9be9cb
@@ -18,20 +18,20 @@
   en: 426a019d26019bc7
   zh: 89e57948e3ed9cf8
 /deepseek-ai-dsh-agent-default-model/use-this-package/configure-the-default:
-  en: 9820372e22bf59ad
-  zh: 9fa2d52b2bbceaa6
+  en: b1a534d194934406
+  zh: d6fa741fc8ca68f8
 /deepseek-ai-dsh-agent-default-model/use-this-package/read-and-change-the-default:
-  en: ac8d6b1bb815aa3b
-  zh: 00f9b11356e1e63a
+  en: 4b928ac9ad3dcf1d
+  zh: 69be66c89f3953ed
 /deepseek-ai-dsh-agent-default-model/understand-the-implementation:
   en: 592af7e68423bd1c
   zh: a509b637f2a14687
 /deepseek-ai-dsh-agent-default-model/understand-the-implementation/design-concept:
-  en: 9ff35825ebe9200d
-  zh: 613ebd35df840aea
+  en: fae437be3d356c13
+  zh: 66999805c04a7763
 /deepseek-ai-dsh-agent-default-model/understand-the-implementation/source-map:
-  en: 77dbcd572cb3de7b
-  zh: 20650cab1af57220
+  en: e999b548275cd809
+  zh: 3962860fc51cf0dd
 /deepseek-ai-dsh-agent-default-model/understand-the-implementation/behavior-notes:
   en: 82a433fa05760420
   zh: d4459d6a631143cf
@@ -45,8 +45,8 @@
   en: 814ad1a657587419
   zh: 5c1968a55beb1af4
 /deepseek-ai-dsh-agent-default-model/known-limitations-and-deferred-work:
-  en: 3d41fadae2c3e40b
-  zh: 52dcf7e4ea6a5e45
+  en: fc94420b6a09dc45
+  zh: 848e4248817d8dab
 /deepseek-ai-dsh-agent-default-model/known-limitations-and-deferred-work/dev-note:
   en: e67f633dc6fe7773
   zh: 3bb0c20c93f16f98

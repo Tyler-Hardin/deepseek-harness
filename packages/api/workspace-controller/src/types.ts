@@ -5,9 +5,11 @@
  * restated: a browser consumer reads the very declaration the backend answers.
  */
 
+import type { ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionActivity, WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 
+export type { ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
 export type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 export type {
   SessionActivity, SessionActivityItem, SessionActivityKind, SessionActivityKindMap,
@@ -33,6 +35,10 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
   interface RemoteErrorDetailsMap {
     /** The requested directory cannot back a Workspace. */
     'workspace/invalid-path': { readonly path: string }
+    /** No adapter serves the requested provider/model route. */
+    'workspace/model-unavailable': { readonly provider: string; readonly model: string }
+    /** The deployment mounts no agent-default-model service to serve workspace defaults. */
+    'workspace/default-model-unavailable': {}
     /** Another Workspace already uses the requested name. */
     'workspace/name-conflict': { readonly name: string }
     /**
@@ -174,3 +180,28 @@ export type WorkspaceFollowIncrement =
 export type WorkspaceFollowFrame =
   | { readonly type: 'baseline'; readonly value: WorkspaceBaseline }
   | WorkspaceFollowIncrement
+
+/** One Workspace's default-model override read. */
+export interface WorkspaceDefaultModelRequest {
+  readonly workspaceId: WorkspaceId
+}
+
+/** One Workspace's override and the shared default it falls back to. */
+export interface WorkspaceDefaultModelValue {
+  /** Explicit override, or null when the Workspace inherits the shared default. */
+  readonly override: ModelSelection | null
+  /** Deployment-wide shared default. */
+  readonly shared: ModelSelection
+}
+
+/** One Workspace default-model override mutation. */
+export interface WorkspaceSetDefaultModelRequest {
+  readonly workspaceId: WorkspaceId
+  /** The override to save, or null to clear it. */
+  readonly selection: ModelSelection | null
+}
+
+/** Receipt after one Workspace default-model override is saved or cleared. */
+export interface WorkspaceSetDefaultModelValue {
+  readonly saved: true
+}

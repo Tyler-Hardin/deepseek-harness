@@ -373,6 +373,11 @@ describe('WorkspaceController', () => {
     await expect(controller.unarchiveSession(sid('session'))).resolves.toBeUndefined()
     await expect(controller.pinSession(sid('session'))).resolves.toBeUndefined()
     await expect(controller.unpinSession(sid('session'))).resolves.toBeUndefined()
+    await expect(controller.defaultModel(wid('one'))).resolves.toEqual({
+      override: null, shared: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+    })
+    await expect(controller.setDefaultModel(wid('one'), { provider: 'acme', model: 'acme-large' })).resolves.toBeUndefined()
+    await expect(controller.setDefaultModel(wid('one'), null)).resolves.toBeUndefined()
     await expect(controller.delete(wid('one'))).resolves.toBeUndefined()
     // Each command crosses the wire as one positional request object.
     expect(mock.log.requests('workspace/create')).toEqual([{ path: '/work/created' }])
@@ -384,6 +389,11 @@ describe('WorkspaceController', () => {
     expect(mock.log.requests('workspace/unarchiveSession')).toEqual([{ sessionId: 'session' }])
     expect(mock.log.requests('workspace/pinSession')).toEqual([{ sessionId: 'session' }])
     expect(mock.log.requests('workspace/unpinSession')).toEqual([{ sessionId: 'session' }])
+    expect(mock.log.requests('workspace/defaultModel')).toEqual([{ workspaceId: 'one' }])
+    expect(mock.log.requests('workspace/setDefaultModel')).toEqual([
+      { workspaceId: 'one', selection: { provider: 'acme', model: 'acme-large' } },
+      { workspaceId: 'one', selection: null },
+    ])
     expect(mock.log.requests('workspace/delete')).toEqual([{ workspaceId: 'one' }])
   })
 
@@ -430,6 +440,12 @@ describe('WorkspaceController', () => {
     mock.remote.workspace.unpinSession.mockResolvedValueOnce(err(missingSession))
     await expect(controller.unpinSession(sid('session')))
       .rejects.toThrow('workspace session unpin failed: session/not-found: missing session')
+    mock.remote.workspace.defaultModel.mockResolvedValueOnce(err(missingWorkspace))
+    await expect(controller.defaultModel(wid('missing')))
+      .rejects.toThrow('workspace default model failed: workspace/not-found: gone')
+    mock.remote.workspace.setDefaultModel.mockResolvedValueOnce(err(missingWorkspace))
+    await expect(controller.setDefaultModel(wid('missing'), null))
+      .rejects.toThrow('workspace default model failed: workspace/not-found: gone')
     mock.remote.workspace.insertSessionBefore.mockResolvedValueOnce(err(new RemoteError(
       'workspace/move-invalid', 'invalid move', { workspaceId: wid('missing'), sessionId: sid('session') },
     )))

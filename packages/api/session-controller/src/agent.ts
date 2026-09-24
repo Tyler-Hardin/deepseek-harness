@@ -16,6 +16,7 @@ import type { SessionInspection } from '@deepseek-ai/dsh-session-persistence'
 import { SessionQueryError, type SessionObservation } from '@deepseek-ai/dsh-session-query'
 import { RemoteError, remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from '@deepseek-ai/dsh-typert-registry'
+import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import type { ModelSelection } from './types.ts'
 
 /** Cold Session identity absent from persistence. */
@@ -297,11 +298,21 @@ export class ApiSessionAgentController {
       ? undefined
       : agentModelSelection(projectionState.pending)
     const defaultModel = this.ctx.agentDefaultModel
+    const ctx = this.ctx
     const selection: InstalledSelection = {
       get current(): AgentModelSelection {
         if (picked !== undefined) return picked
         const loggedHeader = agent.session.requestHeader()
-        if (loggedHeader === undefined) return defaultModel.currentSelection()
+        if (loggedHeader === undefined) {
+          // Per-workspace override tier, then the shared default. The tier
+          // stays inert for Sessions outside any Workspace account or for
+          // deployments that provide no workspace defaults.
+          const workspaceId = sessionWorkspaceId(ctx, agent.session.id)
+          const override = workspaceId === undefined
+            ? undefined
+            : defaultModel.workspaceSelection(workspaceId)
+          return override ?? defaultModel.currentSelection()
+        }
         const logged = loggedHeader.config
         return {
           provider: logged.provider,
@@ -597,6 +608,23 @@ export class ApiSessionAgentController {
     }
     return observation.projections.values.agentPreset ?? undefined
   }
+}
+
+/**
+ * Resolve the Workspace accounting one Session, or undefined for Sessions
+ * outside any Workspace account (ungrouped). Deployments that mount no
+ * workspace domain read the shared default unchanged.
+ * @param ctx - Host context carrying the Workspace registry.
+ * @param sessionId - Session whose Workspace account is requested.
+ * @returns the owning Workspace id, or undefined.
+ */
+export function sessionWorkspaceId(ctx: Context, sessionId: SessionId): WorkspaceId | undefined {
+  // Typed structurally through `ctx.get`: deployments that mount no workspace
+  // domain read the shared default unchanged.
+  const registry = ctx.get('workspaceRegistry')
+  if (registry === undefined) return undefined
+  return registry.list().find(workspace =>
+    workspace.sessionIds.includes(sessionId))?.id
 }
 
 function agentModelSelection(selection: ModelSelection): AgentModelSelection {

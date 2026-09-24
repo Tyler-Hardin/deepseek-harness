@@ -43,7 +43,16 @@ async function createRuntime(): Promise<SlotTestRuntime> {
   // The rename flow never picks a directory; the namespace only has to be there
   // for ui-workspace's inject to settle.
   const directoryPicker = {}
-  runtime.remote.provideNamespaces({ directoryPicker })
+  runtime.remote.provideNamespaces({
+    directoryPicker,
+    // The row menu's Default model dialog reads the Host model catalog.
+    session: {
+      modelCatalog: vi.fn(async () => ({
+        ok: true as const,
+        value: { default: { provider: 'deepseek-official', model: 'deepseek-v4-flash' }, routableProviders: [], groups: [], failures: [] },
+      })),
+    },
+  })
   const locale = new LocaleRuntime(runtime.ctx)
   runtime.ctx.provide('locale', locale)
   runtime.slots.installLocale(locale)

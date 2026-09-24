@@ -7,6 +7,8 @@ import type {
   WorkspaceArchiveValue,
   WorkspaceCreateRequest,
   WorkspaceCreateValue,
+  WorkspaceDefaultModelRequest,
+  WorkspaceDefaultModelValue,
   WorkspaceDeleteRequest,
   WorkspaceDeleteValue,
   WorkspaceFollowFrame,
@@ -15,6 +17,8 @@ import type {
   WorkspaceOrderValue,
   WorkspacePinSessionRequest,
   WorkspacePinValue,
+  WorkspaceSetDefaultModelRequest,
+  WorkspaceSetDefaultModelValue,
   WorkspaceRenameRequest,
   WorkspaceUnarchiveSessionRequest,
   WorkspaceUnpinSessionRequest,
@@ -102,6 +106,16 @@ class FakeWorkspaceRemote implements WorkspaceRemote {
     _request: WorkspaceUnpinSessionRequest,
   ) => Promise<RemoteResult<WorkspacePinValue>> = () =>
     Promise.resolve(remoteOk({ pinnedSessionIds: [] }))
+  onDefaultModel: (
+    _request: WorkspaceDefaultModelRequest,
+  ) => Promise<RemoteResult<WorkspaceDefaultModelValue>> = () => Promise.resolve(remoteOk({
+    override: null,
+    shared: { provider: 'fixture', model: 'fixture-model' },
+  }))
+  onSetDefaultModel: (
+    _request: WorkspaceSetDefaultModelRequest,
+  ) => Promise<RemoteResult<WorkspaceSetDefaultModelValue>> = () =>
+    Promise.resolve(remoteOk({ saved: true }))
 
   create(request: WorkspaceCreateRequest): Promise<RemoteResult<WorkspaceCreateValue>> {
     this.record('create', request)
@@ -146,6 +160,16 @@ class FakeWorkspaceRemote implements WorkspaceRemote {
   unpinSession(request: WorkspaceUnpinSessionRequest): Promise<RemoteResult<WorkspacePinValue>> {
     this.record('unpinSession', request)
     return this.onUnpinSession(request)
+  }
+
+  defaultModel(request: WorkspaceDefaultModelRequest): Promise<RemoteResult<WorkspaceDefaultModelValue>> {
+    this.record('defaultModel', request)
+    return this.onDefaultModel(request)
+  }
+
+  setDefaultModel(request: WorkspaceSetDefaultModelRequest): Promise<RemoteResult<WorkspaceSetDefaultModelValue>> {
+    this.record('setDefaultModel', request)
+    return this.onSetDefaultModel(request)
   }
 
   follow(_signal?: AbortSignal): RemoteStreamHandle<WorkspaceFollowFrame, never> {

@@ -18,6 +18,7 @@ import type {
 } from '@deepseek-ai/dsh-llm'
 import SessionStore from '@deepseek-ai/dsh-session'
 import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { WorkspaceId } from '@deepseek-ai/dsh-workspace'
 import type { SessionPromptRequest, SessionRequestId } from '../src/types.ts'
 import { ApiSessionAgentController } from '../src/agent.ts'
 import { buildModelCatalog, hasProviderApiKey } from '../src/catalog.ts'
@@ -875,6 +876,69 @@ describe('Web session model selection', () => {
       ok: false,
       error: { code: 'session/model-unavailable', message: 'string selection failure' },
     })
+    await ctx.fiber.dispose()
+  })
+
+  it('routes a Session model switch into its Workspace override', async () => {
+    const { ctx, sessionId } = await harness()
+    const workspaceId = 'workspace-1' as WorkspaceId
+    const shared: { provider: string; model: string }[] = []
+    const perWorkspace: { workspaceId: WorkspaceId; provider: string; model: string }[] = []
+    ctx.provide('workspaceRegistry', {
+      get: () => undefined,
+      list: () => [{ id: workspaceId, sessionIds: [sessionId] }],
+    } as never)
+    const remote = createSessionTestRemote(ctx, {
+      defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }),
+      cwd: '/tmp',
+      workspaceDefaultModelSelection: id => id === workspaceId
+        ? { provider: 'deepseek-official', model: 'deepseek-chat' }
+        : undefined,
+      saveDefaultModelSelection: (selection) => {
+        shared.push(selection)
+      },
+      saveWorkspaceDefaultModelSelection: (id, selection) => {
+        perWorkspace.push({ workspaceId: id, ...selection })
+      },
+    })
+
+    // The Workspace carries an override, so a switch inside it updates that
+    // override instead of the shared default.
+    expectValue(await remote.selectModel(request({
+      sessionId, provider: 'deepseek-official', model: 'deepseek-reasoner',
+    })))
+    expect(perWorkspace).toEqual([
+      expect.objectContaining({ workspaceId, provider: 'deepseek-official', model: 'deepseek-reasoner' }),
+    ])
+    expect(shared).toEqual([])
+    await ctx.fiber.dispose()
+  })
+
+  it('reads a Workspace default for a Session that has logged no selection', async () => {
+    const { ctx, agent, sessionId } = await harness()
+    const workspaceId = 'workspace-1' as WorkspaceId
+    ctx.provide('workspaceRegistry', {
+      get: () => undefined,
+      list: () => [{ id: workspaceId, sessionIds: [sessionId] }],
+    } as never)
+    ctx.provide('agentDefaultModel', {
+      currentSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }),
+      saveSelection: () => Promise.resolve(),
+      workspaceSelection: () => ({ provider: 'acme-gateway', model: 'acme-large' }),
+      saveWorkspaceSelection: () => Promise.resolve(),
+    } as never)
+    // The direct controller above needs the same read-time services the remote
+    // double installs; creating the double leaves them on the context.
+    createSessionTestRemote(ctx, {
+      defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }),
+      cwd: '/tmp',
+      workspaceDefaultModelSelection: () => ({ provider: 'acme-gateway', model: 'acme-large' }),
+    })
+
+    // Prompt assembly reads the Workspace tier before the shared default, so a
+    // Session with no logged selection resolves to the Workspace's model.
+    expect(new ApiSessionAgentController(ctx).selectionFor(agent).current)
+      .toEqual({ provider: 'acme-gateway', model: 'acme-large' })
     await ctx.fiber.dispose()
   })
 })

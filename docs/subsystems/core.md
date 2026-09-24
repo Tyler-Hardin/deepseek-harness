@@ -433,12 +433,33 @@ currentSelection(): ModelSelection
 /**
  * Save the complete default model selection. A deployment without a configuration
  * editor keeps its composition entry. Saves commit in submission order; a failed
- * save rejects its caller without blocking later saves.
+ * save rejects its caller without blocking later saves. The sibling workspace
+ * overrides are independent and stay in the entry.
  * @param next - resolved selection accepted by an entry point.
  * @returns fulfillment after the optional profile write settles.
  */
 async saveSelection(next: ModelSelection): Promise<void>
+
+/**
+ * Read one workspace's explicit default model override.
+ * @param workspaceId - the owning workspace.
+ * @returns the override, or undefined when the workspace inherits the shared default.
+ */
+workspaceSelection(workspaceId: WorkspaceId): ModelSelection | undefined
+
+/**
+ * Save or clear one workspace's explicit default model override. A null
+ * selection removes the override so the workspace inherits the shared
+ * default again. A deployment without a configuration editor keeps the
+ * current profile entry. Saves share the submission-ordered queue.
+ * @param workspaceId - the owning workspace.
+ * @param next - the override, or null to clear it.
+ * @returns fulfillment after the optional profile write settles.
+ */
+async saveWorkspaceSelection(workspaceId: WorkspaceId, next: ModelSelection | null): Promise<void>
 ```
+
+Types: [WorkspaceId](workspace.md)
 
 Source: [`packages/core/agent-default-model/src/index.ts`](../../packages/core/agent-default-model/src/index.ts)
 

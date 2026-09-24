@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-为会话未指定模型的新 agent 提供共享默认 provider 和模型。Provider、模型和推理强度都是即时 Config 字段。保存的选择更新当前 profile patch，并用于后续读取；会话级选择仍由入口负责。
+为会话未指定模型的新 agent 提供共享默认 provider 和模型。Provider、模型和推理强度都是即时 Config 字段。保存的选择更新当前 profile patch，并用于后续读取；每个工作区还可以携带显式覆盖，会话级选择仍由入口负责。
 
 ## 目录
 
@@ -42,6 +42,7 @@ kind: "package-reference"
 |---|---|---|
 | `provider` | 必填 | 新 agent 使用的已注册提供方路由 |
 | `model` | 必填 | 新 agent 使用的、由提供方持有的模型 id |
+| `workspaceDefaults` | `{}` | 按工作区 id 索引的覆盖项：`{ provider, model, reasoningEffort? }` |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-agent-default-model) 列出所有接受的字段。`reasoningEffort` 是可选的；保存不含此字段的选择，会从 profile 的完整配置覆盖中移除此字段。
 
@@ -54,7 +55,9 @@ const selection = ctx.agentDefaultModel.currentSelection()
 await ctx.agentDefaultModel.saveSelection({ provider, model, reasoningEffort: 'high' })
 ```
 
-没有配置编辑器时，`saveSelection()` 不执行写入。此服务不验证目录成员资格；发起模型请求的消费者负责可用性诊断。
+工作区可以在共享选择之外携带自己的显式覆盖：`workspaceSelection(workspaceId)` 读取它，`saveWorkspaceSelection(workspaceId, selection | null)` 保存或清除它，传入 `null` 让该工作区回到共享选择。两者写入同一个 profile 条目，因此保存共享选择会保留每个工作区覆盖。
+
+没有配置编辑器时，`saveSelection()` 与 `saveWorkspaceSelection()` 都不执行写入。此服务不验证目录成员资格；发起模型请求的消费者负责可用性诊断。
 
 -----
 
@@ -68,13 +71,14 @@ await ctx.agentDefaultModel.saveSelection({ provider, model, reasoningEffort: 'h
 
 ### 设计理念
 
-此服务保留已验证的 Config 引用，并在 `currentSelection()` 中读取。`saveSelection()` 捕获提交值，并按提交顺序串行写入 profile，包括调用重叠的情况。每个调用方收到各自的写入失败；一次写入被拒绝不会阻止后续保存。消费者优先使用会话级选择。
+此服务保留已验证的 Config 引用，并在 `currentSelection()` 中读取。`saveSelection()` 与 `saveWorkspaceSelection()` 都从当前配置推导条目的下一份配置，并按提交顺序串行写入 profile，包括调用重叠的情况；共享选择的那次写入会保留它没有改动的各工作区覆盖项。每个调用方收到各自的写入失败；一次写入被拒绝不会阻止后续保存。消费者优先使用会话级选择，工作区覆盖次之。
 
 ### 源码地图
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 即时默认选择与 profile 写入 |
+| [`src/index.ts`](src/index.ts) | 即时默认选择、工作区覆盖与 profile 写入 |
+| — | 不发布不变式伴随模块：Config 引用是唯一被拥有的值。 |
 
 ### 行为说明
 
@@ -112,8 +116,8 @@ await ctx.agentDefaultModel.saveSelection({ provider, model, reasoningEffort: 'h
 
 这些限制界定该服务的范围。它们是当前包约束，不是任务积压。
 
-- **单一的进程级默认值**——该服务只拥有一个默认值；按会话的模型选择仍由入口负责。
-- **持久化需要 profile 配置编辑器**——没有编辑器时，保存默认值不会保留选择。
+- **一个共享选择加按工作区覆盖**——该服务拥有共享默认值，以及每个工作区至多一个显式覆盖；按会话的模型选择仍由入口负责。
+- **持久化需要 profile 配置编辑器**——没有编辑器时，保存默认值或工作区覆盖都不会保留选择。
 
 <a id="dev-note"></a>
 ### 开发备注

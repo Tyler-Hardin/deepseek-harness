@@ -10,6 +10,7 @@ import type {
   ImageAttachmentLimits,
 } from '@deepseek-ai/dsh-attachment'
 import type { SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
+import type { WorkspaceId } from '@deepseek-ai/dsh-workspace'
 import type { SessionProjectionsValue } from '../src/types.ts'
 import {
   SessionPersistenceNotFoundError,
@@ -99,6 +100,12 @@ export interface TestSessionRemoteDefaults {
   readonly cwd: string
   readonly nativeOpen?: boolean
   readonly saveDefaultModelSelection?: (selection: AgentModelSelection) => void | Promise<void>
+  /** Workspace-scoped override the double reports, keyed by Workspace. */
+  readonly workspaceDefaultModelSelection?: (workspaceId: WorkspaceId) => AgentModelSelection | undefined
+  readonly saveWorkspaceDefaultModelSelection?: (
+    workspaceId: WorkspaceId,
+    selection: AgentModelSelection,
+  ) => void | Promise<void>
   readonly openPath?: (path: string, signal: AbortSignal) => Promise<void>
   readonly fileApplications?: SessionControllerInternals['fileApplications']
   readonly openFileApplication?: SessionControllerInternals['openFileApplication']
@@ -252,6 +259,14 @@ function installControllers(
       currentSelection: defaults.defaultModelSelection,
       saveSelection: async (selection: AgentModelSelection) => {
         await defaults.saveDefaultModelSelection?.(selection)
+      },
+      workspaceSelection: (workspaceId: WorkspaceId) =>
+        defaults.workspaceDefaultModelSelection?.(workspaceId),
+      saveWorkspaceSelection: async (
+        workspaceId: WorkspaceId,
+        selection: AgentModelSelection,
+      ) => {
+        await defaults.saveWorkspaceDefaultModelSelection?.(workspaceId, selection)
       },
     } as never)
   }

@@ -366,6 +366,20 @@ Host service backing the generated `ctx.remote.workspace` namespace.
 @Remote('archiveSession') archiveSession(request: WorkspaceArchiveSessionRequest): Promise<WorkspaceArchiveValue>
 
 /**
+ * Read one Workspace's explicit default-model override and the shared default.
+ * @param request - Workspace identity to read.
+ * @returns the override and the shared default it falls back to.
+ */
+@Remote('defaultModel') defaultModel(request: WorkspaceDefaultModelRequest): Promise<WorkspaceDefaultModelValue>
+
+/**
+ * Save or clear one Workspace's explicit default-model override.
+ * @param request - Workspace identity and the selection to store (null clears).
+ * @returns receipt after the override is saved or cleared.
+ */
+@Remote('setDefaultModel') setDefaultModel(request: WorkspaceSetDefaultModelRequest): Promise<WorkspaceSetDefaultModelValue>
+
+/**
  * Restore one archived Session to Workspace grouping surfaces.
  * @param request - Session identity to unarchive.
  * @returns the complete resulting archive set.

@@ -94,8 +94,20 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: 'async saveSelection(next: ModelSelection): Promise<void>',
-        description: 'Save the complete default model selection. A deployment without a configuration editor keeps its composition entry. Saves commit in submission order; a failed save rejects its caller without blocking later saves.',
+        description: 'Save the complete default model selection. A deployment without a configuration editor keeps its composition entry. Saves commit in submission order; a failed save rejects its caller without blocking later saves. The sibling workspace overrides are independent and stay in the entry.',
         parameters: [{ name: 'next', description: 'resolved selection accepted by an entry point.' }],
+        returns: 'fulfillment after the optional profile write settles.',
+      },
+      {
+        signature: 'workspaceSelection(workspaceId: WorkspaceId): ModelSelection | undefined',
+        description: 'Read one workspace\'s explicit default model override.',
+        parameters: [{ name: 'workspaceId', description: 'the owning workspace.' }],
+        returns: 'the override, or undefined when the workspace inherits the shared default.',
+      },
+      {
+        signature: 'async saveWorkspaceSelection(workspaceId: WorkspaceId, next: ModelSelection | null): Promise<void>',
+        description: 'Save or clear one workspace\'s explicit default model override. A null selection removes the override so the workspace inherits the shared default again. A deployment without a configuration editor keeps the current profile entry. Saves share the submission-ordered queue.',
+        parameters: [{ name: 'workspaceId', description: 'the owning workspace.' }, { name: 'next', description: 'the override, or null to clear it.' }],
         returns: 'fulfillment after the optional profile write settles.',
       },
     ],
@@ -3842,6 +3854,18 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Hide one known Session from Workspace grouping surfaces.',
         parameters: [{ name: 'request', description: 'Session identity to archive.' }],
         returns: 'the complete resulting archive set.',
+      },
+      {
+        signature: '@Remote(\'defaultModel\') defaultModel(request: WorkspaceDefaultModelRequest): Promise<WorkspaceDefaultModelValue>',
+        description: 'Read one Workspace\'s explicit default-model override and the shared default.',
+        parameters: [{ name: 'request', description: 'Workspace identity to read.' }],
+        returns: 'the override and the shared default it falls back to.',
+      },
+      {
+        signature: '@Remote(\'setDefaultModel\') setDefaultModel(request: WorkspaceSetDefaultModelRequest): Promise<WorkspaceSetDefaultModelValue>',
+        description: 'Save or clear one Workspace\'s explicit default-model override.',
+        parameters: [{ name: 'request', description: 'Workspace identity and the selection to store (null clears).' }],
+        returns: 'receipt after the override is saved or cleared.',
       },
       {
         signature: '@Remote(\'unarchiveSession\') unarchiveSession(request: WorkspaceUnarchiveSessionRequest): Promise<WorkspaceArchiveValue>',
@@ -8770,6 +8794,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface WorkspaceCreateValue {\n    readonly workspace: WorkspaceView;\n    readonly created: boolean;\n}',
   },
   {
+    name: 'WorkspaceDefaultModelRequest',
+    declaration: 'export interface WorkspaceDefaultModelRequest {\n    readonly workspaceId: WorkspaceId;\n}',
+  },
+  {
+    name: 'WorkspaceDefaultModelValue',
+    declaration: 'export interface WorkspaceDefaultModelValue {\n    readonly override: ModelSelection | null;\n    readonly shared: ModelSelection;\n}',
+  },
+  {
     name: 'WorkspaceDeleteRequest',
     declaration: 'export interface WorkspaceDeleteRequest {\n    readonly workspaceId: WorkspaceId;\n}',
   },
@@ -8852,6 +8884,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'WorkspaceRenameRequest',
     declaration: 'export interface WorkspaceRenameRequest {\n    readonly workspaceId: WorkspaceId;\n    readonly title: string;\n}',
+  },
+  {
+    name: 'WorkspaceSetDefaultModelRequest',
+    declaration: 'export interface WorkspaceSetDefaultModelRequest {\n    readonly workspaceId: WorkspaceId;\n    readonly selection: ModelSelection | null;\n}',
+  },
+  {
+    name: 'WorkspaceSetDefaultModelValue',
+    declaration: 'export interface WorkspaceSetDefaultModelValue {\n    readonly saved: true;\n}',
   },
   {
     name: 'WorkspaceUnarchiveSessionRequest',

@@ -17,13 +17,17 @@
   "references": [
     { "path": "../../../vendor/cordis" },
     { "path": "../../../vendor/schemastery" },
+    { "path": "../../core/agent" },
+    { "path": "../../core/agent-default-model" },
     { "path": "../../core/session" },
+    { "path": "../../llm/llm" },
     { "path": "../../host/directory-picker" },
     { "path": "../../storage/storage-domain" },
     { "path": "../../typert/protocol" },
     { "path": "../remote-access/tsconfig.host.json" },
     { "path": "../../util/deque" },
     { "path": "../../util/native-command" },
-    { "path": "../../workspace/workspace" }
+    { "path": "../../workspace/workspace" },
+    { "path": "../session-controller/tsconfig.host.json" }
   ]
 }

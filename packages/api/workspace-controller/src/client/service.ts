@@ -4,7 +4,9 @@ import { Service, type Context } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { RemoteFailure } from '@deepseek-ai/dsh-typert-protocol'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
-import type { WorkspaceView } from '../types.ts'
+import type {
+  ModelSelection, WorkspaceDefaultModelValue, WorkspaceView,
+} from '../types.ts'
 import type { ClientWorkspaceModel, WorkspaceSnapshot } from './model.ts'
 
 /** Structured create failure for callers that distinguish Host business errors. */
@@ -91,6 +93,18 @@ export interface IWorkspaces {
    */
   unarchiveSession(sessionId: SessionId): Promise<void>
   /**
+   * Read one Workspace's explicit default-model override and the shared default.
+   * @param workspaceId - owning Workspace.
+   * @returns the override (null when inheriting) and the shared default.
+   */
+  defaultModel(workspaceId: WorkspaceId): Promise<WorkspaceDefaultModelValue>
+  /**
+   * Save or clear one Workspace's explicit default-model override.
+   * @param workspaceId - owning Workspace.
+   * @param selection - override to save, or null to clear.
+   */
+  setDefaultModel(workspaceId: WorkspaceId, selection: ModelSelection | null): Promise<void>
+  /**
    * Pin a Session ahead of unpinned Sessions on Workspace grouping surfaces.
    * @param sessionId - Session to pin.
    */
@@ -158,6 +172,17 @@ export class WorkspaceController extends Service implements IWorkspaces {
   async archiveSession(sessionId: SessionId, options: { readonly stopActivity?: boolean } = {}): Promise<void> {
     const result = await this.model.archiveSession(sessionId, options)
     if (!result.ok) throw new WorkspaceArchiveError(result.error)
+  }
+
+  async defaultModel(workspaceId: WorkspaceId): Promise<WorkspaceDefaultModelValue> {
+    const result = await this.model.defaultModel(workspaceId)
+    if (!result.ok) throw commandError('default model', result.error)
+    return result.value
+  }
+
+  async setDefaultModel(workspaceId: WorkspaceId, selection: ModelSelection | null): Promise<void> {
+    const result = await this.model.setDefaultModel(workspaceId, selection)
+    if (!result.ok) throw commandError('default model', result.error)
   }
 
   async unarchiveSession(sessionId: SessionId): Promise<void> {

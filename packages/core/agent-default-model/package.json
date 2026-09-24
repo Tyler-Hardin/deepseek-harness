@@ -34,11 +34,13 @@
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-agent": "workspace:*",
+    "@deepseek-ai/dsh-brand": "workspace:*",
     "@deepseek-ai/dsh-llm": "workspace:*",
     "@deepseek-ai/cordis": "workspace:~"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-agent": "workspace:*",
+    "@deepseek-ai/dsh-brand": "workspace:*",
     "@deepseek-ai/dsh-llm": "workspace:*",
     "@deepseek-ai/cordis": "workspace:~",
     "@deepseek-ai/dsh-settings": "workspace:*"

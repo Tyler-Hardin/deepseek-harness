@@ -48,6 +48,9 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { SessionSearchResultItem } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { RemoteHostFacts } from '@deepseek-ai/dsh-api-remotes/client'
+import type {
+  ModelCatalogFailure, ModelProviderGroup, ModelSelection,
+} from '@deepseek-ai/dsh-api-session-controller/types'
 import type { SessionActivity, WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ShortcutCatalogEntry } from '@deepseek-ai/dsh-client-shortcuts/client'
@@ -263,6 +266,23 @@ export type WorkspaceBrowserInjected = {
   renameWorkspace: (workspaceId: WorkspaceId, title: string) => Promise<void>
   /** Delete only a Host Workspace registration; directory and Session logs remain. */
   deleteWorkspace: (workspaceId: WorkspaceId) => Promise<void>
+  /**
+   * Read one Workspace's default-model view: its explicit override (null when
+   * the Workspace inherits the shared default), the shared default, and the
+   * advisory provider/model catalog the picker renders from.
+   */
+  defaultModel: (workspaceId: WorkspaceId) => Promise<{
+    selection: ModelSelection | null
+    shared: ModelSelection
+    groups: readonly ModelProviderGroup[]
+    failures: readonly ModelCatalogFailure[]
+  }>
+  /**
+   * Set or clear one Workspace's explicit default-model override. A null
+   * selection clears the override so the Workspace inherits the shared default
+   * again; the Host route-validates non-null selections.
+   */
+  setDefaultModel: (workspaceId: WorkspaceId, selection: ModelSelection | null) => Promise<void>
   /**
    * Reorder a Workspace in the durable registry display order.
    * Omitted anchor appends to the end.

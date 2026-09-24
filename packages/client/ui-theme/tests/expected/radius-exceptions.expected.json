@@ -61,5 +61,8 @@
     ".keyBadge: border-radius: 10px",
     ".unbound: border-radius: 10px",
     ".recorder: border-radius: 10px"
+  ],
+  "ui-workspace/src/client/rows/WorkspaceBrowser.module.css": [
+    ".modelOption: border-radius: 10px"
   ]
 }
