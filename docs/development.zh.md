@@ -14,6 +14,7 @@
 - 启用 Node.js TypeScript 类型剥离。仓库构建脚本用 tsdown 的 native 配置加载器加载 `tsdown.config.ts`，因此当 `NODE_OPTIONS` 含 `--no-experimental-strip-types` 或 Node.js 构建缺少 TypeScript 支持时会失败；`pnpm run build` 会先检查这一条件并指出原因。
 - 启用了 Corepack 的 pnpm。仓库在 `package.json` 中固定使用 `pnpm@11.28.5`；如果 `pnpm --version` 无法通过 Corepack 解析，请先运行 `corepack enable`。
 - Git 2.26 或更高版本；钩子设置会启用 Git 的 worktree 专属配置扩展。
+- Nix 用户可跳过手动安装工具，通过 `nix develop` 进入固定工具链（Node.js 24、Corepack 固定的 pnpm、原生构建依赖、uv）；`nix build` 构建本仓库的 dsh 包，[`services.dsh-web`](../nix/dsh-web.nix) NixOS 模块将其作为 systemd 服务运行。
 - 可选：一个 DeepSeek API key，用于 Web、headless 和 ACP（Agent Client Protocol）自动化 agent（智能体）演示以及真实 API 的 e2e 测试。
 
 ### Windows 与 WSL 2

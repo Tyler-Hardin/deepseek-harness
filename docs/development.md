@@ -12,6 +12,7 @@ The setup tutorial takes a new contributor from prerequisites to a checked check
 - Node.js TypeScript type stripping enabled. The repository build scripts load `tsdown.config.ts` with tsdown's native config loader, so they fail when `--no-experimental-strip-types` is in `NODE_OPTIONS` or the Node.js build lacks TypeScript support; `pnpm run build` checks this first and names the cause.
 - Corepack-enabled pnpm. The repo pins `pnpm@11.28.5` in `package.json`; run `corepack enable` if `pnpm --version` does not resolve through Corepack.
 - Git 2.26 or newer; hook setup enables Git's worktree-specific configuration extension.
+- Nix users can skip manual tool installation and enter the pinned toolchain (Node 24, Corepack-pinned pnpm, native build dependencies, uv) with `nix develop`; `nix build` produces the repository's dsh package, and the [`services.dsh-web`](../nix/dsh-web.nix) NixOS module runs it as a systemd service.
 - Optional: a DeepSeek API key for the Web, headless, and ACP automation demos and real-API e2e tests.
 
 ### Windows and WSL 2
