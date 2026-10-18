@@ -6,6 +6,14 @@ DeepSeek Harness is an all-plugin Cordis agent harness. Read [docs/architecture.
 
 This fork's systems carry no ambient Node, pnpm, or C toolchain: enter the flake dev shell (`nix develop`, or `nix develop --command bash -c '<command>'`) before any `pnpm`, `node`, build, or test command. The shell supplies the pinned official Node, corepack pnpm, and the `gcc`/`gnumake`/`python3`/`pkg-config` set node-gyp needs. Never wrap a command in `bash -lc`: a login profile replaces `PATH` and silently drops the shell's tools.
 
+## Fork: keep LOCAL_FEATURES.md current
+
+[LOCAL_FEATURES.md](LOCAL_FEATURES.md) inventories every feature this fork adds over upstream, the commit subject that carries it, the paths it owns, and the rebase-time watch-outs. Add or update its row and detail section in the same commit as any fork-local feature change, and name commits by subject rather than hash (`verify-repository-references` rejects literal hashes). The file is fork-local: never include it in an upstream pull request.
+
+## Fork: history edits start with a backup branch
+
+Rewriting fork history — folding a fix into the commit that introduced it, squashing, reordering, or rewording — starts by creating a `backup/…` branch at the current tip. Land each fix in the commit that broke it instead of appending a cleanup commit, and keep the backup until the rewritten stack passes the same per-commit verification.
+
 ## Pre-stable APIs and released Session data
 
 Public APIs are pre-stable; update every consumer. Follow [version/status](docs/session-format-status.md) and [type acknowledgements](docs/cookbook/reviewing-persistence-type-changes.md). [Adjacent migration](.agents/notes/implemented/architecture/2026-08-31-released-session-format-migrations.md) may add a version-named successor but never move, overwrite, or delete committed generations; predecessors imply neither fallback nor downgrade support. SQLite uses monotonic `SCHEMA_VERSION`.
