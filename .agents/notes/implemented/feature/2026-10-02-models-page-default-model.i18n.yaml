@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-10-02-models-page-default-model.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-10-02-models-page-default-model.md
+/agent-note-the-models-page-owns-the-deployment-default-model:
+  en: fcd31b4d583b621c
+  zh: b69f7772e503444c
+/agent-note-the-models-page-owns-the-deployment-default-model/problem:
+  en: 8d4ea52a003c10a4
+  zh: 299112c2c68f094e
+/agent-note-the-models-page-owns-the-deployment-default-model/decision:
+  en: 6a9975dca711de76
+  zh: 9a6e83a8c08881ba
+/agent-note-the-models-page-owns-the-deployment-default-model/consequences:
+  en: b8c230f96cc1cf8c
+  zh: 378cbfeddbdac67f
+/agent-note-the-models-page-owns-the-deployment-default-model/alternatives-considered:
+  en: 6352bc1a8ddedc1e
+  zh: fde1ddcca8d13054
+/agent-note-the-models-page-owns-the-deployment-default-model/testing:
+  en: 8adfb26477e7dfe3
+  zh: d818be21ca9a8b4b

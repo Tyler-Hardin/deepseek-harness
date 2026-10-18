@@ -112,6 +112,14 @@ function harness(options: {
       )),
       discoverModels: () => Promise.resolve(remoteOk([])),
     },
+    session: {
+      // The Default model row's catalog read. No case here serves an
+      // `agent-default-model` namespace, so the row stays absent.
+      modelCatalog: () => Promise.resolve(remoteOk({
+        default: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+        routableProviders: [], groups: [], failures: [],
+      })),
+    },
     settings: {
       describe: () => Promise.resolve(remoteOk({
         writable: options.settingsWritable ?? true,
@@ -136,7 +144,13 @@ function harness(options: {
     },
   }
   // The page plugin's context, scripted down to the namespaces it reaches.
-  const ctx = { remote: { ...face, session: { initializeDefaultModel: async () => ({ ok: true, value: undefined }) } } } as never
+  const ctx = { remote: { ...face,
+    // The script may already carry a `session` face; the initializer joins it.
+    session: {
+      ...(face as { session?: Record<string, unknown> }).session,
+      initializeDefaultModel: async () => ({ ok: true, value: undefined }),
+    },
+  } } as never
   const operations = createModelsOperations(ctx)
   const controller = new ModelsSettingsStore(ctx, settingsSchema, new SettingsDescribeMirror(ctx))
   const openSection = vi.fn()

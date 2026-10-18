@@ -1,5 +1,5 @@
 ---
-description: "Models settings and product-onboarding plugin for the dsh web client: provider rows, API-key management, model lists, and the DeepSeek first-run dialogs."
+description: "Models settings and product-onboarding plugin for the dsh web client: the deployment default model, provider rows, API-key management, model lists, and the DeepSeek first-run dialogs."
 kind: "package-reference"
 ---
 
@@ -11,7 +11,7 @@ Desktop product events use the optional [product analytics service](../product-a
 
 ## Summary
 
-`dsh-client-ui-settings-models` is the Models settings page of the dsh web client: users configure API keys (stored write-only under the profile's credential reference), edit each provider's model list, and hand-declare custom pi-ai routes, with provider rows and one editor card at a time. The page joins the provider directory, the settings document, and the credential descriptions into one shared snapshot, so a row's state stays consistent across all three. It also walks first-run users through two ordered dialogs — a versioned preview notice and the conditional official-DeepSeek credential step.
+`dsh-client-ui-settings-models` is the Models settings page of the dsh web client: users set the deployment default model, configure API keys (stored write-only under the profile's credential reference), edit each provider's model list, and hand-declare custom pi-ai routes, with provider rows and one editor card at a time. The page joins the provider directory, the settings document, and the credential descriptions into one shared snapshot, so a row's state stays consistent across all three. It also walks first-run users through two ordered dialogs — a versioned preview notice and the conditional official-DeepSeek credential step.
 
 ## Table of Contents
 
@@ -38,6 +38,10 @@ A provider with a stored catalog error remains visible with its diagnostic and e
 After Apply closes an editor, its saved status appears when the current provider, settings, and credential snapshot is ready. Opening any row's editor, adding a provider, and opening a removal confirmation wait for that refresh. A newly opened Models section, or one retrying after a page-load failure, waits for a ready snapshot before mounting editors. A background refresh preserves an open draft while its editor remains mounted; a failed page load or provider removal can close it.
 
 Host configuration `credentialOnboarding` defaults to `true`. The Electron preload marker suppresses automatic credential onboarding and the Web welcome notice; Models settings and explicit API-key editing remain available. The [account plugin](../ui-settings-account/README.md#desktop-onboarding) owns the Desktop introduction. Other native shells can disable only the credential step with `credentialOnboarding: false`. Host publishes this public boolean through `webserver/index-inject`, and Client validates it before registering dialogs. It is page initialization data, not a durable completion marker.
+
+### Default model
+
+**Default model** sits above the provider rows: the selection a new Session starts from when it carries none of its own. The picker lists every model the live adapters currently serve, grouped by provider; a pick writes the profile's `agent-default-model` entry and clears any stored reasoning effort, so the chosen model's own default applies. The write names only that entry's own fields, so a Workspace that carries a default of its own keeps it: Sessions created there start from the override, and only Sessions outside such a Workspace follow the deployment default. A provider whose model catalog could not be read is named under the row and contributes no models; a read-only settings document disables the picker.
 
 ### API keys
 
@@ -140,6 +144,7 @@ These limits define the editor's field coverage and the page's reach; they are c
 - **The catalog select lists route identifiers** — `moonshotai`, `zai`, and the other pi-ai catalog ids appear as they are, with no product names, aliases, or search. A searchable picker with the custom form as one pinned entry would let the mode switch go; it needs the directory to carry display names first.
 - **Interrogation covers OpenAI-compatible and Anthropic Messages endpoints** — OpenAI protocols accept a standard `data` array or an enriched `models` map, while Anthropic uses its native model-listing route; every other protocol reports that it cannot be asked and its models are entered by hand.
 - **Undeclared live routes render nowhere** — a route registered without a configurable-provider declaration has no settings address; it stays visible in pickers but not on this page's rows.
+- **The default model row addresses its entry by id** — it writes the `agent-default-model` settings entry, so a composition that mounts that plugin under another entry id gets no Default model row. Setting the deployment default is then a `cordis.patch.yml` edit again; Workspace overrides still work, because they reach the same service rather than the entry id.
 
 <a id="dev-note"></a>
 ### Dev Note

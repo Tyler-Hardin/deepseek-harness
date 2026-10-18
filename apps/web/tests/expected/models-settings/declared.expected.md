@@ -9,6 +9,10 @@
   - button "关闭"
   - heading "模型" [level=2]
   - paragraph: 填入各提供商的 API 密钥即可使用其模型。
+  - region "默认模型":
+    - text: 默认模型
+    - paragraph: 新会话从此模型开始；若工作区设有自己的默认模型，则以该工作区为准。
+    - button "选择默认模型 DeepSeek-V4-Flash": DeepSeek-V4-Flash
   - list:
     - listitem:
       - text: minimax-cn

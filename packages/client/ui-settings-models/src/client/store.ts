@@ -2,7 +2,8 @@
  * Models settings page store: one snapshot joining the configurable-provider
  * directory (`llm/listProviders` joined with `llm/listConfigurableProviders`),
  * the settings namespaces (shared settings mirror),
- * and the referenced credentials (`credentials/describe`). The host stays the
+ * the referenced credentials (`credentials/describe`), and the deployment
+ * default model (`session/modelCatalog`). The host stays the
  * single fact source — every mutation writes through the wire and the page
  * re-renders from the next describe, pushed or refetched.
  */
@@ -13,8 +14,12 @@ import type {
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { SettingsDescribeFace } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { ConfigForm, SettingsDescribeFace } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
+import {
+  DEFAULT_MODEL_NAMESPACE, defaultModelOps, deriveDefaultModel, type DefaultModelState,
+} from './default-model.ts'
 
 /**
  * Any route key walks a dict schema to the same profile node, so the lookup
@@ -113,6 +118,8 @@ export interface ModelsSettingsState {
   rows: readonly ProviderRow[]
   /** Namespace views by ns, for the editor's schema/layers/secrets. */
   namespaces: ReadonlyMap<string, SettingsNamespaceView>
+  /** The deployment-wide default model, as the Default model row reads it. */
+  defaultModel: DefaultModelState
 }
 
 /**
@@ -186,6 +193,7 @@ export class ModelsSettingsStore {
   /** The snapshot the section renders from (uSES-safe store). */
   readonly store: SnapshotStore<ModelsSettingsState> = createSnapshotStore<ModelsSettingsState>({
     status: 'idle', error: null, credentialError: null, writable: false, rows: [], namespaces: new Map(),
+    defaultModel: { status: 'unavailable' },
   })
 
   /** Latest load wins; an older response never overwrites a newer one. */
@@ -229,10 +237,13 @@ export class ModelsSettingsStore {
   /** Publish one joined answer; stale answers leave the current refresh in charge. */
   private async read(generation: number): Promise<void> {
     this.store.update((s) => { s.status = 'loading'; s.error = null })
-    const [registered, declared] = await Promise.all([
+    const [registered, declared, , catalog] = await Promise.all([
       this.ctx.remote.llm.listProviders(),
       this.ctx.remote.llm.listConfigurableProviders(),
       this.describeFace.ensure(),
+      // The Default model row's own read. A failure degrades that row alone:
+      // the catalog is advisory for the provider rows this load joins.
+      this.ctx.remote.session.modelCatalog(),
     ])
     if (generation !== this.generation) return
     if (!registered.ok) { this.failLoad(registered.error.message); return }
@@ -308,7 +319,25 @@ export class ModelsSettingsStore {
         }
       })
       s.namespaces = namespaces
+      s.defaultModel = deriveDefaultModel({ catalog, namespace: namespaces.get(DEFAULT_MODEL_NAMESPACE) })
     })
+  }
+
+  /**
+   * Save one deployment-wide default model and re-read the page.
+   *
+   * The write rides the shared configuration form for the owning namespace, so
+   * it carries that namespace's latest revision and its answer folds into the
+   * settings mirror. The catalog is a live Host read, so the reload publishes
+   * the accepted selection without waiting for a pushed invalidation.
+   * @param selection - the route and model the user picked.
+   * @returns whether the Host accepted the write.
+   */
+  async saveDefaultModel(selection: ModelSelection): Promise<boolean> {
+    const form: ConfigForm<Record<string, unknown>> = this.ctx.configForms.get(DEFAULT_MODEL_NAMESPACE)
+    const accepted = await form.mutate(defaultModelOps(selection))
+    await this.load()
+    return accepted
   }
 
   /** Settle callers only while this read still owns the current refresh. */

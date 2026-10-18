@@ -34,6 +34,7 @@ import type { ModelsSettingsStore, ProviderRow } from './store.ts'
 import type { ModelsOperations } from './operations.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 import { ProviderEditor, type ProviderEditorProps } from './ProviderEditor.tsx'
+import { DefaultModelRow } from './DefaultModelRow.tsx'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
 
@@ -422,6 +423,14 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
             {providerCopy(t('savedProvider'), savedIdentity)}
           </p>
         )}
+      {/* Above the provider cards: the shared default applies across all of
+          them, and every Workspace override is defined against it. */}
+      <DefaultModelRow
+        state={state.defaultModel}
+        save={selection => controller.saveDefaultModel(selection)}
+        readOnly={!state.writable}
+        t={t}
+      />
       <ul className={styles['rows']}>
         {configured.map((row) => {
           const target = targetOf(row)

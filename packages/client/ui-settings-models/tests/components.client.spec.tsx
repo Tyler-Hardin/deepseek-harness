@@ -209,6 +209,15 @@ function scriptedFace(overrides: {
       ].map(({ active: _active, ...entry }) => entry)))),
       discoverModels: vi.fn(() => Promise.resolve(remoteOk([]))),
     },
+    session: {
+      // The Default model row's catalog read. This script serves no
+      // `agent-default-model` namespace, so the row stays absent and these
+      // cases stay about the provider cards.
+      modelCatalog: vi.fn(() => Promise.resolve(remoteOk({
+        default: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+        routableProviders: [], groups: [], failures: [],
+      }))),
+    },
     settings: {
       describe: vi.fn(() => Promise.resolve(remoteOk({ writable: true, hasDocument: false, namespaces: wireNamespaces() }))),
       update,
@@ -244,7 +253,12 @@ function ctxWith(face: object): PageContext {
   const existing = contexts.get(face)
   if (existing !== undefined) return existing
   const ctx = Object.assign(new Context(), { remote: { ...face,
-    session: { initializeDefaultModel: async () => ({ ok: true, value: undefined }) },
+    // The script may already carry a `session` face (the Default model row's
+    // catalog read); the onboarding initializer joins it instead of replacing it.
+    session: {
+      ...(face as { session?: Record<string, unknown> }).session,
+      initializeDefaultModel: async () => ({ ok: true, value: undefined }),
+    },
   } })
   contexts.set(face, ctx)
   return ctx

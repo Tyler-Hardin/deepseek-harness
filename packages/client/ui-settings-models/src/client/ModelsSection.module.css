@@ -829,3 +829,74 @@ select.input {
   line-height: 20px;
   text-align: center;
 }
+
+/* The deployment-wide Default model row, above the provider cards it applies
+   across. Outlined like a provider row so it reads as one more row of the same
+   list, but never expands: it carries a single picker, not an editor. */
+.defaultCard {
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-lg);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+/* Row-scoped explanation: caption size and the tertiary tone, so it annotates
+   the picker instead of competing with the page's own intro paragraph. */
+.rowHint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.defaultTrigger {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 32px;
+  padding: 0 10px 0 12px;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: var(--dsw-radius-lg);
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.defaultTrigger:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover-solid);
+}
+
+.defaultTrigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 var(--dsw-focus-ring-width) var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+}
+
+.defaultTrigger:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.defaultTriggerLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+/* inline-flex, not inline: an inline seat reserves baseline descent under the
+   svg and floats the glyph off-center in the fixed-height trigger. */
+.defaultChevron {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--dsw-alias-label-caption);
+  transition: transform 120ms ease;
+}

@@ -1,6 +1,7 @@
 /** Page-store join: directory × namespaces × credentials, with last-good rows on failure. */
 import { describe, expect, it } from 'vitest'
 import type { RpcResponse } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ModelCatalog } from '@deepseek-ai/dsh-api-session-controller/types'
 import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 import { SettingsDescribeMirror } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
 import { settingsSchema } from './settings-schema.client.ts'
@@ -73,7 +74,26 @@ const DIRECTORY = [
   { provider: 'ghost', displayName: 'Ghost', settingsNs: '', settingsPath: [], active: true },
 ]
 
+/** The catalog read every case starts from: the shared default plus two routes. */
+const DEFAULT_CATALOG: ModelCatalog = {
+  default: { provider: 'origin-gateway', model: 'origin-large' },
+  routableProviders: ['origin-gateway', 'acme-gateway'],
+  groups: [
+    { id: 'origin-gateway', name: 'Origin Gateway', models: [{ id: 'origin-large', name: 'Origin Large' }] },
+    { id: 'acme-gateway', name: 'Acme Gateway', models: [{ id: 'acme-large', name: 'Acme Large' }] },
+  ],
+  failures: [],
+}
+
 const NAMESPACES = [
+  {
+    ns: 'agent-default-model',
+    schema: {},
+    value: { provider: 'origin-gateway', model: 'origin-large' },
+    autoGenerate: false, applies: 'live' as const,
+    secrets: [],
+    revision: 7,
+  },
   {
     ns: 'llm-deepseek',
     schema: {},
@@ -108,6 +128,9 @@ function api(overrides: {
   providers?: () => Promise<RpcResponse<{ providers: typeof DIRECTORY }>>
   describeSettings?: () => Promise<RemoteAnswer<{ writable: boolean; hasDocument: boolean; namespaces: typeof NAMESPACES }>>
   describeCredentials?: (refs: readonly string[]) => Promise<RemoteAnswer<Record<string, unknown>>>
+  modelCatalog?: () => Promise<RemoteAnswer<ModelCatalog>>
+  /** Answer one default-model save with a refusal. */
+  refuseDefaultWrite?: boolean
 } = {}) {
   const seenRefs: string[][] = []
   const providers = overrides.providers ?? (() => Promise.resolve(ok({ providers: DIRECTORY })))
@@ -129,8 +152,14 @@ function api(overrides: {
       : remoteFail(response.result.error.message)
   }
   const face = {
-    session: { modelCatalog: async () => remoteOk({ groups: overrides.accountAvailable
-      ? [{ id: 'deepseek-account', models: [{ id: 'deepseek-flash' }] }] : [] }) },
+    session: {
+      // The Default model row's read: an explicit script wins, otherwise the
+      // account-availability groups the provider-row cases assert on.
+      modelCatalog: overrides.modelCatalog ?? (() => Promise.resolve(remoteOk(overrides.accountAvailable
+        ? { groups: [{ id: 'deepseek-account', models: [{ id: 'deepseek-flash' }] }] }
+        : DEFAULT_CATALOG))),
+      initializeDefaultModel: () => Promise.resolve(remoteOk(undefined)),
+    },
     llm: {
       listProviders: () => mapProviderBatch(rows => rows
         .filter(row => row.active)
@@ -156,9 +185,18 @@ function api(overrides: {
       unset: () => Promise.resolve(remoteOk(undefined)),
     },
   }
+  // The one form the page writes through: the default-model namespace's
+  // controller, scripted so a case can see what one save staged.
+  const writes: { ops: readonly unknown[]; revision: number | undefined }[] = []
+  const form = {
+    mutate: (ops: readonly unknown[], revision?: number) => {
+      writes.push({ ops, revision })
+      return Promise.resolve(overrides.refuseDefaultWrite !== true)
+    },
+  }
   // The page plugin's context, scripted down to the namespaces it reaches.
-  const ctx = { remote: face } as never
-  return { ctx, face, mirror: new SettingsDescribeMirror(ctx), seenRefs }
+  const ctx = { remote: face, configForms: { get: () => form } } as never
+  return { ctx, face, mirror: new SettingsDescribeMirror(ctx), seenRefs, writes }
 }
 
 describe('ModelsSettingsStore', () => {
@@ -570,4 +608,81 @@ it('removes the account row after sign-out and restores it after sign-in', async
   overrides.accountAvailable = true
   await store.load()
   expect(store.store.getSnapshot().rows[0]?.entry.provider).toBe('deepseek-account')
+})
+
+describe('the deployment default model', () => {
+  it('publishes the selection and routes the catalog carries', async () => {
+    const { ctx, mirror } = api()
+    const store = new ModelsSettingsStore(ctx, settingsSchema, mirror)
+    await store.load()
+    expect(store.store.getSnapshot().defaultModel).toEqual({
+      status: 'ready',
+      selection: { provider: 'origin-gateway', model: 'origin-large' },
+      groups: DEFAULT_CATALOG.groups,
+      failures: [],
+    })
+  })
+
+  it('hides the row where the deployment serves no shared default', async () => {
+    const { ctx, mirror } = api({
+      describeSettings: () => Promise.resolve(remoteOk({
+        writable: true,
+        hasDocument: false,
+        namespaces: NAMESPACES.filter(view => view.ns !== 'agent-default-model') as never,
+      })),
+    })
+    const store = new ModelsSettingsStore(ctx, settingsSchema, mirror)
+    await store.load()
+    const state = store.store.getSnapshot()
+    expect(state.defaultModel).toEqual({ status: 'unavailable' })
+    // The provider rows are unaffected: one absent namespace is not a page failure.
+    expect(state.status).toBe('ready')
+    expect(state.rows).toHaveLength(4)
+  })
+
+  it('degrades only the default row when the catalog read fails', async () => {
+    const { ctx, mirror } = api({ modelCatalog: () => Promise.resolve(remoteFail('catalog down')) })
+    const store = new ModelsSettingsStore(ctx, settingsSchema, mirror)
+    await store.load()
+    const state = store.store.getSnapshot()
+    expect(state.defaultModel).toEqual({ status: 'error', message: 'catalog down' })
+    expect(state.status).toBe('ready')
+    expect(state.rows).toHaveLength(4)
+  })
+
+  it('stages the route, model, and effort clear as one write', async () => {
+    let catalog = DEFAULT_CATALOG
+    const { ctx, mirror, writes } = api({ modelCatalog: () => Promise.resolve(remoteOk(catalog)) })
+    const store = new ModelsSettingsStore(ctx, settingsSchema, mirror)
+    await store.load()
+    catalog = { ...DEFAULT_CATALOG, default: { provider: 'acme-gateway', model: 'acme-large' } }
+
+    await expect(store.saveDefaultModel({ provider: 'acme-gateway', model: 'acme-large' })).resolves.toBe(true)
+
+    // The pick stages all three fields together and names no revision: the
+    // shared form fences the write with the latest one it holds.
+    expect(writes).toEqual([{
+      ops: [
+        { op: 'set', path: ['provider'], value: 'acme-gateway' },
+        { op: 'set', path: ['model'], value: 'acme-large' },
+        { op: 'unset', path: ['reasoningEffort'] },
+      ],
+      revision: undefined,
+    }])
+    // The catalog is a live Host read, so the reload already publishes it.
+    expect(store.store.getSnapshot().defaultModel).toMatchObject({
+      status: 'ready',
+      selection: { provider: 'acme-gateway', model: 'acme-large' },
+    })
+  })
+
+  it('reports a refused write and keeps the page it already had', async () => {
+    const { ctx, mirror } = api({ refuseDefaultWrite: true })
+    const store = new ModelsSettingsStore(ctx, settingsSchema, mirror)
+    await store.load()
+    await expect(store.saveDefaultModel({ provider: 'acme-gateway', model: 'acme-large' })).resolves.toBe(false)
+    expect(store.store.getSnapshot().defaultModel).toMatchObject({
+      selection: { provider: 'origin-gateway', model: 'origin-large' },
+    })
+  })
 })
