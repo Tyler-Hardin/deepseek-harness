@@ -208,8 +208,9 @@ The sandbox-policy service (`ctx.sandboxPolicy`). Owns the deployment default mo
  * mode outranks the session's last `sandbox/mode` event, which outranks the
  * deployment default. A session cwd is its workspace-write boundary; the
  * configured root is the fallback for agentless calls and sessions without a
- * cwd. The configured extra writable roots are expanded (`~`), validated,
- * deduplicated, and stamped onto the policy whenever non-empty.
+ * cwd. The configured extra writable roots are read from their live Config
+ * reference, expanded (`~`), validated, deduplicated, and stamped onto the
+ * policy whenever non-empty.
  * @param request - optional session and approved mode override.
  * @returns the fully resolved per-call mode and absolute workspace root.
  */

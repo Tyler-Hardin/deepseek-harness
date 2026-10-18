@@ -326,7 +326,7 @@ describe('web e2e: plugin manager', () => {
         await basic.locator('[data-plugin-item]').first().waitFor()
         // Configuration cards lead the list; their absent switches give the text column more width.
         const loaded = await measure(basic)
-        expect(await basic.locator(':scope > ul > li[data-plugin-item]').count()).toBe(4)
+        expect(await basic.locator(':scope > ul > li[data-plugin-item]').count()).toBe(5)
         expect(loaded.rows).toHaveLength(loading.rows.length)
         const compare = (name: string, a: typeof loading.pageHeader, b: typeof loaded.pageHeader, axes: readonly (keyof typeof a)[] = ['x', 'y', 'width', 'height']) => {
           for (const axis of axes) {
@@ -574,7 +574,7 @@ describe('web e2e: plugin manager', () => {
     expect(focusRing.outlineWidth).toBeGreaterThan(0)
     // Profile bundles stay in Installed; configuration pages and offered bundles have their own groups.
     expect(await panel.locator('[data-plugin-group="bundles"] [data-plugin-package]').count()).toBe(2)
-    expect(await panel.locator('[data-plugin-group="basic"] [data-plugin-item]').count()).toBe(4)
+    expect(await panel.locator('[data-plugin-group="basic"] [data-plugin-item]').count()).toBe(5)
     expect(await panel.locator('[data-plugin-package="@deepseek-ai/dsh-experimental-inspector"]').count()).toBe(0)
     expect(await panel.getByRole('switch', { name: '启用 语音输入', exact: true }).getAttribute('aria-checked')).toBe('false')
     expect(await panel.getByRole('switch', { name: '启用 开发者工具', exact: true }).getAttribute('aria-checked')).toBe('false')

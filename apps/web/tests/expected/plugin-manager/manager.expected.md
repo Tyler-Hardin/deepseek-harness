@@ -14,6 +14,9 @@
     - button "查看 网页搜索": 网页搜索
     - text: 设置 DeepSeek 的搜索提供方。
   - listitem:
+    - button "查看 沙箱": 沙箱
+    - text: 为 workspace-write 授予工作区与临时区域之外目录的常驻写权限。
+  - listitem:
     - button "查看 Agent 循环": Agent 循环
     - text: 控制 Agent 派发工具调用的方式。
   - listitem:

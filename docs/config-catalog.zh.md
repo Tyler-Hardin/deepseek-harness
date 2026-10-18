@@ -2710,8 +2710,8 @@ export interface Config {
 ## `@deepseek-ai/dsh-sandbox-policy`
 
 - `inject`: `sessionProjections`
-- `refs`: [`SandboxMode`](subsystems/sandbox.zh.md)
-- `source`: [`packages/sandbox/sandbox-policy/src/index.ts:85`](../packages/sandbox/sandbox-policy/src/index.ts)
+- `refs`: [`SandboxMode`](subsystems/sandbox.zh.md) · `Volatile` (`@deepseek-ai/cordis`)
+- `source`: [`packages/sandbox/sandbox-policy/src/index.ts:86`](../packages/sandbox/sandbox-policy/src/index.ts)
 
 ```ts config-catalog
 /**
@@ -2734,9 +2734,11 @@ export interface Config {
    * the session workspace and platform temp areas (for example `~/.cache`; a
    * leading `~` expands to the user's home). Remote execution worlds never
    * receive them. A profile edit backed by `configEditor` overlays this
-   * deployment default for the next capability call.
+   * deployment default for the next capability call; the field is volatile, so
+   * an edit applies to the next {@link SandboxPolicyService.resolve} without a
+   * reload.
    */
-  extraWritableRoots?: string[]
+  extraWritableRoots?: Volatile<string[]>
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-sandbox-policy -->
@@ -4678,6 +4680,7 @@ export interface Config {
 | `@deepseek-ai/dsh-client-ui-settings-general` | — | [`packages/client/ui-settings-general/src/index.ts`](../packages/client/ui-settings-general/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings-plugin-inventory` | — | [`packages/client/ui-settings-plugin-inventory/src/index.ts`](../packages/client/ui-settings-plugin-inventory/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings-plugins` | — | [`packages/client/ui-settings-plugins/src/index.ts`](../packages/client/ui-settings-plugins/src/index.ts) |
+| `@deepseek-ai/dsh-client-ui-settings-sandbox` | — | [`packages/client/ui-settings-sandbox/src/index.ts`](../packages/client/ui-settings-sandbox/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings-session-log` | — | [`packages/client/ui-settings-session-log/src/index.ts`](../packages/client/ui-settings-session-log/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings-shell` | — | [`packages/client/ui-settings-shell/src/index.ts`](../packages/client/ui-settings-shell/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings-subagent` | — | [`packages/client/ui-settings-subagent/src/index.ts`](../packages/client/ui-settings-subagent/src/index.ts) |

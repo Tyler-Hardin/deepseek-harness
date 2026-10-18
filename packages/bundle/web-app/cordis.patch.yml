@@ -451,6 +451,10 @@
     # Host serves the namespace.
     - id: ui-settings-shell
       name: '@deepseek-ai/dsh-client-ui-settings-shell'
+    # The sandbox policy's extra writable roots (workspace-write grants beyond
+    # the workspace and temp areas). Served only while the policy entry is.
+    - id: ui-settings-sandbox
+      name: '@deepseek-ai/dsh-client-ui-settings-sandbox'
 
     - id: ui-settings-agent-loop
       name: '@deepseek-ai/dsh-client-ui-settings-agent-loop'

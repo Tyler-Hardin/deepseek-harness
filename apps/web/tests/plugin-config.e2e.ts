@@ -89,13 +89,14 @@ describe('web e2e: plugin configuration pages', () => {
     const panel = await openPlugins()
 
     // Every page the shipped web composition exposes: the shell executor, the
-    // agent loop, subagent selection, and the DeepSeek search provider.
+    // agent loop, subagent selection, the sandbox policy's extra writable roots,
+    // and the DeepSeek search provider.
     await panel.getByRole('button', { name: '查看 网页搜索', exact: true }).waitFor({ timeout: 20_000 })
     const basic = panel.locator('[data-plugin-group="basic"]')
-    expect(await basic.locator('[data-plugin-item]').count()).toBe(4)
+    expect(await basic.locator('[data-plugin-item]').count()).toBe(5)
     expect(await basic.locator(':scope > ul > li').evaluateAll(cards => cards.map(card => card.getAttribute('data-plugin-item'))))
-      .toEqual(['subagent', 'web-search', 'agent-loop', 'shell'])
-    for (const title of ['子智能体', '网页搜索', 'Agent 循环', '终端']) {
+      .toEqual(['subagent', 'web-search', 'sandbox', 'agent-loop', 'shell'])
+    for (const title of ['子智能体', '网页搜索', '沙箱', 'Agent 循环', '终端']) {
       expect(await basic.getByRole('button', { name: `查看 ${title}`, exact: true }).count()).toBe(1)
     }
     // A card carries the one-liner; the fields wait for the page.
@@ -285,6 +286,33 @@ describe('web e2e: plugin configuration pages', () => {
     await expect.poll(async () => (await settingsDocument()).includes('enabled: false'), { timeout: 10_000 })
       .toBe(true)
     await expect.poll(() => toggle.getAttribute('aria-checked'), { timeout: 5_000 }).toBe('false')
+    expect(tripwire.pageErrors).toEqual([])
+  }, 60_000)
+
+  it('saves the sandbox policy\'s extra writable roots into the profile patch', async () => {
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-plugin-config-sandbox-roots'))
+    // The earlier scenarios rewrite other namespaces and reload; start from a
+    // graph the page fetched for this scenario so the panel binds this page.
+    await page.reload({ waitUntil: 'load' })
+    await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
+    const panel = await openPlugins()
+    await openPage(panel, '沙箱')
+
+    const roots = panel.getByLabel('额外可写根目录', { exact: true })
+    await roots.waitFor({ timeout: 10_000 })
+    expect(await roots.inputValue()).toBe('')
+    await roots.fill('/srv/dsh-cache, /srv/dsh-cargo')
+
+    const save = panel.getByRole('button', { name: '保存', exact: true })
+    await expect.poll(() => save.isEnabled(), { timeout: 5_000 }).toBe(true)
+    await save.click()
+
+    // The page writes the comma-separated spelling into the profile patch; the
+    // policy's own unit tests cover resolving it into the live policy.
+    // The lane runs this file beside ~200 others, so the profile write waits a
+    // little longer than the page's own save acknowledgement.
+    await expect.poll(async () => (await settingsDocument()).includes('/srv/dsh-cargo'), { timeout: 30_000 })
+      .toBe(true)
     expect(tripwire.pageErrors).toEqual([])
   }, 60_000)
 

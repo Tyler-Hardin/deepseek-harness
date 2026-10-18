@@ -112,6 +112,7 @@
     "@deepseek-ai/dsh-client-ui-settings-models": "workspace:*",
     "@deepseek-ai/dsh-client-ui-settings-plugin-inventory": "workspace:*",
     "@deepseek-ai/dsh-client-ui-settings-plugins": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-settings-sandbox": "workspace:*",
     "@deepseek-ai/dsh-client-ui-settings-session-log": "workspace:*",
     "@deepseek-ai/dsh-client-ui-settings-shell": "workspace:*",
     "@deepseek-ai/dsh-client-ui-settings-subagent": "workspace:*",

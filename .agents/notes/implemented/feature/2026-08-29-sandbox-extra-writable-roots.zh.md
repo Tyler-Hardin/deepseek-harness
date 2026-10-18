@@ -15,7 +15,7 @@ Status: implemented
 - **`SandboxExecutionPolicy.extraWritableRoots`**：`workspace-write` 在会话工作区与平台临时区域之外还可写入的可选绝对宿主机本地目录。和 `workspaceRoot` 一样逐调用携带；`resolve()` 只在非空时写入策略。
 - **`writableRoots()` 纳入它们**——这条唯一派生现在表示「工作区根目录＋`/tmp`＋`os.tmpdir()`＋配置的额外根目录」，因此进程内 fs 围栏与 Seatbelt profile 不可能漂移。bwrap 与 Landlock 方言保留各自的授权拼写，并为每个额外根目录增加一次绑定挂载或一条 `--rw` 授权。windows-acl 档保留工作区＋私有临时目录授权；额外根目录在那里会被拒绝（记为已知限制，逐根目录 ACE 授权暂缓）。
 - **`dsh-sandbox-policy` Config `extraWritableRoots`**——部署层，加载时验证：只接受绝对路径或 `~/` 前缀的主目录拼写；相对拼写会响亮失败。开头的 `~` 在解析时展开为用户主目录。
-- **用户层由 profile 承载**——该列表就是 `sandbox-policy` 组合条目自身的 `config`，因此由 `configEditor` 支撑的 profile 编辑会覆盖部署默认值，并在下一次 `resolve()` 生效，无需重启。Plugins 设置页通过既有的配置表单接缝编辑该条目；不需要专门的设置命名空间或 General 设置行。
+- **用户层由 profile 承载**——该列表位于 `sandbox-policy` 组合条目自身的 `config` 中，并声明为 volatile，以便设置界面提供它。`@deepseek-ai/dsh-client-ui-settings-sandbox` 注册编辑它的 Plugins 页面：用户层覆盖部署默认值，`resolve()` 每次调用都会读取该 volatile 字段，因此被接受的保存无需重载即可到达下一次受限调用。
 - **模型上下文**——`sandbox:policy` 的 workspace-write 说明在列表非空时追加 `Additional configured writable roots: [...]`，因此模型无需能力清单也能知道常驻授权。
 - **按约定仅限宿主机本地**——列表只指宿主机上的路径。远程执行世界（ssh）完全在围栏之外，永远不会收到它，因此本地 `~/.cache` 授权无法授权 `ssh_host:~/.cache`；按主机的远程策略暂缓至远程约束工作。策略字段上的 JSDoc 写明了这一点，而 fs 围栏是本地路径上派生根目录的唯一消费方。
 
