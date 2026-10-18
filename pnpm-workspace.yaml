@@ -114,3 +114,18 @@ patchedDependencies:
   app-builder-lib@26.17.0: patches/app-builder-lib@26.17.0.patch
   exceljs@4.4.0: patches/exceljs@4.4.0.patch
   node-pty@1.2.0-beta.15: patches/node-pty@1.2.0-beta.15.patch
+
+# Declare the project-local virtual store (`node_modules/.pnpm`) that every
+# install here has produced. pnpm 11's `verify-deps-before-run` (default
+# "install") compares the state recorded at install time against the config a
+# script run resolves; install resolves this setting to `false` while
+# `pnpm run` leaves it unset, so the comparison false-positived on every run.
+enableGlobalVirtualStore: false
+
+# `pnpm run` never has a TTY when a git hook drives it: if the recorded install
+# no longer matches the resolved config — a different store dir, a dependency
+# added on another machine — the automatic install cannot show its
+# modules-purge prompt and the hook blocks on it forever. Scripts here run in
+# the dev shell against an install made by hand, so keep the automatic check
+# off and run `pnpm install` yourself after changing dependencies.
+verifyDepsBeforeRun: false

@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-08-25-align-pnpm-virtual-store-setting.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-08-25-align-pnpm-virtual-store-setting.md
+/agent-note-declare-pnpm-s-install-layout-and-keep-git-hooks-off-its-automatic-install:
+  en: 70f579c3fb6be088
+  zh: 543085e489a6ad4e
+/agent-note-declare-pnpm-s-install-layout-and-keep-git-hooks-off-its-automatic-install/problem:
+  en: 9d9888060f4437e9
+  zh: 72d22fa188f9cd86
+/agent-note-declare-pnpm-s-install-layout-and-keep-git-hooks-off-its-automatic-install/decision:
+  en: e1809106028e07da
+  zh: 61a9f2bf453306b0
+/agent-note-declare-pnpm-s-install-layout-and-keep-git-hooks-off-its-automatic-install/alternatives-considered:
+  en: 12cda3e18eab9a3f
+  zh: e6c4cf04b5e52ea9
+/agent-note-declare-pnpm-s-install-layout-and-keep-git-hooks-off-its-automatic-install/consequences:
+  en: e7a69bc6f0ec5945
+  zh: 2ebb81a2fe7de257
+/agent-note-declare-pnpm-s-install-layout-and-keep-git-hooks-off-its-automatic-install/related:
+  en: 35ee9192ada3355a
+  zh: c17887944b265b99
