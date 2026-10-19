@@ -48,29 +48,28 @@ export function apply(ctx: ClientContext): void {
 
   const t = ctx.locale.bind(NS)
   const bridge: DshAppBridge = requireBridge()
-  // Monitoring controls exist only on native builds that ship them; older
-  // clients hide the toggle instead of failing the whole App page.
-  const { getMonitoringEnabled, setMonitoringEnabled } = bridge
+  // Bridge members are methods of one injected object: Android's WebView refuses
+  // a call made through a detached function ("can't be invoked on a non-injected
+  // object"), so each one is bound to the bridge instead of destructured.
   const monitoring: Pick<AppSettingsInjected, 'getMonitoringEnabled' | 'setMonitoringEnabled'> =
-    getMonitoringEnabled === undefined || setMonitoringEnabled === undefined
+    bridge.getMonitoringEnabled === undefined || bridge.setMonitoringEnabled === undefined
       ? {}
       : {
-        getMonitoringEnabled: () => getMonitoringEnabled(),
-        setMonitoringEnabled: (enabled) => { setMonitoringEnabled(enabled) },
+        getMonitoringEnabled: bridge.getMonitoringEnabled.bind(bridge),
+        setMonitoringEnabled: bridge.setMonitoringEnabled.bind(bridge),
       }
   // The server book exists only on native builds that ship it; older clients
   // fall back to editing the single active hostname.
-  const { getServers, addServer, updateServer, removeServer, selectServer } = bridge
   const servers: Pick<AppSettingsInjected, 'getServers' | 'addServer' | 'updateServer' | 'removeServer' | 'selectServer'> =
-    getServers === undefined || addServer === undefined || updateServer === undefined
-      || removeServer === undefined || selectServer === undefined
+    bridge.getServers === undefined || bridge.addServer === undefined || bridge.updateServer === undefined
+      || bridge.removeServer === undefined || bridge.selectServer === undefined
       ? {}
       : {
-        getServers: () => getServers(),
-        addServer: (label, url) => addServer(label, url),
-        updateServer: (id, label, url) => updateServer(id, label, url),
-        removeServer: id => removeServer(id),
-        selectServer: id => selectServer(id),
+        getServers: bridge.getServers.bind(bridge),
+        addServer: bridge.addServer.bind(bridge),
+        updateServer: bridge.updateServer.bind(bridge),
+        removeServer: bridge.removeServer.bind(bridge),
+        selectServer: bridge.selectServer.bind(bridge),
       }
   const injected = (): AppSettingsInjected => ({
     getServerUrl: () => bridge.getServerUrl(),

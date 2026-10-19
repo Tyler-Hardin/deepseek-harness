@@ -104,6 +104,46 @@ describe('ui-app-settings apply', () => {
     expect(b.slots.entries('settings.section')).toHaveLength(0)
   })
 
+  it('calls every bridge member on the injected object, never a detached copy', async () => {
+    // Android's WebView refuses a bridge method invoked off its injected object
+    // ("can't be invoked on a non-injected object"), which is why the face must
+    // reach members through `window.DshApp` rather than destructuring them.
+    const detached: string[] = []
+    const guard = (name: string): (() => unknown) => function (this: unknown) {
+      if (this !== (globalThis as GlobalWithBridge).DshApp) detached.push(name)
+      return name === 'getServers' ? '{"ok":true,"servers":[],"activeId":""}' : 'ok'
+    }
+    const bridge = {
+      getServerUrl: guard('getServerUrl'),
+      setServerUrl: () => {},
+      getCertInfo: guard('getCertInfo'),
+      forgetCertificate: () => {},
+      getDiagnostics: guard('getDiagnostics'),
+      clearDiagnostics: () => {},
+      getCrashLog: guard('getCrashLog'),
+      clearCrashLog: () => {},
+      getAppInfo: guard('getAppInfo'),
+      getMonitoringEnabled: guard('getMonitoringEnabled'),
+      setMonitoringEnabled: () => {},
+      getServers: guard('getServers'),
+      addServer: guard('addServer'),
+      updateServer: guard('updateServer'),
+      removeServer: guard('removeServer'),
+      selectServer: guard('selectServer'),
+    }
+    const b = await bench(true, bridge as never)
+    declare(b.slots)
+    await Promise.resolve()
+    const face = b.slots.entries('settings.section')[0]!.inject!() as Record<string, (...args: unknown[]) => unknown>
+    for (const member of ['getServerUrl', 'getCertInfo', 'getDiagnostics', 'getCrashLog', 'getAppInfo', 'getMonitoringEnabled']) {
+      face[member]!()
+    }
+    for (const member of ['getServers', 'addServer', 'updateServer', 'removeServer', 'selectServer']) {
+      face[member]!('a', 'b', 'c')
+    }
+    expect(detached).toEqual([])
+  })
+
   it('registers the App section when the bridge is present', async () => {
     const b = await bench(true)
     declare(b.slots)

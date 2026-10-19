@@ -3,6 +3,7 @@ package ai.deepseek.dsh
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
@@ -189,6 +190,11 @@ class MainActivity : AppCompatActivity() {
                 setSupportMultipleWindows(false)
             }
             addJavascriptInterface(jsBridge, DshJsBridge.NAME)
+            // Debuggable builds expose the page to adb (chrome://inspect), the
+            // only way to read a page-side failure that leaves no native trace.
+            if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+                WebView.setWebContentsDebuggingEnabled(true)
+            }
             webViewClient = DshWebViewClient()
             webChromeClient = DshWebChromeClient()
         }
