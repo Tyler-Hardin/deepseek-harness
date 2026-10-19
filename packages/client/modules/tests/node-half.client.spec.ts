@@ -12,7 +12,7 @@ import { Context, FiberState, type Fiber } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderIndexInjections, type WebServer, type WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import * as modulesClient from '../src/client/index.ts'
-import { ClientModuleRegistry, bootInjections, orderByModuleGraph } from '../src/index.ts'
+import { ClientModuleRegistry, bootInjections, orderByModuleGraph, isImmutableArtifactPath } from '../src/index.ts'
 import type { ClientModuleLoaderTarget, WebBootEntry, WebBootGraph } from '../src/client/index.ts'
 
 /**
@@ -340,6 +340,11 @@ describe('HTML bootstrap facade', () => {
     expect(() => target.create({ boot: graph, staticModules: {} }))
       .toThrow(`${MODULES_ID}/client.js did not export the bootstrap module face`)
   })
+})
+
+it('recognises immutable content-addressed artifacts', () => {
+  expect(isImmutableArtifactPath('/nix/store/abc-dsh/lib/dsh/packages/client/ui-chat/lib/client.js')).toBe(true)
+  expect(isImmutableArtifactPath('/home/me/deepseek-harness/packages/client/ui-chat/lib/client.js')).toBe(false)
 })
 
 describe('client bundle activation', () => {

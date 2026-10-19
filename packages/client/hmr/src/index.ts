@@ -13,6 +13,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 // Type imports carry the clientModules/webServer Context merges.
 import type { ClientArtifactBaseline } from '@deepseek-ai/dsh-client-modules'
+import { isImmutableArtifactPath } from '@deepseek-ai/dsh-client-modules'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type { PluginsEventFrame } from './events.ts'
 import { EVENTS_ENDPOINT } from './events.ts'
@@ -53,11 +54,21 @@ function bundleStat(path: string): WatchedBundleStat {
   return { mtimeMs: bundle.mtimeMs, ctimeMs: bundle.ctimeMs, size: bundle.size }
 }
 
-/** Whether the executable bundle metadata is unchanged since its last publication. */
-function sameBundleStat(left: WatchedBundleStat, right: WatchedBundleStat): boolean {
+/**
+ * Whether the executable bundle metadata is unchanged since its last publication.
+ *
+ * The inode-change time is ignored for immutable, content-addressed artifacts:
+ * hard-link deduplication rewrites it without touching the bytes, and treating
+ * that as a rebuild reloads every open page's plugin graph.
+ * @param left - current stat.
+ * @param right - last published stat.
+ * @param path - artifact path the stats describe.
+ * @returns true when the artifact's bytes cannot have changed.
+ */
+function sameBundleStat(left: WatchedBundleStat, right: WatchedBundleStat, path: string): boolean {
   return left.mtimeMs === right.mtimeMs
-    && left.ctimeMs === right.ctimeMs
     && left.size === right.size
+    && (isImmutableArtifactPath(path) || left.ctimeMs === right.ctimeMs)
 }
 
 /**
@@ -102,7 +113,7 @@ export function apply(ctx: Context, config: Config): void {
     }
     // The module host captured its baseline before reading the bytes in the
     // startup batch. Only a mismatch crosses into generation publication.
-    if (!sameBundleStat(current, watch)) publish(id, watch, current)
+    if (!sameBundleStat(current, watch, watch.path)) publish(id, watch, current)
   }
 
   const pollWatches = (): void => {
@@ -115,7 +126,7 @@ export function apply(ctx: Context, config: Config): void {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') ctx.logger.warn(error)
         continue
       }
-      if (!watch.dirty && sameBundleStat(current, watch)) continue
+      if (!watch.dirty && sameBundleStat(current, watch, watch.path)) continue
       // Stat-before-publication preserves a detectable older baseline for
       // writes that land during the read. The preset stamps the entry after
       // sibling chunks, so a completed build supplies the final stat change.

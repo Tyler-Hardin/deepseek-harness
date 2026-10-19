@@ -217,9 +217,25 @@ function framedHash(domain: string, parts: readonly string[]): string {
   return hash.digest('hex').slice(0, HASH_REVISION_LENGTH)
 }
 
+/**
+ * Whether an artifact lives at a content-addressed, immutable path.
+ *
+ * A Nix store path is keyed by the hash of its inputs: its bytes never change,
+ * while hard-link deduplication (`auto-optimise-store`, `nix store optimise`)
+ * rewrites the inode-change time of every file it links. An artifact revision
+ * that keys on that time therefore turns store maintenance into a rebuild of
+ * every client entry.
+ * @param path - absolute artifact path.
+ * @returns true when the path's bytes are immutable for the build's lifetime.
+ */
+export function isImmutableArtifactPath(path: string): boolean {
+  return path.startsWith('/nix/store/')
+}
+
 /** Identify an entry's build from filesystem metadata without hashing its contents. */
 function artifactRevision(baseline: ClientArtifactBaseline): string {
-  return framedHash('plugin-artifact', [String(baseline.mtimeMs), String(baseline.ctimeMs), String(baseline.size)])
+  const ctime = isImmutableArtifactPath(baseline.path) ? 'immutable' : String(baseline.ctimeMs)
+  return framedHash('plugin-artifact', [String(baseline.mtimeMs), ctime, String(baseline.size)])
 }
 
 /** Absolute route prefix serving every plugin resource. */

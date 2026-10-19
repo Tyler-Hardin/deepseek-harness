@@ -15,6 +15,7 @@ Commits are named by subject, not hash: `pnpm run doc-sync` rejects literal comm
 | Nix flake, NixOS module, dev/test environment | feat(nix): add flake packaging, dsh-web NixOS module, and full dev/test env | `flake.nix`, `flake.lock`, `nix/dsh-web.nix`, `nix/playwright-browsers.nix`, `AGENTS.md` |
 | Per-workspace default model | feat(workspace): per-workspace default model | `packages/core/agent-default-model`, `packages/api/session-controller`, `packages/api/workspace-controller`, `packages/client/ui-workspace` |
 | Android WebView app + web-hosted App settings | feat(android): dsh Android WebView app with web-hosted App settings | `android/`, `packages/client/ui-app-settings` |
+| Client graph churn on Nix stores | fix(client): ignore inode-only churn when rekeying client artifacts | `packages/client/modules`, `packages/client/hmr` |
 | Android task-completion notifications | feat(android): task-completion notifications via FCM push with the monitor as a fallback | `android/`, `packages/api/push-notify`, `packages/client/ui-app-settings` |
 | Server book (several servers on mobile) | feat(android): keep several servers and switch the active one | `android/app/src/main/java/ai/deepseek/dsh/ServerBook.kt`, `android/`, `packages/client/ui-app-settings` |
 | mTLS-only connection (no browser handshake) | fix(connection): serve the configuration plane to https pages and declared trusted hosts (local fork) | `packages/client/connection`, `packages/experimental/inspector`, affected READMEs |
@@ -39,6 +40,12 @@ The branch also carries its own bookkeeping: `pnpm-lock.yaml`, the regenerated c
 `ctx.agentDefaultModel` owns the shared selection and at most one explicit override per workspace (`workspaceDefaults`, keyed by workspace id). Resolution order is logged route, then workspace override, then shared default. The Workspace row menu opens a dialog that reads the advisory model catalog and writes the override; the Session switch routes into the workspace override when the Session's Workspace has one. Both saves share one submission-ordered queue, so a rejected write never blocks a later one.
 
 Watch on rebase: `agent-default-model`'s `saveSelection` must capture the submitted values *before* queueing (a caller that mutates its object must not change what lands), and the shared save must preserve sibling overrides. `session-controller`'s `commands.ts` reads `sessionWorkspaceId(...)`; it routes the save to the workspace override or the shared default, and the write stays in the background with `void … .catch(...)`.
+
+### Client graph churn on Nix stores
+
+The Host keys every client entry's revision on mtime, ctime, and size, and the HMR watch treats a ctime change as a rebuild. A Nix store is content-addressed, so its bytes never change — but hard-link deduplication (`auto-optimise-store`, `nix store optimise`, and every build that reuses store paths) rewrites the inode-change time of every file it links. The open page then receives a rebuild frame for each of its ~70 client entries, reloads its plugin graph, and can land in the window where a service is absent: the input throws `sessions service unavailable`, React unmounts, and the page stays blank until a refresh. Store artifacts therefore omit ctime from the revision key and from the watch comparison (`isImmutableArtifactPath`), while writable paths keep upstream's same-size-rewrite detection.
+
+Watch-out on rebase: upstream deliberately uses ctime to detect rewrites that preserve mtime and size, so the exception must stay scoped to content-addressed paths. A genuine rebuild of a writable artifact still reissues its revision.
 
 ### Android app, notifications, and App settings
 
