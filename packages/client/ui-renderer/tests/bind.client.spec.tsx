@@ -3,7 +3,11 @@ import { StrictMode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { act, render } from '@testing-library/react'
 import { bindSnapshotSelector } from '../src/client/bind.ts'
-import type { HostObservable as ObservableSnapshot, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
+import { HostContext, ScopeProvider } from '../src/client/bindings.tsx'
+import type {
+  HostObservable as ObservableSnapshot, SlotRendererHost, SlotScopeAdapter, SnapshotSelectorHook,
+  StandardSourceBinding,
+} from '@deepseek-ai/dsh-client-ui-slots'
 
 // Keep equality local: this suite asserts the eq parameter contract without
 // adding a reverse dependency from the UI renderer to runtime.
@@ -126,5 +130,48 @@ describe('bindSnapshotSelector', () => {
     rerender(<Harness useSelector={useSelector} sel={sel} probe={probe} />)
     // Same snapshot + same selector reference: no recompute beyond bookkeeping.
     expect(sel.mock.calls.length).toBeLessThanOrEqual(calls + 1)
+  })
+})
+
+describe('optional session scope', () => {
+  it('renders nothing while a live graph change has no installed session adapter', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    let revision = 0
+    const listeners = new Set<() => void>()
+    const scopeRevision = {
+      getSnapshot: () => revision,
+      subscribe: (fn: () => void) => { listeners.add(fn); return () => { listeners.delete(fn) } },
+    }
+    const binding: StandardSourceBinding = { key: undefined, hooks: {}, keyedHooks: {}, props: {} }
+    const current = {
+      getSnapshot: () => binding,
+      subscribe: () => () => {},
+    }
+    const installed: { adapter?: SlotScopeAdapter } = {}
+    const host = {
+      subscribe: () => () => {}, getVersion: () => 0,
+      entriesOf: () => [], entriesOfSlot: () => [],
+      reportEntryError: () => {}, reportFactoryError: () => {},
+      specOf: () => undefined,
+      isLive: () => true, storeOf: () => undefined,
+      factoryStoreOf: () => undefined,
+      retainFactoryOccurrence: () => () => {},
+      subscribeFactory: () => () => {},
+      getFactoryVersion: () => 0,
+      factoryOf: () => undefined,
+      isFactoryLive: () => false,
+      root: current, scopeRevision,
+      scope: () => installed.adapter,
+    } as SlotRendererHost
+    const view = render(
+      <HostContext.Provider value={host}>
+        <ScopeProvider scope="session-maybe"><span>conversation</span></ScopeProvider>
+      </HostContext.Provider>,
+    )
+    // The plugin that installs the session scope is unmounted for this frame.
+    expect(view.container.textContent).toBe('')
+    installed.adapter = { current, bindingSource: () => current }
+    act(() => { revision += 1; for (const fn of [...listeners]) fn() })
+    expect(view.container.textContent).toBe('conversation')
   })
 })

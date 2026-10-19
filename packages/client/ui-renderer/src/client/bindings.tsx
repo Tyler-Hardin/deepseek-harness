@@ -177,6 +177,26 @@ const absentKeyedHook: KeyedSnapshotHook = (keyOrSelector, second, equal) => {
   return observableHook(absentSource)(call.selector ?? identity, call.equal)
 }
 
+/** Standing binding the optional scope reads while no adapter is installed. */
+const ABSENT_SCOPE_BINDING: StandardSourceBinding = { key: undefined, hooks: {}, keyedHooks: {}, props: {} }
+
+/** Standing source for {@link ABSENT_SCOPE_BINDING}; its snapshot must stay identical. */
+const EMPTY_SCOPE_BINDING: HostObservable<StandardSourceBinding> = {
+  getSnapshot: () => ABSENT_SCOPE_BINDING,
+  subscribe: () => () => {},
+}
+
+/** Scopes that already reported an absent adapter, so a graph change logs once. */
+const reportedAbsentScopes = new Set<string>()
+
+/** Report an absent optional scope once per absence, without failing the shell. */
+function reportAbsentMaybeScope(): void {
+  const scope = 'session-maybe'
+  if (reportedAbsentScopes.has(scope)) return
+  reportedAbsentScopes.add(scope)
+  console.error(`slot scope '${scope}' has no installed adapter; rendering no session content until a plugin installs one`)
+}
+
 /** Subscribe the tree to the atomically assembled root standard-source roster. */
 export function RootStandardProvider({ children }: { children: ReactNode }) {
   const host = useHost()
@@ -195,7 +215,22 @@ export function ScopeProvider({
   const host = useHost()
   observableHook(host.scopeRevision)(value => value)
   const adapter = host.scope(scope)
-  if (adapter === undefined) throw new SlotAssemblyError(`scope '${scope}' rendered without an installed adapter`)
-  const binding = observableHook(adapter.current)(value => value)
+  // The hook below runs unconditionally so the provider keeps a stable hook order
+  // across the render that installs or removes the adapter.
+  const binding = observableHook(adapter?.current ?? EMPTY_SCOPE_BINDING)(value => value)
+  if (adapter === undefined) {
+    // A live plugin graph change — enabling a bundle, for example — unmounts the
+    // plugin that installs the session scope for the frames it takes to mount the
+    // replacement. The optional session subtree is defined to render without a
+    // session, so it renders nothing for that window instead of throwing the
+    // shell away; a plain scope still fails loud, and a maybe scope that stays
+    // absent reports once through the console.
+    if (scope === 'session-maybe') {
+      reportAbsentMaybeScope()
+      return null
+    }
+    throw new SlotAssemblyError(`scope '${scope}' rendered without an installed adapter`)
+  }
+  reportedAbsentScopes.delete(scope)
   return <ScopeBindingContext.Provider value={binding}>{children}</ScopeBindingContext.Provider>
 }
