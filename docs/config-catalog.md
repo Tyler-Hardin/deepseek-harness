@@ -247,6 +247,8 @@ export interface Config {
   readonly oauthTokenUrl?: string
   /** FCM send endpoint template; `{project}` is replaced with the project id. */
   readonly sendUrlTemplate?: string
+  /** Deployment origin the client should open on tap; derived from registration headers when omitted. */
+  readonly publicUrl?: string
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-api-push-notify -->

@@ -118,6 +118,9 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         buildUi()
+        // A cold start from a notification tap: the link names the deployment and
+        // the Conversation before the first page load.
+        val linked = readDeepLink(intent)
         // When the web UI's App settings page changes the hostname, reload
         // the WebView at the new server and point the monitor at it too.
         jsBridge.onServerUrlChanged = {
@@ -134,12 +137,54 @@ class MainActivity : AppCompatActivity() {
         startMonitorIfReady()
         showPendingCrashDialog()
 
+        if (linked != null) applyDeepLink(linked)
         val url = DshApp.instance.serverUrl
         if (url.isNullOrBlank()) {
             DshDiagnostics.record(TAG, "no server URL configured — opening settings")
             openSettings()
         } else {
-            loadServer()
+            loadServer(linked?.sessionId)
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // A warm tap reuses this task; the link reloads the page on the session.
+        val linked = readDeepLink(intent) ?: return
+        applyDeepLink(linked)
+        if (DshApp.instance.serverUrl.isNullOrBlank()) openSettings() else loadServer(linked.sessionId)
+    }
+
+    /** Extract a notification's Session link, ignoring intents without one. */
+    private fun readDeepLink(intent: Intent?): DeepLink? {
+        val sessionId = intent?.getStringExtra(DeepLinkExtras.SESSION_ID)?.takeUnless { it.isEmpty() }
+            ?: return null
+        return DeepLink(sessionId, intent.getStringExtra(DeepLinkExtras.ORIGIN)?.takeUnless { it.isEmpty() })
+    }
+
+    /**
+     * Point the app at the deployment that announced the Session.
+     *
+     * The token identifies the install, not a server, so the same phone talks to
+     * personal and work deployments; a tap must switch to the one that pushed.
+     * An origin the book does not know keeps the current server: opening a
+     * Session on the wrong Host would only show it as released.
+     */
+    private fun applyDeepLink(link: DeepLink) {
+        val origin = link.origin ?: return
+        val entry = serverForOrigin(DshApp.instance.serverBook, origin)
+        if (entry == null) {
+            DshDiagnostics.record(TAG, "notification origin not in the server book: $origin")
+            return
+        }
+        if (entry.id == DshApp.instance.serverBook.activeId) return
+        when (val edited = DshApp.instance.selectServer(entry.id)) {
+            is ServerEdit.Applied -> {
+                DshDiagnostics.record(TAG, "switched to ${entry.label.ifEmpty { entry.url }} for a notification")
+                restartMonitor()
+            }
+            is ServerEdit.Rejected -> DshDiagnostics.record(TAG, "server switch refused: ${edited.reason}")
         }
     }
 
@@ -312,7 +357,7 @@ class MainActivity : AppCompatActivity() {
         settingsLauncher.launch(Intent(this, SettingsActivity::class.java))
     }
 
-    private fun loadServer() {
+    private fun loadServer(sessionId: String? = null) {
         val raw = DshApp.instance.serverUrl ?: ""
         val url = normalizeServerUrl(raw)
         val parsed = Uri.parse(url)
@@ -325,9 +370,10 @@ class MainActivity : AppCompatActivity() {
         // Persist the normalized form so retries and the bridge agree.
         DshApp.instance.serverUrl = url
         errorShowing = false
-        DshDiagnostics.record(TAG, "loading $url")
-        showSplash(url)
-        webView.loadUrl(url)
+        val target = if (sessionId.isNullOrEmpty()) url else sessionUrl(url, sessionId)
+        DshDiagnostics.record(TAG, "loading $target")
+        showSplash(target)
+        webView.loadUrl(target)
     }
 
     private fun showSplash(url: String) {

@@ -31,6 +31,8 @@ export interface Config {
   readonly oauthTokenUrl?: string
   /** FCM send endpoint template; `{project}` is replaced with the project id. */
   readonly sendUrlTemplate?: string
+  /** Deployment origin the client should open on tap; derived from registration headers when omitted. */
+  readonly publicUrl?: string
 }
 
 /** One notification kind the client localizes. */
@@ -44,6 +46,36 @@ export interface PushData {
   readonly sessionId: string
   /** Short human label derived from the Session's working directory, if any. */
   readonly sessionLabel?: string | undefined
+  /** Deployment origin the notification should open; omitted when registration carried none. */
+  readonly origin?: string | undefined
+}
+
+/** What the client registered: its push token and the deployment origin it reached. */
+interface DeviceRegistration {
+  readonly token?: string
+  readonly origin?: string
+}
+
+/**
+ * The deployment origin a registration request reached, as the client must reopen it.
+ *
+ * The proxy terminates TLS, so the scheme comes from `x-forwarded-proto`; a
+ * configured `publicUrl` wins when the proxy does not forward the original host.
+ * @param request - the registration request.
+ * @param configured - deployment-wide origin override from plugin config.
+ * @returns `scheme://host` without a trailing slash, or undefined when neither source is usable.
+ */
+function registrationOrigin(
+  request: import('node:http').IncomingMessage,
+  configured: string | undefined,
+): string | undefined {
+  if (configured !== undefined && configured.length > 0) return configured.replace(/\/+$/, '')
+  const host = request.headers.host
+  if (typeof host !== 'string' || host.length === 0 || /[\s/]/.test(host)) return undefined
+  const forwarded = request.headers['x-forwarded-proto']
+  const first = (typeof forwarded === 'string' ? forwarded : 'http').split(',')[0]?.trim()
+  const scheme = first === 'https' ? 'https' : first === 'http' ? 'http' : undefined
+  return scheme === undefined ? undefined : `${scheme}://${host}`
 }
 
 /** Last path segment of a Session's working directory, for a readable label. */
@@ -113,6 +145,7 @@ export function messageBody(token: string, data: PushData): string {
         kind: data.kind,
         sessionId: data.sessionId,
         ...(data.sessionLabel === undefined ? {} : { sessionLabel: data.sessionLabel }),
+        ...(data.origin === undefined ? {} : { origin: data.origin }),
       },
       android: { priority: 'high' },
     },
@@ -196,8 +229,10 @@ export class PushNotify extends Service {
     try {
       const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { token?: unknown }
       if (typeof body.token !== 'string' || body.token.length === 0) throw new Error('missing token')
+      const origin = registrationOrigin(request, this.config.publicUrl)
       await mkdir(dirname(this.config.tokenPath), { recursive: true })
-      await writeFile(this.config.tokenPath, `${JSON.stringify({ token: body.token })}\n`, { mode: 0o600 })
+      const registration: DeviceRegistration = { token: body.token, ...(origin === undefined ? {} : { origin }) }
+      await writeFile(this.config.tokenPath, `${JSON.stringify(registration)}\n`, { mode: 0o600 })
       this.ctx.logger.info('push-notify: device token registered')
       response.writeHead(200, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ ok: true }))
@@ -213,11 +248,22 @@ export class PushNotify extends Service {
    * @returns the stored token, or undefined before the first registration.
    */
   async deviceToken(): Promise<string | undefined> {
+    return (await this.registration()).token
+  }
+
+  /**
+   * The stored registration, empty before the client's first post.
+   * @returns the token and the deployment origin it was registered through.
+   */
+  private async registration(): Promise<DeviceRegistration> {
     try {
-      const stored = JSON.parse(await readFile(this.config.tokenPath, 'utf8')) as { token?: unknown }
-      return typeof stored.token === 'string' && stored.token.length > 0 ? stored.token : undefined
+      const stored = JSON.parse(await readFile(this.config.tokenPath, 'utf8')) as { token?: unknown; origin?: unknown }
+      return {
+        ...(typeof stored.token === 'string' && stored.token.length > 0 ? { token: stored.token } : {}),
+        ...(typeof stored.origin === 'string' && stored.origin.length > 0 ? { origin: stored.origin } : {}),
+      }
     } catch {
-      return undefined
+      return {}
     }
   }
 
@@ -227,8 +273,9 @@ export class PushNotify extends Service {
    */
   async push(data: PushData): Promise<void> {
     if (!this.config.enabled) return
-    const token = await this.deviceToken()
+    const { token, origin } = await this.registration()
     if (token === undefined) return
+    const body: PushData = { ...data, ...(data.origin ?? origin === undefined ? {} : { origin }) }
     try {
       const account = JSON.parse(await readFile(this.config.serviceAccountPath, 'utf8')) as ServiceAccount
       if (account.project_id === undefined) throw new Error('service account has no project_id')
@@ -237,7 +284,7 @@ export class PushNotify extends Service {
       const response = await fetch(url, {
         method: 'POST',
         headers: { authorization: `Bearer ${access}`, 'content-type': 'application/json' },
-        body: messageBody(token, data),
+        body: messageBody(token, body),
       })
       if (!response.ok) throw new Error(`FCM ${response.status}: ${(await response.text()).slice(0, 200)}`)
     } catch (error) {

@@ -21,6 +21,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { DraftInitializationOptions } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { RowToast } from './contract/slots.ts'
+import { reflectSessionInAddress, sessionFromAddress } from './deep-link.ts'
 import { pinOrderAccounts, pinOrderSource } from './pin-order.ts'
 import type { WorkspaceViewStoreActions } from './stores.ts'
 
@@ -440,6 +441,16 @@ class UiWorkspaceService extends Service implements UiWorkspace {
   }
 
   private async restoreSelection(workspaces: WorkspaceSnapshot, sessions: SessionListState): Promise<void> {
+    const linked = sessionFromAddress()
+    if (linked !== undefined) {
+      try {
+        this.replaceMain(linked, this.lifetime.signal, 'preserve')
+        return
+      } catch (error: unknown) {
+        // A stale link (deleted Session, foreign Host) falls back to the saved selection.
+        console.warn('session deep link failed:', error)
+      }
+    }
     const saved = this.selection.getSnapshot()
     if (saved.subagentAddress !== undefined) {
       this.replaceMain(saved.subagentAddress, this.lifetime.signal, 'preserve')
@@ -492,8 +503,19 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     const previous = this.mainReference
     this.mainReference = undefined
     this.selection.set({})
+    this.reflectUrl(undefined)
     previous?.release()
     this.ctx.layout.selectPanel(null)
+  }
+
+  /**
+   * Mirror the shown Session into the address, so a reload, a shared link, or a
+   * notification tap reopens it. Absent browser location (tests, non-DOM hosts)
+   * leaves the address alone.
+   * @param sessionId - the shown Session, or undefined when the view is cleared.
+   */
+  private reflectUrl(sessionId: SessionId | undefined): void {
+    reflectSessionInAddress(sessionId)
   }
 
   private replaceMain(
@@ -518,6 +540,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
         sessionId: reference.sessionId,
         ...(subagentAddress === undefined ? {} : { subagentAddress }),
       })
+      this.reflectUrl(reference.sessionId)
     } catch (error: unknown) {
       reference.release()
       throw error

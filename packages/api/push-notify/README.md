@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Pushes one structured Firebase Cloud Messaging message when a Session run finishes, fails, or starts waiting for the user, so the native client needs neither a background socket nor a foreground service. The client registers its device token over `POST /push/register`; the message carries a reason code, the Session id, and a label derived from the Session's working directory — never Session content — and the client owns the localized wording.
+Pushes one structured Firebase Cloud Messaging message when a Session run finishes, fails, or starts waiting for the user, so the native client needs neither a background socket nor a foreground service. The client registers its device token over `POST /push/register`; the message carries a reason code, the Session id, a label derived from the Session's working directory, and the deployment origin the registration reached — never Session content — and the client owns the localized wording.
 
 ## Table of Contents
 
@@ -35,7 +35,7 @@ The web-app bundle enables the row with the deployment's service-account file an
     tokenPath: !!js dshHomePath('push', 'device.json')
 ```
 
-The native client posts `{"token": "…"}` to `/push/register`, which stores the token with mode `0600`. Pushes follow `api-session/status` (only the running→idle edge), `api-session/error`, and the `approval/request` / `user-questions/request` waterfalls, whose listeners observe and delegate with `next()`. A deployment without a Firebase project leaves `enabled` on but never registers a token, so nothing is sent.
+The native client posts `{"token": "…"}` to `/push/register`, which stores the token and the deployment origin it arrived through — from `x-forwarded-proto` and `host`, or a configured `publicUrl` — with mode `0600`. The origin lets the client open the deployment that pushed when a notification is tapped, which matters when one phone follows several deployments. Pushes follow `api-session/status` (only the running→idle edge), `api-session/error`, and the `approval/request` / `user-questions/request` waterfalls, whose listeners observe and delegate with `next()`. A deployment without a Firebase project leaves `enabled` on but never registers a token, so nothing is sent.
 
 -----
 

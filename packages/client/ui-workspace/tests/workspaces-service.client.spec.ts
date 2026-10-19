@@ -1534,4 +1534,63 @@ describe('UiWorkspaceService', () => {
       rpcError: { code: 'directory-picker/exists' },
     })
   })
+
 })
+
+describe('UiWorkspaceService deep links', () => {
+  const LINKED = '11111111-1111-4111-8111-111111111111'
+  const SAVED = '22222222-2222-4222-8222-222222222222'
+
+  it('reflects the opened Session in the address bar', () => {
+    persistSelection({})
+    const replaceState = vi.fn<(data: unknown, unused: string, url?: string) => void>()
+    vi.stubGlobal('location', { href: 'https://dsh.example/?tab=1' })
+    vi.stubGlobal('history', { replaceState })
+    const linked = sid(LINKED)
+    const b = bench({
+      workspaces: workspaceState([workspace('w', [linked])]),
+      sessions: sessionState([summary(LINKED)]),
+    })
+    b.uiWorkspace.openSession(linked)
+    expect(replaceState).toHaveBeenLastCalledWith(null, '', `/?tab=1&session=${LINKED}`)
+  })
+
+  it('opens the Session named by the address instead of the saved selection', async () => {
+    persistSelection({ sessionId: sid(SAVED) })
+    const replaceState = vi.fn<(data: unknown, unused: string, url?: string) => void>()
+    vi.stubGlobal('location', { href: `https://dsh.example/?session=${LINKED}` })
+    vi.stubGlobal('history', { replaceState })
+    const linked = sid(LINKED)
+    const b = bench({
+      workspaces: workspaceState([workspace('w', [sid(SAVED), linked])]),
+      sessions: sessionState([summary(SAVED), summary(LINKED)]),
+    })
+    await vi.waitFor(() => {
+      expect(b.sessions.retain).toHaveBeenCalledWith(linked, { source: 'mainView' })
+    })
+    expect(b.sessions.retain).not.toHaveBeenCalledWith(sid(SAVED), { source: 'mainView' })
+  })
+
+  it('falls back to the saved selection when the linked Session is refused', async () => {
+    persistSelection({ sessionId: sid(SAVED) })
+    vi.stubGlobal('location', { href: `https://dsh.example/?session=${LINKED}` })
+    vi.stubGlobal('history', { replaceState: vi.fn() })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const b = bench({
+      workspaces: workspaceState([workspace('w', [sid(SAVED)])]),
+      sessions: sessionState([summary(SAVED)]),
+      configureSessions: (sessions) => {
+        const original = sessions.retain.getMockImplementation()
+        sessions.retain.mockImplementation((target, options) => {
+          if (target === sid(LINKED)) throw new Error('unknown Session')
+          return (original ?? sessions.retain)(target, options)
+        })
+      },
+    })
+    await vi.waitFor(() => {
+      expect(b.sessions.retain).toHaveBeenCalledWith(sid(SAVED), { source: 'mainView' })
+    })
+    expect(warn).toHaveBeenCalled()
+  })
+})
+

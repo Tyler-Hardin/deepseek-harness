@@ -25,9 +25,14 @@ const fakeWebServer = {
   },
 }
 
-/** Fake request carrying one JSON body. */
-function request(body: string): import('node:http').IncomingMessage {
-  return Readable.from([Buffer.from(body, 'utf8')]) as import('node:http').IncomingMessage
+/** Fake request carrying one JSON body and the proxy headers a deployment sees. */
+function request(
+  body: string,
+  headers: Record<string, string> = {},
+): import('node:http').IncomingMessage {
+  const stream = Readable.from([Buffer.from(body, 'utf8')]) as import('node:http').IncomingMessage
+  stream.headers = headers
+  return stream
 }
 
 /** Fake response capturing status and body. */
@@ -70,15 +75,43 @@ async function start() {
 }
 
 describe('push-notify', () => {
-  it('stores the token the client posts and answers ok', async () => {
+  it('stores the token and the deployment origin the client reached', async () => {
     const { ctx } = await start()
     const route = registered[0]!.route
     expect(route).toMatchObject({ kind: 'exact', path: '/push/register' })
     const { res, state } = response()
-    await route.handler(request('{"token":"device-token-1"}'), res)
+    await route.handler(request('{"token":"device-token-1"}', {
+      host: 'dsh.example', 'x-forwarded-proto': 'https',
+    }), res)
     expect(state.status).toBe(200)
     expect(JSON.parse(state.body ?? '{}')).toEqual({ ok: true })
-    expect(JSON.parse(await readFile(tokenPath, 'utf8'))).toEqual({ token: 'device-token-1' })
+    expect(JSON.parse(await readFile(tokenPath, 'utf8'))).toEqual({
+      token: 'device-token-1',
+      origin: 'https://dsh.example',
+    })
+    await ctx.fiber.dispose()
+  })
+
+  it('prefers a configured public URL over forwarded headers', async () => {
+    const ctx = new Context()
+    ctx.provide('webServer', fakeWebServer as never)
+    await ctx.plugin(PushNotify, {
+      serviceAccountPath, tokenPath, enabled: true, publicUrl: 'https://work.example:8443/',
+    }).await()
+    await registered[0]!.route.handler(request('{"token":"device-token-work"}', {
+      host: 'internal:3081', 'x-forwarded-proto': 'http',
+    }), response().res)
+    expect(JSON.parse(await readFile(tokenPath, 'utf8'))).toEqual({
+      token: 'device-token-work',
+      origin: 'https://work.example:8443',
+    })
+    await ctx.fiber.dispose()
+  })
+
+  it('stores no origin when the request exposes no usable host', async () => {
+    const { ctx } = await start()
+    await registered[0]!.route.handler(request('{"token":"device-token-3"}'), response().res)
+    expect(JSON.parse(await readFile(tokenPath, 'utf8'))).toEqual({ token: 'device-token-3' })
     await ctx.fiber.dispose()
   })
 
@@ -130,7 +163,9 @@ describe('push-notify', () => {
 
   it('posts one FCM message with bearer auth once a token exists', async () => {
     const { ctx, service } = await start()
-    await registered[0]!.route.handler(request('{"token":"device-token-2"}'), response().res)
+    await registered[0]!.route.handler(request('{"token":"device-token-2"}', {
+      host: 'dsh.example', 'x-forwarded-proto': 'https',
+    }), response().res)
     const calls: { url: string; body: string }[] = []
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
@@ -148,7 +183,7 @@ describe('push-notify', () => {
     const body = JSON.parse(calls[1]!.body) as { message: { token: string; data: Record<string, string>; android: { priority: string } } }
     expect(body.message).toMatchObject({
       token: 'device-token-2',
-      data: { kind: 'error', sessionId: 's5', sessionLabel: 'repo' },
+      data: { kind: 'error', sessionId: 's5', sessionLabel: 'repo', origin: 'https://dsh.example' },
       android: { priority: 'high' },
     })
     // The access token is cached across pushes.
@@ -175,5 +210,9 @@ describe('push-notify', () => {
     expect(signature!.length).toBeGreaterThan(0)
     const message = JSON.parse(messageBody('t', { kind: 'finished', sessionId: sid('s1') })) as { message: { data: Record<string, string> } }
     expect(message.message.data).toEqual({ kind: 'finished', sessionId: 's1' })
+    const linked = JSON.parse(messageBody('t', {
+      kind: 'finished', sessionId: sid('s1'), origin: 'https://dsh.example',
+    })) as { message: { data: Record<string, string> } }
+    expect(linked.message.data).toEqual({ kind: 'finished', sessionId: 's1', origin: 'https://dsh.example' })
   })
 })

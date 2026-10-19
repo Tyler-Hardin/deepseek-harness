@@ -15,6 +15,7 @@ Commits are named by subject, not hash: `pnpm run doc-sync` rejects literal comm
 | Nix flake, NixOS module, dev/test environment | feat(nix): add flake packaging, dsh-web NixOS module, and full dev/test env | `flake.nix`, `flake.lock`, `nix/dsh-web.nix`, `nix/playwright-browsers.nix`, `AGENTS.md` |
 | Per-workspace default model | feat(workspace): per-workspace default model | `packages/core/agent-default-model`, `packages/api/session-controller`, `packages/api/workspace-controller`, `packages/client/ui-workspace` |
 | Android WebView app + web-hosted App settings | feat(android): dsh Android WebView app with web-hosted App settings | `android/`, `packages/client/ui-app-settings` |
+| Session deep links | feat(client): deep-link the shown session with `?session=` | `packages/client/ui-workspace` |
 | Client graph churn on Nix stores | fix(client): ignore inode-only churn when rekeying client artifacts | `packages/client/modules`, `packages/client/hmr` |
 | Android task-completion notifications | feat(android): task-completion notifications via FCM push with the monitor as a fallback | `android/`, `packages/api/push-notify`, `packages/client/ui-app-settings` |
 | Server book (several servers on mobile) | feat(android): keep several servers and switch the active one | `android/app/src/main/java/ai/deepseek/dsh/ServerBook.kt`, `android/`, `packages/client/ui-app-settings` |
@@ -40,6 +41,19 @@ The branch also carries its own bookkeeping: `pnpm-lock.yaml`, the regenerated c
 `ctx.agentDefaultModel` owns the shared selection and at most one explicit override per workspace (`workspaceDefaults`, keyed by workspace id). Resolution order is logged route, then workspace override, then shared default. The Workspace row menu opens a dialog that reads the advisory model catalog and writes the override; the Session switch routes into the workspace override when the Session's Workspace has one. Both saves share one submission-ordered queue, so a rejected write never blocks a later one.
 
 Watch on rebase: `agent-default-model`'s `saveSelection` must capture the submitted values *before* queueing (a caller that mutates its object must not change what lands), and the shared save must preserve sibling overrides. `session-controller`'s `commands.ts` reads `sessionWorkspaceId(...)`; it routes the save to the workspace override or the shared default, and the write stays in the background with `void … .catch(...)`.
+
+### Session deep links
+
+A page address may name the Conversation it should show (`?session=<id>`), so a
+reload, a copied link, or a native notification tap lands on the same run. The
+address wins over the saved selection during startup restoration; every later
+main-selection change rewrites the parameter, and clearing the view drops it. A
+malformed id is ignored, and a link the Host refuses (deleted Session, foreign
+deployment) falls back to the saved selection with one console warning.
+
+Watch-out on rebase: the address mirror is `history.replaceState`, so it never
+grows the back stack; if upstream adds its own URL routing, fold the two rather
+than nesting a second writer.
 
 ### Client graph churn on Nix stores
 

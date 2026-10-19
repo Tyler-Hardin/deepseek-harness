@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-当会话运行完成、失败或开始等待用户时，推送一条结构化的 Firebase Cloud Messaging 消息，因此原生客户端既不需要后台套接字，也不需要前台服务。客户端通过 `POST /push/register` 注册设备令牌；消息携带原因代码、会话 id 以及由会话工作目录派生的标签——绝不包含会话内容——本地化文案由客户端负责。
+当会话运行完成、失败或开始等待用户时，推送一条结构化的 Firebase Cloud Messaging 消息，因此原生客户端既不需要后台套接字，也不需要前台服务。客户端通过 `POST /push/register` 注册设备令牌；消息携带原因代码、会话 id、由会话工作目录派生的标签，以及注册请求所经过的部署 origin——绝不包含会话内容——本地化文案由客户端负责。
 
 ## 目录
 
@@ -35,7 +35,7 @@ Web 应用 bundle 用部署的服务账号文件与令牌路径启用该行：
     tokenPath: !!js dshHomePath('push', 'device.json')
 ```
 
-原生客户端向 `/push/register` POST `{"token": "…"}`，该令牌以 `0600` 保存。推送跟随 `api-session/status`（仅运行→空闲的边沿）、`api-session/error`，以及 `approval/request` 与 `user-questions/request` 瀑布事件——其监听器只观察并通过 `next()` 委托。没有 Firebase 项目的部署保持 `enabled` 为真但从不注册令牌，因此不会发送任何消息。
+原生客户端向 `/push/register` POST `{"token": "…"}`，该令牌与注册请求经过的部署 origin 一起以 `0600` 保存——origin 取自 `x-forwarded-proto` 与 `host`，或配置的 `publicUrl`。origin 让客户端在点击通知时打开发起推送的部署，这对一台手机跟随多个部署很重要。推送跟随 `api-session/status`（仅运行→空闲的边沿）、`api-session/error`，以及 `approval/request` 与 `user-questions/request` 瀑布事件——其监听器只观察并通过 `next()` 委托。没有 Firebase 项目的部署保持 `enabled` 为真但从不注册令牌，因此不会发送任何消息。
 
 -----
 

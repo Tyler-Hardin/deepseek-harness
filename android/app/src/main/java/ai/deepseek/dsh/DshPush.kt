@@ -72,6 +72,9 @@ class DshFirebaseMessagingService : FirebaseMessagingService() {
         createChannel()
         val openIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            if (sessionId.isNotEmpty()) putExtra(DeepLinkExtras.SESSION_ID, sessionId)
+            data["origin"]?.takeUnless { it.isNullOrEmpty() }
+                ?.let { putExtra(DeepLinkExtras.ORIGIN, it) }
         }
         val pending = PendingIntent.getActivity(
             this, 0, openIntent,
