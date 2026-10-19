@@ -33,6 +33,10 @@ export interface Config {
   readonly sendUrlTemplate?: string
   /** Deployment origin the client should open on tap; derived from registration headers when omitted. */
   readonly publicUrl?: string
+  /** How long a reported active viewer stays fresh, in milliseconds. */
+  readonly presenceTtlMs?: number
+  /** How long a push waits for a fresh viewer to leave, in milliseconds. */
+  readonly holdMs?: number
 }
 
 /** One notification kind the client localizes. */
@@ -84,6 +88,13 @@ function labelOf(cwd: string | undefined): string | undefined {
   const trimmed = cwd.replace(/[/\\]+$/, '')
   const base = trimmed.slice(trimmed.lastIndexOf('/') + 1).slice(trimmed.lastIndexOf('\\') + 1)
   return base.length > 0 ? base : undefined
+}
+
+/** Read one request body as UTF-8 text. */
+async function readBody(request: import('node:http').IncomingMessage): Promise<string> {
+  const chunks: Buffer[] = []
+  for await (const chunk of request) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)))
+  return Buffer.concat(chunks).toString('utf8')
 }
 
 /** OAuth2 token response fields this service reads. */
@@ -162,6 +173,8 @@ export class PushNotify extends Service {
     tokenPath: z.string().required(),
     oauthTokenUrl: z.string().default('https://oauth2.googleapis.com/token'),
     sendUrlTemplate: z.string().default('https://fcm.googleapis.com/v1/projects/{project}/messages:send'),
+    presenceTtlMs: z.natural().min(1).default(30_000),
+    holdMs: z.natural().min(1).default(60_000),
   })
 
   private readonly config: Required<Config>
@@ -169,7 +182,12 @@ export class PushNotify extends Service {
   private readonly labels = new Map<string, string>()
   /** Sessions whose last observed status was running. */
   private readonly running = new Set<string>()
+  /** Browser clients actively showing a Session, keyed by client id. */
+  private readonly viewers = new Map<string, { sessionId: string; lastSeen: number }>()
+  /** Pending hold windows, resolved on disposal so a shutdown never strands a push. */
+  private readonly holds = new Map<ReturnType<typeof setTimeout>, () => void>()
   private cachedToken: { value: string; expiresAt: number } | undefined
+  private disposed = false
 
   /**
    * @param ctx - Host context exposing the browser HTTP carrier.
@@ -184,6 +202,22 @@ export class PushNotify extends Service {
       path: '/push/register',
       handler: (request, response) => this.handleRegister(request, response),
     }), 'push-notify: device registration route')
+
+    ctx.effect(() => ctx.webServer.register({
+      kind: 'exact',
+      path: '/push/presence',
+      handler: (request, response) => this.handlePresence(request, response),
+    }), 'push-notify: active viewer route')
+
+    ctx.effect(() => () => {
+      this.disposed = true
+      for (const [timer, resolve] of this.holds) {
+        clearTimeout(timer)
+        resolve()
+      }
+      this.holds.clear()
+      this.viewers.clear()
+    }, 'push-notify: pending holds')
 
     ctx.on('api-session/added', (summary) => {
       const label = labelOf(summary.cwd)
@@ -224,10 +258,8 @@ export class PushNotify extends Service {
    * @param response - HTTP response.
    */
   private async handleRegister(request: import('node:http').IncomingMessage, response: import('node:http').ServerResponse): Promise<void> {
-    const chunks: Buffer[] = []
-    for await (const chunk of request) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)))
     try {
-      const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { token?: unknown }
+      const body = JSON.parse(await readBody(request)) as { token?: unknown }
       if (typeof body.token !== 'string' || body.token.length === 0) throw new Error('missing token')
       const origin = registrationOrigin(request, this.config.publicUrl)
       await mkdir(dirname(this.config.tokenPath), { recursive: true })
@@ -238,6 +270,35 @@ export class PushNotify extends Service {
       response.end(JSON.stringify({ ok: true }))
     } catch (error) {
       this.ctx.logger.warn(`push-notify: registration rejected: ${error instanceof Error ? error.message : String(error)}`)
+      response.writeHead(400, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ ok: false }))
+    }
+  }
+
+  /**
+   * Record whether one browser client is actively showing a Session.
+   * @param request - `{ clientId, sessionId, active }` JSON body.
+   * @param response - HTTP response.
+   */
+  private async handlePresence(request: import('node:http').IncomingMessage, response: import('node:http').ServerResponse): Promise<void> {
+    try {
+      const body = JSON.parse(await readBody(request)) as { clientId?: unknown; sessionId?: unknown; active?: unknown }
+      if (typeof body.clientId !== 'string' || body.clientId.length === 0 || body.clientId.length > 128) {
+        throw new Error('missing clientId')
+      }
+      if (body.active === false) {
+        this.viewers.delete(body.clientId)
+      } else {
+        if (body.active !== true) throw new Error('missing active')
+        if (typeof body.sessionId !== 'string' || body.sessionId.length === 0 || body.sessionId.length > 128) {
+          throw new Error('missing sessionId')
+        }
+        this.viewers.set(body.clientId, { sessionId: body.sessionId, lastSeen: Date.now() })
+      }
+      response.writeHead(204)
+      response.end()
+    } catch (error) {
+      this.ctx.logger.warn(`push-notify: presence rejected: ${error instanceof Error ? error.message : String(error)}`)
       response.writeHead(400, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ ok: false }))
     }
@@ -268,6 +329,38 @@ export class PushNotify extends Service {
   }
 
   /**
+   * Whether a browser client actively shows the Session.
+   * @param sessionId - Session the notification is about.
+   * @returns true while a reported viewer is within the presence TTL.
+   */
+  private hasFreshViewer(sessionId: string): boolean {
+    const now = Date.now()
+    let fresh = false
+    for (const [clientId, viewer] of this.viewers) {
+      if (now - viewer.lastSeen > this.config.presenceTtlMs) {
+        this.viewers.delete(clientId)
+      } else if (viewer.sessionId === sessionId) {
+        fresh = true
+      }
+    }
+    return fresh
+  }
+
+  /**
+   * Wait one hold window, tracked so disposal resolves it.
+   * @returns a promise resolved by the timer or by disposal.
+   */
+  private hold(): Promise<void> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.holds.delete(timer)
+        resolve()
+      }, this.config.holdMs)
+      this.holds.set(timer, resolve)
+    })
+  }
+
+  /**
    * Push one notification to the registered device.
    * @param data - kind, Session id, and title.
    */
@@ -275,6 +368,15 @@ export class PushNotify extends Service {
     if (!this.config.enabled) return
     const { token, origin } = await this.registration()
     if (token === undefined) return
+    if (this.disposed) return
+    if (this.hasFreshViewer(data.sessionId)) {
+      await this.hold()
+      if (this.disposed) return
+      if (this.hasFreshViewer(data.sessionId)) {
+        this.ctx.logger.info(`push-notify: held ${data.kind} for ${data.sessionId}: viewer still active`)
+        return
+      }
+    }
     const body: PushData = { ...data, ...(data.origin ?? origin === undefined ? {} : { origin }) }
     try {
       const account = JSON.parse(await readFile(this.config.serviceAccountPath, 'utf8')) as ServiceAccount

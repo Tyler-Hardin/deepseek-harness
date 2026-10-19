@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
-import { PushNotify, assertionBody, messageBody } from '../src/index.ts'
+import { PushNotify, assertionBody, messageBody, type Config } from '../src/index.ts'
 
 interface Registered { route: WebRoute }
 const registered: Registered[] = []
@@ -65,13 +65,56 @@ beforeEach(async () => {
   }))
 })
 
-afterEach(() => { vi.restoreAllMocks() })
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
 
-async function start() {
+async function start(overrides: Partial<Config> = {}) {
   const ctx = new Context()
   ctx.provide('webServer', fakeWebServer as never)
-  await ctx.plugin(PushNotify, { serviceAccountPath, tokenPath, enabled: true }).await()
+  await ctx.plugin(PushNotify, { serviceAccountPath, tokenPath, enabled: true, ...overrides }).await()
   return { ctx, service: ctx.get('pushNotify') as PushNotify }
+}
+
+/** The active-viewer route the plugin registers. */
+function presenceRoute(): WebRoute {
+  const entry = registered.find(candidate => candidate.route.path === '/push/presence')
+  if (entry === undefined) throw new Error('presence route not registered')
+  return entry.route
+}
+
+/** Post one active-viewer report through the real handler. */
+async function postPresence(clientId: string, sessionId: string, active = true): Promise<{ status?: number; body?: string }> {
+  const { res, state } = response()
+  await presenceRoute().handler(request(JSON.stringify({ clientId, sessionId, active })), res)
+  return state
+}
+
+/** Store a device token so push delivery can proceed. */
+async function registerToken(token = 'device-token-presence'): Promise<void> {
+  const entry = registered.find(candidate => candidate.route.path === '/push/register')
+  if (entry === undefined) throw new Error('registration route not registered')
+  await entry.route.handler(request(JSON.stringify({ token })), response().res)
+}
+
+/** Mock OAuth2 and FCM; return the captured requests. */
+function mockFcm(): { url: string; body: string }[] {
+  const calls: { url: string; body: string }[] = []
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    calls.push({ url, body: typeof init?.body === 'string' ? init.body : '' })
+    if (url.startsWith('https://oauth2.googleapis.com')) {
+      return new Response(JSON.stringify({ access_token: 'access-1', expires_in: 3600 }), { status: 200 })
+    }
+    return new Response(JSON.stringify({ name: 'projects/test/messages/1' }), { status: 200 })
+  })
+  return calls
+}
+
+/** Whether the captured requests include one FCM send. */
+function sent(calls: readonly { url: string }[]): boolean {
+  return calls.some(call => call.url.includes('messages:send'))
 }
 
 describe('push-notify', () => {
@@ -214,5 +257,73 @@ describe('push-notify', () => {
       kind: 'finished', sessionId: sid('s1'), origin: 'https://dsh.example',
     })) as { message: { data: Record<string, string> } }
     expect(linked.message.data).toEqual({ kind: 'finished', sessionId: 's1', origin: 'https://dsh.example' })
+  })
+
+  it('registers the active-viewer route and rejects a malformed report', async () => {
+    const { ctx } = await start()
+    expect(registered.map(entry => entry.route.path)).toEqual(['/push/register', '/push/presence'])
+    const { res, state } = response()
+    await presenceRoute().handler(request('{"clientId":"c","active":"yes"}'), res)
+    expect(state.status).toBe(400)
+    expect(state.body).toBe('{"ok":false}')
+    expect((await postPresence('', 's1')).status).toBe(400)
+    expect((await postPresence('c', '')).status).toBe(400)
+    expect((await postPresence('c', '', false)).status).toBe(204)
+    await ctx.fiber.dispose()
+  })
+
+  it('holds a push while the viewer stays active and drops it', async () => {
+    const { ctx, service } = await start({ presenceTtlMs: 1_000, holdMs: 50 })
+    await registerToken()
+    expect((await postPresence('client-1', 's1')).status).toBe(204)
+    const calls = mockFcm()
+    await service.push({ kind: 'finished', sessionId: sid('s1') })
+    expect(calls).toEqual([])
+    await ctx.fiber.dispose()
+  })
+
+  it('sends when the viewer report clears during the hold', async () => {
+    const { ctx, service } = await start({ presenceTtlMs: 1_000, holdMs: 100 })
+    await registerToken()
+    await postPresence('client-1', 's1')
+    const calls = mockFcm()
+    const pending = service.push({ kind: 'finished', sessionId: sid('s1') })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect((await postPresence('client-1', 's1', false)).status).toBe(204)
+    await pending
+    expect(sent(calls)).toBe(true)
+    await ctx.fiber.dispose()
+  })
+
+  it('sends when the viewer presence expires during the hold', async () => {
+    const { ctx, service } = await start({ presenceTtlMs: 20, holdMs: 100 })
+    await registerToken()
+    await postPresence('client-1', 's1')
+    const calls = mockFcm()
+    await service.push({ kind: 'finished', sessionId: sid('s1') })
+    expect(sent(calls)).toBe(true)
+    await ctx.fiber.dispose()
+  })
+
+  it('does not hold a push for a different Session', async () => {
+    const { ctx, service } = await start({ presenceTtlMs: 1_000, holdMs: 50 })
+    await registerToken()
+    await postPresence('client-1', 'other')
+    const calls = mockFcm()
+    await service.push({ kind: 'error', sessionId: sid('s1') })
+    expect(sent(calls)).toBe(true)
+    await ctx.fiber.dispose()
+  })
+
+  it('drops a held push when the plugin disposes', async () => {
+    const { ctx, service } = await start({ presenceTtlMs: 1_000, holdMs: 100 })
+    await registerToken()
+    await postPresence('client-1', 's1')
+    const calls = mockFcm()
+    const pending = service.push({ kind: 'finished', sessionId: sid('s1') })
+    await new Promise(resolve => setTimeout(resolve, 10))
+    await ctx.fiber.dispose()
+    await pending
+    expect(calls).toEqual([])
   })
 })

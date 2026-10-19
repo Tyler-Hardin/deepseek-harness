@@ -31,6 +31,7 @@ making failures visible instead of silent.
   requests `RECORD_AUDIO` and forwards the grant to the WebView.
 - **Native notifications**: the web UI can call `window.DshApp.notify()`
   to post a native notification that uses the system notification sound.
+  Pushes are suppressed while the app is in the foreground.
 - **Background task notifications**: `DshNotificationService` — a foreground
   service running its own read-only downlink WebSockets to the dsh host —
   rings when a session run finishes, errors, or pauses waiting for your

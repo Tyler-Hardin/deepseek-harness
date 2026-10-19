@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-当会话运行完成、失败或开始等待用户时，推送一条结构化的 Firebase Cloud Messaging 消息，因此原生客户端既不需要后台套接字，也不需要前台服务。客户端通过 `POST /push/register` 注册设备令牌；消息携带原因代码、会话 id、由会话工作目录派生的标签，以及注册请求所经过的部署 origin——绝不包含会话内容——本地化文案由客户端负责。
+当会话运行完成、失败或开始等待用户时，推送一条结构化的 Firebase Cloud Messaging 消息，因此原生客户端既不需要后台套接字，也不需要前台服务。客户端通过 `POST /push/register` 注册设备令牌；消息携带原因代码、会话 id、由会话工作目录派生的标签，以及注册请求所经过的部署 origin——绝不包含会话内容——本地化文案由客户端负责。浏览器还会上报自己正在展示的会话；Host 会为该会话的推送保留一个短窗口并重新检查后才丢弃，因此后台标签页、短暂离开或另一个会话仍会响铃。
 
 ## 目录
 
@@ -33,9 +33,13 @@ Web 应用 bundle 用部署的服务账号文件与令牌路径启用该行：
     enabled: true
     serviceAccountPath: !!js dshHomePath('fcm-service-account.json')
     tokenPath: !!js dshHomePath('push', 'device.json')
+    presenceTtlMs: 30000
+    holdMs: 60000
 ```
 
 原生客户端向 `/push/register` POST `{"token": "…"}`，该令牌与注册请求经过的部署 origin 一起以 `0600` 保存——origin 取自 `x-forwarded-proto` 与 `host`，或配置的 `publicUrl`。origin 让客户端在点击通知时打开发起推送的部署，这对一台手机跟随多个部署很重要。推送跟随 `api-session/status`（仅运行→空闲的边沿）、`api-session/error`，以及 `approval/request` 与 `user-questions/request` 瀑布事件——其监听器只观察并通过 `next()` 委托。没有 Firebase 项目的部署保持 `enabled` 为真但从不注册令牌，因此不会发送任何消息。
+
+浏览器正在主动展示某个会话时，Web 客户端向 `/push/presence` POST `{ clientId, sessionId, active }`；该上报在 `presenceTtlMs`（默认 30 秒）后过期。推送指向该会话时，Host 等待 `holdMs`（默认 60 秒），仅当仍有新鲜上报指向该会话时才丢弃。无上报、上报过期、会话不同、标签页隐藏或查看者空闲时立即发送。工作区外壳在标签页可见、聚焦且最近 45 秒内有输入时每 10 秒上报一次。
 
 -----
 
@@ -45,7 +49,7 @@ Web 应用 bundle 用部署的服务账号文件与令牌路径启用该行：
 <details>
 <summary>维护者细节——点击展开</summary>
 
-OAuth2 访问令牌由服务账号在本地签发 RS256 JWT 换取（`https://oauth2.googleapis.com/token`），缓存至过期前一分钟，再用于账号 `project_id` 对应的 FCM v1 发送端点。两个端点都是配置字段，便于测试指向本地服务器。发送失败与被拒绝的注册只记录日志，从不抛回触发事件：推送是通知侧的旁路，即使手机不可达，会话运行也必须完成。
+OAuth2 访问令牌由服务账号在本地签发 RS256 JWT 换取（`https://oauth2.googleapis.com/token`），缓存至过期前一分钟，再用于账号 `project_id` 对应的 FCM v1 发送端点。两个端点都是配置字段，便于测试指向本地服务器。发送失败与被拒绝的注册只记录日志，从不抛回触发事件：推送是通知侧的旁路，即使手机不可达，会话运行也必须完成。等待定时器会被跟踪并在释放时结算，因此关闭不会搁置推送。
 
 </details>
 
@@ -73,8 +77,9 @@ OAuth2 访问令牌由服务账号在本地签发 RS256 JWT 换取（`https://oa
 - 应用中的后台监控（`DshNotificationService`）保留为无 Firebase 时的回退；它侦听 0.1.7 时代的下行路径，而 0.2.1 已替换这些路径，因此没有推送的部署目前收不到提醒。
 - 每个部署只保存一个设备令牌：第二台手机会替换第一台。
 - 推送不重试；Google 报告为未注册的设备只记录日志。
-- `pnpm run test packages/api/push-notify` 覆盖注册、状态迁移与消息体测试。Firebase 的 `google-services.json` 不进入仓库（已在 Android 应用的 `.gitignore` 中），服务账号密钥存放在 dsh home 中，绝不进入仓库文件。
+- 活动查看者抑制是尽力而为：页面 45 秒无输入即视为离开；若 `holdMs` 后没有新鲜上报指向该会话，保留的推送仍会发送。
+- `pnpm run test packages/api/push-notify` 覆盖注册、状态迁移、消息体、存在上报与保留推送测试。Firebase 的 `google-services.json` 不进入仓库（已在 Android 应用的 `.gitignore` 中），服务账号密钥存放在 dsh home 中，绝不进入仓库文件。
 
 ### 开发备注
 
-`pnpm run test packages/api/push-notify` 覆盖注册、状态迁移与消息体；Firebase 配置与服务账号密钥都不进入仓库。
+`pnpm run test packages/api/push-notify` 覆盖注册、状态迁移、消息体、存在上报与保留推送；Firebase 配置与服务账号密钥都不进入仓库。

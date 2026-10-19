@@ -79,9 +79,11 @@ class DshNotificationService : Service() {
         /**
          * Whether the activity is currently visible; decides whether alerts
          * ring (the in-app UI already shows completion while the app is open).
+         * Defaults to false: an FCM message can start this process with no
+         * Activity, and that push must ring.
          */
         @Volatile
-        var activityForeground = true
+        var activityForeground = false
     }
 
     // ── Monitor thread: every mutable bit of classifier and socket state lives here. ──

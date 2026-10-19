@@ -70,6 +70,10 @@ class DshFirebaseMessagingService : FirebaseMessagingService() {
         val sessionId = data["sessionId"].orEmpty()
         DshDiagnostics.record(TAG, "push received: ${data["kind"] ?: "message"} session=${sessionId.take(8)}")
         createChannel()
+        if (DshNotificationService.activityForeground) {
+            DshDiagnostics.record(TAG, "push suppressed while the activity is foreground: ${data["kind"] ?: "message"}")
+            return
+        }
         val openIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             if (sessionId.isNotEmpty()) putExtra(DeepLinkExtras.SESSION_ID, sessionId)
