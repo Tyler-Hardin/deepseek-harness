@@ -23,6 +23,9 @@ object DshDiagnostics {
             events.addLast(line)
             while (events.size > MAX_EVENTS) events.removeFirst()
         }
+        // Mirror to logcat so a failure that also breaks the App page is still
+        // readable over adb; the in-app ring buffer stays the primary surface.
+        android.util.Log.i("DshDiagnostics", line)
     }
 
     fun snapshot(): List<String> = synchronized(events) { events.toList() }
