@@ -15,7 +15,7 @@ Commits are named by subject, not hash: `pnpm run doc-sync` rejects literal comm
 | Nix flake, NixOS module, dev/test environment | feat(nix): add flake packaging, dsh-web NixOS module, and full dev/test env | `flake.nix`, `flake.lock`, `nix/dsh-web.nix`, `nix/playwright-browsers.nix`, `AGENTS.md` |
 | Per-workspace default model | feat(workspace): per-workspace default model | `packages/core/agent-default-model`, `packages/api/session-controller`, `packages/api/workspace-controller`, `packages/client/ui-workspace` |
 | Android WebView app + web-hosted App settings | feat(android): dsh Android WebView app with web-hosted App settings | `android/`, `packages/client/ui-app-settings` |
-| Android task-completion notifications | feat(android): background task-completion notifications via foreground monitor | `android/app/src/main/java/ai/deepseek/dsh/`, `packages/client/ui-app-settings` |
+| Android task-completion notifications | feat(android): task-completion notifications via FCM push with the monitor as a fallback | `android/`, `packages/api/push-notify`, `packages/client/ui-app-settings` |
 | Server book (several servers on mobile) | feat(android): keep several servers and switch the active one | `android/app/src/main/java/ai/deepseek/dsh/ServerBook.kt`, `android/`, `packages/client/ui-app-settings` |
 | mTLS-only connection (no browser handshake) | fix(connection): serve the configuration plane to https pages and declared trusted hosts (local fork) | `packages/client/connection`, `packages/experimental/inspector`, affected READMEs |
 | Chat fold settles across backgrounding | fix(chat): settle a fold batch when the tab is hidden | `packages/client/ui-chat/src/client/chat/flow-motion.ts` |
@@ -42,7 +42,21 @@ Watch on rebase: `agent-default-model`'s `saveSelection` must capture the submit
 
 ### Android app, notifications, and App settings
 
-`android/` is a WebView shell that hosts the Web GUI; `packages/client/ui-app-settings` serves the App settings page the native shell reads (version, notification toggle). The notification monitor is a foreground service that watches task completion and posts a system notification. Nothing here is built by the Node toolchain, so a rebase only needs the client package to compile and its tests to pass.
+`android/` is a WebView shell that hosts the Web GUI; `packages/client/ui-app-settings` serves the App settings page the native shell reads (version, notification toggle). Run notifications arrive through Firebase Cloud Messaging by default: the app registers its FCM token over `POST /push/register` and the Host's `packages/api/push-notify` plugin pushes on the running→idle edge of `api-session/status`, on `api-session/error`, and when an `approval/request` or `user-questions/request` waterfall starts waiting. Messages carry a reason code, the Session id, and a working-directory label only; the app owns the localized copy. A foreground monitor (`DshNotificationService`) remains as the no-Firebase fallback, and its persistent notification is why push exists.
+
+The token identifies the app install, not a deployment, so the app registers it with every server in its book that has a certificate — on launch, on token rotation, when a server is added or edited, and right after that server's certificate is picked. Each deployment keeps its own copy and pushes independently, which is how a second (work) dsh server notifies the same phone.
+
+Sharp edges to keep in mind on a rebase:
+
+- `android/app/google-services.json` is gitignored and deployment-specific: without it a checkout still builds (Gradle applies the google-services plugin only when the file exists) but has no push transport. Never commit it.
+- The Host needs a Firebase service-account key at `~/.dsh/fcm-service-account.json` (0600) and outbound HTTPS to `oauth2.googleapis.com` and `fcm.googleapis.com`. Both are deployment setup, not repository content.
+- The plugin must stay a dependency of `packages/bundle/web-app/package.json`, not only a row in its `cordis.patch.yml`: without the dependency the installation never links it and boot logs `push-notify … failed to import`.
+- `/push/register` sits outside `/api` on purpose: the deployment's TLS proxy authenticates and the Host binds loopback only. If the fence ever grows to cover this path, keep it behind the proxy rather than adding a browser handshake.
+- The debug keystore is pinned outside the repository at `~/.config/dsh-android/debug.keystore` (`DSH_ANDROID_KEYSTORE` overrides it). A regenerated Gradle keystore changes the app signature — breaking in-place installs and the SHA-1 registered with Firebase — so keep that file.
+- The monitor still watches `/api/events.host` and `/api/events.mux`, which 0.2.1 replaced with `/api/remote.mux`: a deployment without push currently gets no alerts. Revive it by porting to the mux, or delete it once every deployment has Firebase.
+- One device token per deployment (a second phone replaces the first) and pushes are not retried; a device Google reports as unregistered is only logged.
+
+Nothing here is built by the Node toolchain during a rebase beyond the Host plugin and the client package: `pnpm run test packages/api/push-notify`, the client package's tests, and `gradle test` in `android/` cover it.
 
 ### mTLS-only connection
 
