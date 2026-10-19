@@ -17,6 +17,7 @@ Commits are named by subject, not hash: `pnpm run doc-sync` rejects literal comm
 | Android WebView app + web-hosted App settings | feat(android): dsh Android WebView app with web-hosted App settings | `android/`, `packages/client/ui-app-settings` |
 | Session deep links | feat(client): deep-link the shown session with `?session=` | `packages/client/ui-workspace` |
 | Client graph churn on Nix stores | fix(client): ignore inode-only churn when rekeying client artifacts | `packages/client/modules`, `packages/client/hmr` |
+| Notification tap opens the session | feat(push): open the announced session when a notification is tapped | `packages/api/push-notify`, `android/` |
 | Android task-completion notifications | feat(android): task-completion notifications via FCM push with the monitor as a fallback | `android/`, `packages/api/push-notify`, `packages/client/ui-app-settings` |
 | Server book (several servers on mobile) | feat(android): keep several servers and switch the active one | `android/app/src/main/java/ai/deepseek/dsh/ServerBook.kt`, `android/`, `packages/client/ui-app-settings` |
 | mTLS-only connection (no browser handshake) | fix(connection): serve the configuration plane to https pages and declared trusted hosts (local fork) | `packages/client/connection`, `packages/experimental/inspector`, affected READMEs |
@@ -64,6 +65,18 @@ Watch-out on rebase: upstream deliberately uses ctime to detect rewrites that pr
 ### Android app, notifications, and App settings
 
 `android/` is a WebView shell that hosts the Web GUI; `packages/client/ui-app-settings` serves the App settings page the native shell reads (version, notification toggle). Run notifications arrive through Firebase Cloud Messaging by default: the app registers its FCM token over `POST /push/register` and the Host's `packages/api/push-notify` plugin pushes on the running→idle edge of `api-session/status`, on `api-session/error`, and when an `approval/request` or `user-questions/request` waterfall starts waiting. Messages carry a reason code, the Session id, and a working-directory label only; the app owns the localized copy. A foreground monitor (`DshNotificationService`) remains as the no-Firebase fallback, and its persistent notification is why push exists.
+
+A tapped notification reopens the run it announced. Registration records the
+deployment origin the client reached (`x-forwarded-proto` + `host`, or a
+configured `publicUrl`), the push carries it, and the app switches to that
+server when the tap names a different one, then loads `?session=<id>`. The
+activity is `singleTask`, so a tap reaches `onNewIntent` instead of stacking a
+second task.
+
+Watch-out on rebase: the origin is what makes multi-server taps correct; a
+deployment behind a proxy that rewrites `Host` must set `publicUrl`, or the app
+will not recognise the server and keeps the current one (the Session then opens
+as released). Unknown origins deliberately do not add a server to the book.
 
 The token identifies the app install, not a deployment, so the app registers it with every server in its book that has a certificate — on launch, on token rotation, when a server is added or edited, and right after that server's certificate is picked. Each deployment keeps its own copy and pushes independently, which is how a second (work) dsh server notifies the same phone.
 
