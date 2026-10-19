@@ -14,6 +14,20 @@ export interface DshAppBridge {
   getServerUrl: () => string
   /** Persist a new server URL; the client reloads at it. */
   setServerUrl: (url: string) => void
+  /**
+   * Configured servers as JSON (`{servers:[{id,label,url,certAlias,active}],activeId}`).
+   * Optional: native builds that predate multiple servers omit it, and the
+   * page then edits the single active hostname instead.
+   */
+  getServers?: () => string
+  /** Add a server, returning the same JSON plus `ok`; optional like [getServers]. */
+  addServer?: (label: string, url: string) => string
+  /** Edit a server's label and URL; optional like [getServers]. */
+  updateServer?: (id: string, label: string, url: string) => string
+  /** Remove a server; optional like [getServers]. */
+  removeServer?: (id: string) => string
+  /** Select the server the app opens and reloads at it; optional like [getServers]. */
+  selectServer?: (id: string) => string
   /** Remembered client certificate alias, or "none". */
   getCertInfo: () => string
   /** Forget the remembered certificate. */

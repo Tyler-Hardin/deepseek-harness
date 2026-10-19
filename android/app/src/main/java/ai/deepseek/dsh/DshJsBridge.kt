@@ -54,6 +54,22 @@ class DshJsBridge(private val context: Context) {
      */
     var onMonitoringPermissionNeeded: (() -> Unit)? = null
 
+    /**
+     * Run one bridge body, reporting a native failure instead of letting it
+     * surface as a JavaScript exception that blanks the App page.
+     * @param label bridge method name for the report.
+     * @param fallback value the page can render when the body fails.
+     * @param block bridge body.
+     * @returns the body's value, or [fallback].
+     */
+    private inline fun <T> guarded(label: String, fallback: T, block: () -> T): T = try {
+        block()
+    } catch (error: Throwable) {
+        Log.e(TAG, "$label failed", error)
+        DshDiagnostics.record(TAG, "$label failed: ${error.message}")
+        fallback
+    }
+
     // ── Notifications ──────────────────────────────────────────
 
     /**
@@ -87,7 +103,7 @@ class DshJsBridge(private val context: Context) {
 
     /** Read the background task-completion monitoring opt-out pref. */
     @JavascriptInterface
-    fun getMonitoringEnabled(): Boolean = DshApp.instance.monitoringEnabled
+    fun getMonitoringEnabled(): Boolean = guarded("getMonitoringEnabled", true) { DshApp.instance.monitoringEnabled }
 
     /**
      * Enable or disable the background task-completion monitor
@@ -121,11 +137,76 @@ class DshJsBridge(private val context: Context) {
         }
     }
 
-    // ── Server hostname ────────────────────────────────────────
+    // ── Servers ────────────────────────────────────────────────
 
-    /** Return the configured server hostname/URL (or empty). */
+    /**
+     * The configured servers and the active selection, as JSON:
+     * `{"servers":[{"id","label","url","certAlias","active"}],"activeId"}`.
+     */
     @JavascriptInterface
-    fun getServerUrl(): String = DshApp.instance.serverUrl ?: ""
+    fun getServers(): String = guarded("getServers", "{\"ok\":false,\"error\":\"failed\"}") { bookJson(DshApp.instance.serverBook) }
+
+    /**
+     * Add a server; the first one added becomes active.
+     * @param label user-facing name; empty is allowed and shown as "unset".
+     * @param url raw URL; normalized and validated natively.
+     * @returns [bookJson] on success or `{"ok":false,"error":…}`.
+     */
+    @JavascriptInterface
+    fun addServer(label: String, url: String): String {
+        val edited = DshApp.instance.addServer(label, url)
+        DshDiagnostics.record(TAG, "addServer ${describe(edited)}")
+        // Every configured server needs this install's push token too.
+        if (edited is ServerEdit.Applied) DshPush.registerAsync(context)
+        return editJson(edited)
+    }
+
+    /**
+     * Edit a server's label and URL; ids stay stable so selection and the
+     * remembered certificate follow the row.
+     * @param id entry to edit.
+     * @param label replacement name.
+     * @param url replacement URL.
+     * @returns [bookJson] on success or `{"ok":false,"error":…}`.
+     */
+    @JavascriptInterface
+    fun updateServer(id: String, label: String, url: String): String {
+        val edited = DshApp.instance.updateServer(id, label, url)
+        DshDiagnostics.record(TAG, "updateServer ${describe(edited)}")
+        // Every configured server needs this install's push token too.
+        if (edited is ServerEdit.Applied) DshPush.registerAsync(context)
+        return editJson(edited)
+    }
+
+    /**
+     * Remove a server; removing the active one leaves no active selection.
+     * @param id entry to remove.
+     * @returns [bookJson] on success or `{"ok":false,"error":…}`.
+     */
+    @JavascriptInterface
+    fun removeServer(id: String): String {
+        val edited = DshApp.instance.removeServer(id)
+        DshDiagnostics.record(TAG, "removeServer ${describe(edited)}")
+        return editJson(edited)
+    }
+
+    /**
+     * Select the server the app opens and reload the page at it.
+     * @param id entry to select.
+     * @returns [bookJson] on success or `{"ok":false,"error":…}`.
+     */
+    @JavascriptInterface
+    fun selectServer(id: String): String {
+        val edited = DshApp.instance.selectServer(id)
+        DshDiagnostics.record(TAG, "selectServer ${describe(edited)}")
+        // The activity restarts the monitor and reloads at the new origin.
+        if (edited is ServerEdit.Applied) onServerUrlChanged?.invoke()
+        return editJson(edited)
+    }
+
+    /** Return the active server hostname/URL (or empty). */
+    @JavascriptInterface
+    fun getServerUrl(): String = guarded("getServerUrl", "") { DshApp.instance.serverUrl ?: "" }
 
     /**
      * Persist a new server hostname/URL from the page, then reload the
@@ -144,11 +225,50 @@ class DshJsBridge(private val context: Context) {
         onServerUrlChanged?.invoke()
     }
 
+    /** JSON for a whole book, including the active marker per entry. */
+    private fun bookJson(book: ServerBook): String {
+        val servers = org.json.JSONArray()
+        for (entry in book.servers) {
+            servers.put(org.json.JSONObject().apply {
+                put("id", entry.id)
+                put("label", entry.label)
+                put("url", entry.url)
+                put("certAlias", entry.certAlias ?: "")
+                put("active", entry.id == book.activeId)
+            })
+        }
+        return org.json.JSONObject().apply {
+            put("ok", true)
+            put("servers", servers)
+            put("activeId", book.activeId ?: "")
+        }.toString()
+    }
+
+    /** JSON for one edit outcome. */
+    private fun editJson(edit: ServerEdit): String = when (edit) {
+        is ServerEdit.Applied -> bookJson(edit.book)
+        is ServerEdit.Rejected -> org.json.JSONObject().apply {
+            put("ok", false)
+            put("error", when (edit.reason) {
+                ServerRejection.INVALID_URL -> "invalid-url"
+                ServerRejection.DUPLICATE_URL -> "duplicate-url"
+                ServerRejection.UNKNOWN_ID -> "unknown-id"
+                ServerRejection.EMPTY_BOOK -> "empty-book"
+            })
+        }.toString()
+    }
+
+    /** Log-friendly description of an edit. */
+    private fun describe(edit: ServerEdit): String = when (edit) {
+        is ServerEdit.Applied -> "ok active=${edit.book.activeId ?: "none"} count=${edit.book.servers.size}"
+        is ServerEdit.Rejected -> "rejected ${edit.reason}"
+    }
+
     // ── Client certificate (mTLS) ──────────────────────────────
 
     /** The remembered certificate alias, or "none". */
     @JavascriptInterface
-    fun getCertInfo(): String = DshApp.instance.clientCertAlias ?: "none"
+    fun getCertInfo(): String = guarded("getCertInfo", "none") { DshApp.instance.clientCertAlias ?: "none" }
 
     /** Forget the remembered certificate; the system will ask again on next connect. */
     @JavascriptInterface
@@ -161,7 +281,7 @@ class DshJsBridge(private val context: Context) {
 
     /** Recent app/WebView/console events, newest first, one per line. */
     @JavascriptInterface
-    fun getDiagnostics(): String = DshDiagnostics.snapshot().asReversed().joinToString("\n")
+    fun getDiagnostics(): String = guarded("getDiagnostics", "") { DshDiagnostics.snapshot().asReversed().joinToString("\n") }
 
     @JavascriptInterface
     fun clearDiagnostics() {
@@ -171,7 +291,7 @@ class DshJsBridge(private val context: Context) {
 
     /** The on-disk crash log, or empty. */
     @JavascriptInterface
-    fun getCrashLog(): String = DshApp.instance.readCrashLog()
+    fun getCrashLog(): String = guarded("getCrashLog", "") { DshApp.instance.readCrashLog() }
 
     @JavascriptInterface
     fun clearCrashLog() {
@@ -183,9 +303,9 @@ class DshJsBridge(private val context: Context) {
 
     /** One-line app state, for embedding in the web UI's own diagnostics. */
     @JavascriptInterface
-    fun getAppInfo(): String {
+    fun getAppInfo(): String = guarded("getAppInfo", "dsh (unavailable)") {
         val pkg = context.packageManager.getPackageInfo(context.packageName, 0)
-        return "dsh ${pkg.versionName} (${pkg.versionCode}) · Android ${Build.VERSION.SDK_INT} · " +
+        "dsh ${pkg.versionName} (${pkg.versionCode}) · Android ${Build.VERSION.SDK_INT} · " +
             "${Build.MODEL} · cert=${DshApp.instance.clientCertAlias ?: "none"}"
     }
 

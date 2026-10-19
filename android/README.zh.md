@@ -8,6 +8,7 @@ DeepSeek Harness Web UI（`dsh web`）的最小化 Android 包装器。它是一
 
 - 在配置的主机名加载 dsh web UI（首次启动时询问）。
 - **设置位于 Web UI 中。** Web UI 的设置导航会多出一个 **App** 页面——主机名、证书、诊断——由 `@deepseek-ai/dsh-client-ui-app-settings` 客户端插件贡献，该插件只在页面运行于应用内时注册（`window.DshApp` 桥只存在于应用内）。一个极简的原生页面保留为离线回退：首次启动（还没有主机名，因此没有 Web UI）和错误页的"更换服务器"按钮（服务器不可达，Web UI 无法渲染）。
+- **多个服务器。** 应用保存一份 dsh 主机列表：App 页面列出它们、标出当前服务器，并用 **使用** 切换；切换后应用在所选主机上重新加载，后台监控也随之跟随。编辑时会拒绝另一条目已使用的地址。早于该列表的安装会把唯一保存的主机名迁移为一个服务器，保留其地址和证书，标签为 **未命名**，因为旧存储从未保存过名称。
 - **mTLS**：服务器请求客户端证书时，出现 Android 系统证书选择器；所选证书会被记住。App 设置页显示当前使用的证书，并可忘记它。
 - **语音输入**：Web UI 的语音转文字使用麦克风；应用请求 `RECORD_AUDIO` 并把授权转发给 WebView。
 - **原生通知**：Web UI 可调用 `window.DshApp.notify()` 发送通知，播放 `res/raw/notification_bell.ogg` 中的定时铃声（从 goop 应用复制而来）。
@@ -66,6 +67,9 @@ WebView 暴露 `window.DshApp`——Web UI 与原生应用之间的平台无关�
 | 方法 | 用途 |
 | --- | --- |
 | `getServerUrl()` / `setServerUrl(url)` | 读取/更新配置的主机名（保存后会在新服务器上重新加载页面） |
+| `getServers()` | 已配置的服务器和当前选择（JSON） |
+| `addServer(label, url)` / `updateServer(id, label, url)` | 添加或编辑服务器；重复或无效的地址会连同原因被拒绝 |
+| `removeServer(id)` / `selectServer(id)` | 删除服务器，或选择应用要打开的服务器（应用随后在其上重新加载） |
 | `getCertInfo()` / `forgetCertificate()` | 读取/忘记记住的 mTLS 证书 |
 | `getDiagnostics()` / `clearDiagnostics()` | 读取/清除事件环形缓冲 |
 | `getCrashLog()` / `clearCrashLog()` | 读取/清除磁盘崩溃日志 |

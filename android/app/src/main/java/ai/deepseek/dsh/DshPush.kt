@@ -137,9 +137,10 @@ object DshPush {
     fun registerAsync(context: Context, token: String? = null) {
         Thread({
             val value = token ?: this.token(context) ?: return@Thread
-            val serverUrl = DshApp.instance.serverUrl ?: return@Thread
-            val alias = DshApp.instance.clientCertAlias ?: return@Thread
-            register(context, serverUrl, alias, value)
+            for (server in DshApp.instance.serverBook.servers) {
+                val alias = server.certAlias ?: continue
+                register(context, server.url, alias, value)
+            }
         }, "dsh-push-register").start()
     }
 

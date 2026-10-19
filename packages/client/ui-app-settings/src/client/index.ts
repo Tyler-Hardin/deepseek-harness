@@ -58,9 +58,24 @@ export function apply(ctx: ClientContext): void {
         getMonitoringEnabled: () => getMonitoringEnabled(),
         setMonitoringEnabled: (enabled) => { setMonitoringEnabled(enabled) },
       }
+  // The server book exists only on native builds that ship it; older clients
+  // fall back to editing the single active hostname.
+  const { getServers, addServer, updateServer, removeServer, selectServer } = bridge
+  const servers: Pick<AppSettingsInjected, 'getServers' | 'addServer' | 'updateServer' | 'removeServer' | 'selectServer'> =
+    getServers === undefined || addServer === undefined || updateServer === undefined
+      || removeServer === undefined || selectServer === undefined
+      ? {}
+      : {
+        getServers: () => getServers(),
+        addServer: (label, url) => addServer(label, url),
+        updateServer: (id, label, url) => updateServer(id, label, url),
+        removeServer: id => removeServer(id),
+        selectServer: id => selectServer(id),
+      }
   const injected = (): AppSettingsInjected => ({
     getServerUrl: () => bridge.getServerUrl(),
     setServerUrl: (url) => { bridge.setServerUrl(url) },
+    ...servers,
     getCertInfo: () => bridge.getCertInfo(),
     forgetCertificate: () => { bridge.forgetCertificate() },
     getDiagnostics: () => bridge.getDiagnostics(),

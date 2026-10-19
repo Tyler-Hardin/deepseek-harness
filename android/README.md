@@ -17,6 +17,13 @@ making failures visible instead of silent.
   only there). A minimal native screen remains as the offline fallback:
   first run (no hostname yet, so no web UI) and the error page's
   "Change server" button (server unreachable, so the web UI cannot render).
+- **Several servers.** The app keeps a list of dsh hosts: the App page lists
+  them, marks the active one, and switches with **Use**, after which the app
+  reloads at the chosen host and the background monitor follows it. Editors
+  refuse a URL another entry already uses. An install that predates this list
+  migrates its single saved hostname as one server that keeps its URL and
+  certificate and is labelled **unset**, because the old store never held a
+  name.
 - **mTLS**: when the server requests a client certificate, Android's system
   certificate chooser appears; the chosen certificate is remembered. The App
   settings page shows which certificate is in use and can forget it.
@@ -128,6 +135,9 @@ same surface and the web-side App settings page works unchanged:
 | Method | Purpose |
 | --- | --- |
 | `getServerUrl()` / `setServerUrl(url)` | Read/update the configured hostname (save reloads the page at the new server) |
+| `getServers()` | The configured servers and the active selection, as JSON |
+| `addServer(label, url)` / `updateServer(id, label, url)` | Add or edit a server; a duplicate or invalid URL is refused with its reason |
+| `removeServer(id)` / `selectServer(id)` | Remove a server, or select the one the app opens (the app then reloads at it) |
 | `getCertInfo()` / `forgetCertificate()` | Read/forget the remembered mTLS certificate |
 | `getDiagnostics()` / `clearDiagnostics()` | Read/clear the event ring buffer |
 | `getCrashLog()` / `clearCrashLog()` | Read/clear the on-disk crash log |

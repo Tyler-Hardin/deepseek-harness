@@ -84,3 +84,61 @@
   font-size: 13px;
   color: var(--dsw-alias-danger-fill, #d64545);
 }
+
+/* Server book: one row per configured dsh host. */
+.serverList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.serverRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: var(--dsw-radius-md);
+}
+
+.serverRow[data-server-active] {
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+.serverText {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.serverName {
+  font-weight: 600;
+}
+
+.serverBadge {
+  padding: 0 6px;
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-l2);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.serverUrl {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

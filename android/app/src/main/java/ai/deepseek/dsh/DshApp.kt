@@ -36,15 +36,131 @@ class DshApp : Application() {
     val prefs: SharedPreferences
         get() = getSharedPreferences(PREFS, MODE_PRIVATE)
 
-    var serverUrl: String?
-        get() = prefs.getString(KEY_SERVER_URL, null)
-        set(value) = prefs.edit().putString(KEY_SERVER_URL, value).apply()
+    /**
+     * The configured servers and the one the app opens. Reading it once
+     * migrates a pre-multi-server install, in which the single saved hostname
+     * keeps its URL and certificate and gains no label.
+     */
+    val serverBook: ServerBook
+        get() {
+            val stored = ServerBookCodec.decode(
+                prefs.getString(ServerBookCodec.serversKey(), null),
+                prefs.getString(ServerBookCodec.activeKey(), null),
+            )
+            if (stored != null) return stored
+            val migrated = migrateLegacyServer()
+            saveBook(migrated)
+            return migrated
+        }
 
-    var clientCertAlias: String?
-        get() = prefs.getString(KEY_CERT_ALIAS, null)
-        set(value) = prefs.edit()
-            .let { if (value == null) it.remove(KEY_CERT_ALIAS) else it.putString(KEY_CERT_ALIAS, value) }
+    /** Persist [book] as the configured servers and the active selection. */
+    fun saveBook(book: ServerBook) {
+        prefs.edit()
+            .putString(ServerBookCodec.serversKey(), ServerBookCodec.encode(book))
+            .let { if (book.activeId == null) it.remove(ServerBookCodec.activeKey()) else it.putString(ServerBookCodec.activeKey(), book.activeId) }
             .apply()
+    }
+
+    /** The server the app opens, or null when none is configured. */
+    val activeServer: ServerEntry?
+        get() = serverBook.active()
+
+    /**
+     * The active server's URL, or null. The setter edits the active entry —
+     * adding one when nothing is configured — and is the compatibility seam for
+     * the bridge and the native fallback screen.
+     */
+    var serverUrl: String?
+        get() = activeServer?.url
+        set(value) {
+            val book = serverBook
+            val normalized = value?.let { normalizeServerUrl(it) } ?: ""
+            if (normalized.isEmpty()) return
+            val active = book.active()
+            val edited = if (active == null) {
+                ServerEdits.add(book, newServerId(), "", normalized)
+            } else {
+                ServerEdits.update(book, active.id, active.label, normalized)
+            }
+            when (edited) {
+                is ServerEdit.Applied -> saveBook(edited.book)
+                is ServerEdit.Rejected -> Log.w(TAG, "server URL rejected: ${edited.reason}")
+            }
+        }
+
+    /** The active server's remembered certificate alias, or null. */
+    var clientCertAlias: String?
+        get() = activeServer?.certAlias
+        set(value) {
+            if (activeServer == null) return
+            saveBook(ServerEdits.setCertAlias(serverBook, value))
+        }
+
+    /**
+     * Add a server to the book.
+     * @param label user-facing name; empty is allowed.
+     * @param url raw URL; normalized and validated by [ServerEdits.add].
+     * @returns the applied book, or the rejection the caller reports.
+     */
+    fun addServer(label: String, url: String): ServerEdit {
+        val edited = ServerEdits.add(serverBook, newServerId(), label, url)
+        if (edited is ServerEdit.Applied) saveBook(edited.book)
+        return edited
+    }
+
+    /**
+     * Edit a server's label and URL.
+     * @param id entry to edit.
+     * @param label replacement name.
+     * @param url replacement URL.
+     * @returns the applied book, or the rejection the caller reports.
+     */
+    fun updateServer(id: String, label: String, url: String): ServerEdit {
+        val edited = ServerEdits.update(serverBook, id, label, url)
+        if (edited is ServerEdit.Applied) saveBook(edited.book)
+        return edited
+    }
+
+    /**
+     * Remove a server.
+     * @param id entry to remove.
+     * @returns the applied book, or the rejection the caller reports.
+     */
+    fun removeServer(id: String): ServerEdit {
+        val edited = ServerEdits.remove(serverBook, id)
+        if (edited is ServerEdit.Applied) saveBook(edited.book)
+        return edited
+    }
+
+    /**
+     * Select the server the app opens.
+     * @param id entry to select.
+     * @returns the applied book, or the rejection the caller reports.
+     */
+    fun selectServer(id: String): ServerEdit {
+        val edited = ServerEdits.select(serverBook, id)
+        if (edited is ServerEdit.Applied) saveBook(edited.book)
+        return edited
+    }
+
+    /**
+     * Read the pre-multi-server preferences into a one-entry book.
+     *
+     * A legacy install could reach exactly one backend, so there is no
+     * collision to resolve and nothing to ask: the stored origin and
+     * certificate move onto the entry, and its label stays empty because the
+     * old store never had one. The UI shows an empty label as "unset".
+     */
+    private fun migrateLegacyServer(): ServerBook {
+        val legacyUrl = prefs.getString(KEY_SERVER_URL, null)?.let { normalizeServerUrl(it) } ?: ""
+        val legacyAlias = prefs.getString(KEY_CERT_ALIAS, null)
+        val migrated = ServerMigration.fromLegacy(legacyUrl, legacyAlias, newServerId())
+        if (migrated.servers.isNotEmpty()) Log.i(TAG, "migrated the single saved server to the server book")
+        return migrated
+    }
+
+    /** A fresh opaque server id. */
+    private fun newServerId(): String = java.util.UUID.randomUUID().toString()
 
     /** Background task-completion monitoring opt-out; on by default. */
     var monitoringEnabled: Boolean

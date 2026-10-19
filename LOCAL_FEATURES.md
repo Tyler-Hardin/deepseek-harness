@@ -16,6 +16,7 @@ Commits are named by subject, not hash: `pnpm run doc-sync` rejects literal comm
 | Per-workspace default model | feat(workspace): per-workspace default model | `packages/core/agent-default-model`, `packages/api/session-controller`, `packages/api/workspace-controller`, `packages/client/ui-workspace` |
 | Android WebView app + web-hosted App settings | feat(android): dsh Android WebView app with web-hosted App settings | `android/`, `packages/client/ui-app-settings` |
 | Android task-completion notifications | feat(android): background task-completion notifications via foreground monitor | `android/app/src/main/java/ai/deepseek/dsh/`, `packages/client/ui-app-settings` |
+| Server book (several servers on mobile) | feat(android): keep several servers and switch the active one | `android/app/src/main/java/ai/deepseek/dsh/ServerBook.kt`, `android/`, `packages/client/ui-app-settings` |
 | mTLS-only connection (no browser handshake) | fix(connection): serve the configuration plane to https pages and declared trusted hosts (local fork) | `packages/client/connection`, `packages/experimental/inspector`, affected READMEs |
 | Chat fold settles across backgrounding | fix(chat): settle a fold batch when the tab is hidden | `packages/client/ui-chat/src/client/chat/flow-motion.ts` |
 | Mobile sidebar drawer | feat(sidebar): mobile drawer — swipe gestures and selection auto-close | `packages/client/ui-layout`, `packages/client/ui-sidebar`, `packages/client/ui-workspace` |
@@ -105,6 +106,25 @@ Generation 51 and 52 carry the same dsh build, so the service has been running t
 - Three client tests fail on the untouched `dsh-v0.2.1-rc.2` tree and are tolerated the same way: the two `ui-schedule` device-zone assertions (this environment's device zone equals the rule zone) and the `ui-theme` component radius-scale comparison.
 - While the hook-fallback path is stale (`node scripts/install-lefthook.mjs` refreshes it, `LEFTHOOK=0` skips it), automated commits use `LEFTHOOK=0` and run the same checks explicitly.
 - A clean `pnpm run clean && pnpm run build` matters before judging a suite: an incremental build keeps a stale bundle when a dependency's export changed, which shows up as a module-level import failure in `transform-corpus` rather than as a type error.
+
+### Server book (several servers on mobile)
+
+The Android app keeps a list of dsh hosts instead of one hostname, so a phone can
+switch between a personal and a work deployment. `ServerBook`/`ServerEdits` are
+platform-free Kotlin and own the two invariants the UI relies on: a URL is unique
+across the book (refused at the add and edit seams with the bridge's reason) and
+entry ids stay stable, so selection, the remembered mTLS certificate, and the
+background monitor follow the row across label and URL edits. The App settings
+page lists the servers, marks the active one, and switches with **Use**
+(`selectServer` then a reload at that origin); the native screen remains the
+offline fallback and edits the active entry.
+
+A pre-multi-server install could reach exactly one backend, so migration has
+nothing to disambiguate: it keeps the stored URL and certificate, mints one
+entry, and leaves the label empty — the one value the old store never had — which
+the UI renders as **unset**. Watch-out on rebase: the bridge is the
+platform-neutral contract (`window.DshApp`); the web page treats the server-book
+methods as optional so older app builds keep working.
 
 ### Chat fold settles across backgrounding
 

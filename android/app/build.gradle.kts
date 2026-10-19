@@ -71,6 +71,10 @@ dependencies {
     // OkHttp: WebSocket downlinks + session.list seed for the background
     // task-completion monitor (DshNotificationService).
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // JVM unit tests for the platform-free server book (no Robolectric needed).
+    testImplementation("junit:junit:4.13.2")
+    // Real org.json on the unit-test classpath: the Android stub throws there.
+    testImplementation("org.json:json:20240303")
     // Push: the platform's own transport, so no listener or socket lives in the app.
     implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
     implementation("com.google.firebase:firebase-messaging")
