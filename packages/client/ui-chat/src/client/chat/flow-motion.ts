@@ -149,6 +149,7 @@ export function createFlowMotion(driver: () => InputFoldDriver | null, foldingCh
   let cancelled = false
   let clearEpoch = 0
   let batchCleanup: (() => void) | null = null
+  let visibilityCleanup: (() => void) | null = null
   let cancelEmptyBatch: (() => void) | null = null
   /** The batch is committing hidden rows and its final geometry; idle listeners wait until both land. */
   let settling = false
@@ -226,6 +227,11 @@ export function createFlowMotion(driver: () => InputFoldDriver | null, foldingCh
     let started: number | undefined
     let displacement = 0
     const settle = (finishCancelled: boolean): void => {
+      // Firefox throttles animation frames for a hidden tab, so a batch that starts or outlives
+      // backgrounding would leave its rows on the collapsed inline sizes it applied before the
+      // first frame. Settle on return instead of waiting for a frame that never runs.
+      visibilityCleanup?.()
+      visibilityCleanup = null
       batch = false
       batchCleanup = null
       cancelEmptyBatch = null
@@ -282,7 +288,24 @@ export function createFlowMotion(driver: () => InputFoldDriver | null, foldingCh
       }
       settle(cancelled)
     }
+    const finishNow = (): void => {
+      const now = performance.now()
+      started ??= now
+      started = Math.min(started, now - (CLOSE_DELAY_MS + CLOSE_MS))
+      if (frameRequest !== null) cancelAnimationFrame(frameRequest)
+      frameRequest = null
+      tick(now)
+    }
+    const finishOnReturn = (): void => {
+      if (typeof document !== 'object' || document.visibilityState !== 'visible') return
+      finishNow()
+    }
+    if (typeof document === 'object') {
+      document.addEventListener('visibilitychange', finishOnReturn)
+      visibilityCleanup = () => { document.removeEventListener('visibilitychange', finishOnReturn) }
+    }
     if (reduced) tick(0)
+    else if (typeof document === 'object' && document.visibilityState === 'hidden') finishNow()
     else frameRequest = requestAnimationFrame(tick)
   }
 
@@ -465,6 +488,8 @@ export function createFlowMotion(driver: () => InputFoldDriver | null, foldingCh
     cancelled = false
     if (frameRequest !== null) cancelAnimationFrame(frameRequest)
     frameRequest = null
+    visibilityCleanup?.()
+    visibilityCleanup = null
     batchCleanup?.()
     batchCleanup = null
     cancelEmptyBatch = null

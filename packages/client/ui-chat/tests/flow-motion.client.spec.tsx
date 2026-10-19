@@ -459,6 +459,30 @@ describe('flow motion', () => {
     expect(calls.finish).toHaveBeenCalledExactlyOnceWith(false)
   })
 
+  it('settles a batch at once when the document is hidden, and when it returns', async () => {
+    const visibility = vi.spyOn(document, 'visibilityState', 'get')
+    const calls = batchDriver()
+    const hiddenRow = rowWithHeight(180)
+    visibility.mockReturnValue('hidden')
+    motion.collapse(hiddenRow, vi.fn())
+    await Promise.resolve()
+    // A hidden tab runs no frames, so the batch commits its final state synchronously.
+    expect(calls.finish).toHaveBeenCalledExactlyOnceWith(false)
+
+    calls.finish.mockClear()
+    visibility.mockReturnValue('visible')
+    const returningRow = rowWithHeight(180)
+    motion.collapse(returningRow, vi.fn())
+    await Promise.resolve()
+    expect(calls.finish).toHaveBeenCalledTimes(0)
+    visibility.mockReturnValue('hidden')
+    document.dispatchEvent(new Event('visibilitychange'))
+    visibility.mockReturnValue('visible')
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(calls.finish).toHaveBeenCalledExactlyOnceWith(false)
+    visibility.mockRestore()
+  })
+
   it('does not rewrite a reopened row after its batch is cancelled', async () => {
     vi.useFakeTimers()
     const calls = batchDriver()
