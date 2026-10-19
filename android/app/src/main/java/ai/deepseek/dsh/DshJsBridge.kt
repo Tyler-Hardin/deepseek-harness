@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import android.util.Log
 import android.webkit.JavascriptInterface
 import android.widget.Toast
@@ -26,8 +27,8 @@ import androidx.core.content.ContextCompat
  * methods, so a future iOS (or other) client can implement the same
  * `window.DshApp` surface without web-side changes.
  *
- * The web UI can also post a native notification (using the timer bell
- * sound in `res/raw/notification_bell.ogg`) and control the background
+ * The web UI can also post a native notification (using the system
+ * notification sound) and control the background
  * task-completion monitor ([DshNotificationService], which runs its own
  * downlink sockets and is independent of this WebView).
  */
@@ -35,8 +36,10 @@ class DshJsBridge(private val context: Context) {
 
     companion object {
         const val NAME = "DshApp"
-        const val CHANNEL_ID = "dsh_notifications"
+        const val CHANNEL_ID = "dsh_notifications_v4"
         const val CHANNEL_NAME = "dsh notifications"
+        /** Pre-version channels; Android restores a reused channel ID's settings. */
+        val LEGACY_CHANNEL_IDS = listOf("dsh_notifications", "dsh_notifications_v2", "dsh_notifications_v3")
         private const val TAG = "DshJsBridge"
         private const val NOTIFY_ID = 1
     }
@@ -73,7 +76,7 @@ class DshJsBridge(private val context: Context) {
     // ── Notifications ──────────────────────────────────────────
 
     /**
-     * Post a native notification with the timer bell sound.
+     * Post a native notification with the system notification sound.
      * Called by the web UI, e.g. when a long-running action completes.
      */
     @JavascriptInterface
@@ -86,14 +89,12 @@ class DshJsBridge(private val context: Context) {
             DshDiagnostics.record(TAG, "notify blocked (permission) — grant notifications in Android settings")
             return
         }
-        val sound = Uri.parse("android.resource://${context.packageName}/${R.raw.notification_bell}")
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
-            .setSound(sound)
             .build()
         NotificationManagerCompat.from(context).notify(NOTIFY_ID, notification)
         DshDiagnostics.record(TAG, "notification posted: $title")
@@ -320,14 +321,14 @@ class DshJsBridge(private val context: Context) {
 
     private fun createChannel() {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        for (legacy in LEGACY_CHANNEL_IDS) nm.deleteNotificationChannel(legacy)
         if (nm.getNotificationChannel(CHANNEL_ID) != null) return
-        val sound = Uri.parse("android.resource://${context.packageName}/${R.raw.notification_bell}")
         val channel = NotificationChannel(
             CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH
         ).apply {
             description = "Notifications from the dsh web UI"
             setSound(
-                sound,
+                Settings.System.DEFAULT_NOTIFICATION_URI,
                 AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_NOTIFICATION)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)

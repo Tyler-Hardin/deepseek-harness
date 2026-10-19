@@ -11,7 +11,7 @@ DeepSeek Harness Web UI（`dsh web`）的最小化 Android 包装器。它是一
 - **多个服务器。** 应用保存一份 dsh 主机列表：App 页面列出它们、标出当前服务器，并用 **使用** 切换；切换后应用在所选主机上重新加载，后台监控也随之跟随。编辑时会拒绝另一条目已使用的地址。早于该列表的安装会把唯一保存的主机名迁移为一个服务器，保留其地址和证书，标签为 **未命名**，因为旧存储从未保存过名称。
 - **mTLS**：服务器请求客户端证书时，出现 Android 系统证书选择器；所选证书会被记住。App 设置页显示当前使用的证书，并可忘记它。
 - **语音输入**：Web UI 的语音转文字使用麦克风；应用请求 `RECORD_AUDIO` 并把授权转发给 WebView。
-- **原生通知**：Web UI 可调用 `window.DshApp.notify()` 发送通知，播放 `res/raw/notification_bell.ogg` 中的定时铃声（从 goop 应用复制而来）。
+- **原生通知**：Web UI 可调用 `window.DshApp.notify()` 发送使用系统通知声音的原生通知。
 - **后台任务通知**：`DshNotificationService`——一个运行自己只读下行 WebSocket 的前台服务——在会话运行结束、出错或停下来等待你输入时响铃（只要应用不在前台）。一条低重要性的常驻"dsh 正在监控"通知如实反映连接状态并带"停止监控"操作，因此监控器永远不会无声死亡。可在 Web UI 的 App 设置页关闭。
 - **可见的错误**：连接、TLS 和 HTTP 失败会渲染应用内错误页，显示失败 URL 以及"重试"和"更换服务器"按钮；连接期间显示带状态文字的启动页；控制台消息、WebView 事件和崩溃都记录在 Web UI 的 App 设置页中可读。没有任何错误只存在于 logcat。
 
@@ -95,6 +95,5 @@ android/
         DshErrorPage.kt   # self-contained error page HTML
         DshDiagnostics.kt # event ring buffer surfaced in the web UI
         SettingsActivity.kt  # offline fallback (first run / unreachable)
-      res/raw/notification_bell.ogg
       res/drawable/…      # icons and backgrounds
 ```

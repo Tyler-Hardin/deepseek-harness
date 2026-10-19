@@ -30,8 +30,7 @@ making failures visible instead of silent.
 - **Voice input**: the web UI's speech-to-text uses the microphone; the app
   requests `RECORD_AUDIO` and forwards the grant to the WebView.
 - **Native notifications**: the web UI can call `window.DshApp.notify()`
-  to post a notification that plays the timer bell sound in
-  `res/raw/notification_bell.ogg` (copied from the goop app).
+  to post a native notification that uses the system notification sound.
 - **Background task notifications**: `DshNotificationService` — a foreground
   service running its own read-only downlink WebSockets to the dsh host —
   rings when a session run finishes, errors, or pauses waiting for your
@@ -142,7 +141,7 @@ same surface and the web-side App settings page works unchanged:
 | `getDiagnostics()` / `clearDiagnostics()` | Read/clear the event ring buffer |
 | `getCrashLog()` / `clearCrashLog()` | Read/clear the on-disk crash log |
 | `getAppInfo()` | One-line app/version/certificate state |
-| `notify(title, body)` | Post a native notification with the timer bell sound |
+| `notify(title, body)` | Post a native notification with the system notification sound |
 | `getMonitoringEnabled()` / `setMonitoringEnabled(on)` | Read/toggle the background task-completion monitor (starts/stops `DshNotificationService`) |
 | `openSettings()` | Open the native offline fallback screen |
 
@@ -163,6 +162,5 @@ android/
         DshErrorPage.kt   # self-contained error page HTML
         DshDiagnostics.kt # event ring buffer surfaced in the web UI
         SettingsActivity.kt  # offline fallback (first run / unreachable)
-      res/raw/notification_bell.ogg
       res/drawable/…      # icons and backgrounds
 ```

@@ -6,8 +6,8 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
-import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import android.security.KeyChain
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -40,7 +40,7 @@ class DshFirebaseMessagingService : FirebaseMessagingService() {
     companion object {
         private const val TAG = "DshPush"
         /** Alert channel shared with the in-app notification bridge. */
-        const val CHANNEL_ALERTS = "dsh_notifications"
+        const val CHANNEL_ALERTS = DshJsBridge.CHANNEL_ID
         const val NOTIFY_ID = 2
     }
 
@@ -95,13 +95,13 @@ class DshFirebaseMessagingService : FirebaseMessagingService() {
     private fun createChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val nm = getSystemService(NotificationManager::class.java)
+        for (legacy in DshJsBridge.LEGACY_CHANNEL_IDS) nm.deleteNotificationChannel(legacy)
         if (nm.getNotificationChannel(CHANNEL_ALERTS) != null) return
-        val sound = Uri.parse("android.resource://${packageName}/${R.raw.notification_bell}")
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_ALERTS, getString(R.string.push_channel_name), NotificationManager.IMPORTANCE_HIGH).apply {
                 description = getString(R.string.push_channel_desc)
                 setSound(
-                    sound,
+                    Settings.System.DEFAULT_NOTIFICATION_URI,
                     AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_NOTIFICATION)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)

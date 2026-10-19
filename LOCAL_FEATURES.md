@@ -87,6 +87,7 @@ Sharp edges to keep in mind on a rebase:
 - The plugin must stay a dependency of `packages/bundle/web-app/package.json`, not only a row in its `cordis.patch.yml`: without the dependency the installation never links it and boot logs `push-notify … failed to import`.
 - `/push/register` sits outside `/api` on purpose: the deployment's TLS proxy authenticates and the Host binds loopback only. If the fence ever grows to cover this path, keep it behind the proxy rather than adding a browser handshake.
 - The debug keystore is pinned outside the repository at `~/.config/dsh-android/debug.keystore` (`DSH_ANDROID_KEYSTORE` overrides it). A regenerated Gradle keystore changes the app signature — breaking in-place installs and the SHA-1 registered with Firebase — so keep that file.
+- Notification channels are versioned (`dsh_notifications_v4`, `dsh_task_alerts_v4`) and use the system notification sound. Android restores a deleted channel's settings when the ID is reused, so bump the constant and add the old ID to its legacy list whenever the sound changes.
 - The monitor still watches `/api/events.host` and `/api/events.mux`, which 0.2.1 replaced with `/api/remote.mux`: a deployment without push currently gets no alerts. Revive it by porting to the mux, or delete it once every deployment has Firebase.
 - One device token per deployment (a second phone replaces the first) and pushes are not retried; a device Google reports as unregistered is only logged.
 

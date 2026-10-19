@@ -7,11 +7,11 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.media.AudioAttributes
-import android.net.Uri
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
 import android.os.PowerManager
+import android.provider.Settings
 import android.security.KeyChain
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -57,7 +57,9 @@ class DshNotificationService : Service() {
         private const val TAG = "DshNotifySvc"
 
         private const val CHANNEL_MONITORING = "dsh_monitoring"
-        private const val CHANNEL_ALERTS = "dsh_task_alerts"
+        private const val CHANNEL_ALERTS = "dsh_task_alerts_v4"
+        /** Pre-version channels; Android restores a reused channel ID's settings. */
+        private val LEGACY_CHANNEL_ALERTS = listOf("dsh_task_alerts", "dsh_task_alerts_v2", "dsh_task_alerts_v3")
 
         private const val NOTIFY_MONITORING = 100
 
@@ -543,8 +545,7 @@ class DshNotificationService : Service() {
 
     private fun createChannels() {
         val nm = getSystemService(NotificationManager::class.java)
-        val bell = Uri.parse("android.resource://${packageName}/${R.raw.notification_bell}")
-        val bellAttrs = AudioAttributes.Builder()
+        val soundAttrs = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_NOTIFICATION)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build()
@@ -560,19 +561,24 @@ class DshNotificationService : Service() {
                 }
             )
         }
-        // Delete and recreate so existing installs pick up the sound on the channel.
-        nm.deleteNotificationChannel(CHANNEL_ALERTS)
-        nm.createNotificationChannel(
-            NotificationChannel(
-                CHANNEL_ALERTS,
-                getString(R.string.alerts_channel_name),
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = getString(R.string.alerts_channel_desc)
-                setSound(bell, bellAttrs)
-                enableVibration(true)
-            }
-        )
+        // Android restores a deleted channel's settings when the same ID is
+        // recreated, so the sound URI cannot be updated in place. Retire the
+        // pre-version channels and create the current one once; bump
+        // CHANNEL_ALERTS to ship a different sound.
+        for (legacy in LEGACY_CHANNEL_ALERTS) nm.deleteNotificationChannel(legacy)
+        if (nm.getNotificationChannel(CHANNEL_ALERTS) == null) {
+            nm.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_ALERTS,
+                    getString(R.string.alerts_channel_name),
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = getString(R.string.alerts_channel_desc)
+                    setSound(Settings.System.DEFAULT_NOTIFICATION_URI, soundAttrs)
+                    enableVibration(true)
+                }
+            )
+        }
     }
 
     // ── Wake lock ─────────────────────────────────────────────────────
